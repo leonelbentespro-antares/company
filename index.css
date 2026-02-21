@@ -1,0 +1,70 @@
+/* ============================================================
+   LEXHUB SAAS — index.css
+   Estilos globais e utilitários complementares ao Tailwind CDN
+   ============================================================ */
+
+/* Scrollbar customizada */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* Animações */
+@keyframes slide-in-from-bottom-4 {
+  from { opacity: 0; transform: translateY(1rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-from-right {
+  from { opacity: 0; transform: translateX(1rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes zoom-in-95 {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-in { animation-fill-mode: both; }
+.slide-in-from-bottom-4 { animation: slide-in-from-bottom-4 0.4s ease-out; }
+.slide-in-from-right     { animation: slide-in-from-right 0.3s ease-out; }
+.fade-in                 { animation: fade-in 0.4s ease-out; }
+.zoom-in-95              { animation: zoom-in-95 0.25s ease-out; }
+
+.duration-300 { animation-duration: 300ms; }
+.duration-500 { animation-duration: 500ms; }
+.duration-700 { animation-duration: 700ms; }
+
+/* Custom scrollbar class usado nos componentes */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; }
+
+/* Transição suave para modo dark */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Exceção: não aplicar transition em transforms (quebra animações) */
+.hover\:-translate-y-1:hover,
+.group-hover\:scale-110,
+.transition-all {
+  transition-property: all;
+}

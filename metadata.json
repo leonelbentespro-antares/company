@@ -1,0 +1,5 @@
+{
+  "name": "LexHub SaaS",
+  "description": "A high-performance multi-tenant legal management platform featuring subscription management, usage billing, SaaS metrics, and AI-powered document analysis.",
+  "requestFramePermissions": []
+}
