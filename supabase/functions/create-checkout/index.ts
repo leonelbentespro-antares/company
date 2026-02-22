@@ -98,6 +98,8 @@ Deno.serve(async (req) => {
       }
     });
 
+    console.log('Session created!', session.id);
+
     return new Response(
       JSON.stringify({ url: session.url }),
       {
@@ -106,7 +108,8 @@ Deno.serve(async (req) => {
       }
     );
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error('Critical Error:', err);
+    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     });
