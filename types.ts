@@ -40,6 +40,10 @@ export interface Plan {
     apiAccess: boolean;
     whiteLabel: boolean;
     prioritySupport?: boolean;
+    aiAgents?: number | 'Unlimited';
+    automations?: boolean;
+    triggers?: boolean;
+    flows?: boolean;
   };
 }
 

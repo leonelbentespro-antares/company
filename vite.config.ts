@@ -69,12 +69,32 @@ export default defineConfig(({ mode }) => {
       sourcemap: !isProd,
       // Minificar em produção
       minify: isProd ? 'terser' : false,
+      // Aumentar limite de aviso de chunk (projeto grande)
+      chunkSizeWarningLimit: 800,
       rollupOptions: {
         output: {
           // Nomes de chunk sem informação de estrutura interna
           chunkFileNames: isProd ? 'assets/[hash].js' : 'assets/[name]-[hash].js',
           entryFileNames: isProd ? 'assets/[hash].js' : 'assets/[name]-[hash].js',
           assetFileNames: isProd ? 'assets/[hash].[ext]' : 'assets/[name]-[hash].[ext]',
+          // Separar dependências em chunks para melhor cache
+          manualChunks(id) {
+            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('node_modules/@supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('node_modules/@hello-pangea') || id.includes('node_modules/@google')) {
+              return 'vendor-misc';
+            }
+          },
         },
       },
     },

@@ -19,7 +19,11 @@ export const PLANS: Plan[] = [
       maxClients: 200,
       storageGB: 10,
       apiAccess: false,
-      whiteLabel: false
+      whiteLabel: false,
+      aiAgents: 1,
+      automations: false,
+      triggers: true,
+      flows: true
     }
   },
   {
@@ -32,7 +36,11 @@ export const PLANS: Plan[] = [
       maxClients: 1000,
       storageGB: 50,
       apiAccess: true,
-      whiteLabel: true
+      whiteLabel: true,
+      aiAgents: 'Unlimited',
+      automations: true,
+      triggers: true,
+      flows: true
     }
   },
   {
@@ -46,7 +54,11 @@ export const PLANS: Plan[] = [
       storageGB: 200,
       apiAccess: true,
       whiteLabel: true,
-      prioritySupport: true
+      prioritySupport: true,
+      aiAgents: 'Unlimited',
+      automations: true,
+      triggers: true,
+      flows: true
     }
   }
 ];
@@ -58,13 +70,13 @@ export const MOCK_TENANTS: Tenant[] = [
 ];
 
 export const MOCK_PROCESSES: Process[] = [
-  { 
-    id: '1', 
-    number: '5001234-56.2023.8.26.0001', 
-    clientName: 'Carlos Eduardo Oliveira', 
-    subject: 'Indenização por Danos Morais', 
-    court: '3ª Vara Cível de São Paulo', 
-    status: 'Active', 
+  {
+    id: '1',
+    number: '5001234-56.2023.8.26.0001',
+    clientName: 'Carlos Eduardo Oliveira',
+    subject: 'Indenização por Danos Morais',
+    court: '3ª Vara Cível de São Paulo',
+    status: 'Active',
     stage: ProcessStage.Initial,
     lastMovement: '2024-05-10',
     createdAt: '2023-01-15',
@@ -74,13 +86,13 @@ export const MOCK_PROCESSES: Process[] = [
       { id: 'd3', name: 'Contrato Assinado', status: 'Received' }
     ]
   },
-  { 
-    id: 'mat_1', 
-    number: '1099887-22.2024.4.03.6100', 
-    clientName: 'Maria Helena Souza', 
-    subject: 'Salário Maternidade Rural', 
-    court: 'Justiça Federal - TRF3', 
-    status: 'Active', 
+  {
+    id: 'mat_1',
+    number: '1099887-22.2024.4.03.6100',
+    clientName: 'Maria Helena Souza',
+    subject: 'Salário Maternidade Rural',
+    court: 'Justiça Federal - TRF3',
+    status: 'Active',
     stage: ProcessStage.Evidence,
     lastMovement: '2024-05-22',
     createdAt: '2024-02-15',

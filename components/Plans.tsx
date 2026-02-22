@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
-import { 
-  Check, 
-  Zap, 
-  ShieldCheck, 
-  Rocket, 
-  Crown, 
-  ArrowRight, 
-  Mail, 
-  CreditCard, 
+import {
+  Check,
+  Zap,
+  ShieldCheck,
+  Rocket,
+  Crown,
+  ArrowRight,
+  Mail,
+  CreditCard,
   Lock,
   ChevronRight,
   Sparkles,
@@ -68,11 +68,10 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
           const isEnterprise = plan.name === PlanName.Enterprise;
 
           return (
-            <div 
-              key={plan.name} 
-              className={`relative bg-white rounded-[2.5rem] p-8 border-2 transition-all hover:shadow-2xl hover:-translate-y-2 flex flex-col ${
-                isPro ? 'border-legal-bronze shadow-xl shadow-legal-bronze/10' : 'border-slate-100'
-              }`}
+            <div
+              key={plan.name}
+              className={`relative bg-white rounded-[2.5rem] p-8 border-2 transition-all hover:shadow-2xl hover:-translate-y-2 flex flex-col ${isPro ? 'border-legal-bronze shadow-xl shadow-legal-bronze/10' : 'border-slate-100'
+                }`}
             >
               {isPro && (
                 <div className="absolute -top-5 left-1/2 -translate-x-1/2 bg-legal-bronze text-white px-6 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-2">
@@ -81,9 +80,8 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
               )}
 
               <div className="mb-8">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${
-                  isEnterprise ? 'bg-legal-navy text-white' : isPro ? 'bg-legal-bronze text-white' : 'bg-slate-100 text-slate-600'
-                }`}>
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${isEnterprise ? 'bg-legal-navy text-white' : isPro ? 'bg-legal-bronze text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
                   {isEnterprise ? <Crown size={28} /> : isPro ? <Zap size={28} /> : <Rocket size={28} />}
                 </div>
                 <h3 className="text-2xl font-bold text-slate-900 mb-2">{plan.name}</h3>
@@ -119,6 +117,30 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
                     <span>White-label (Marca Própria)</span>
                   </div>
                 )}
+                {plan.limits.aiAgents && (
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Check size={12} strokeWidth={3} /></div>
+                    <span>{plan.limits.aiAgents === 'Unlimited' ? 'Agentes de IA Ilimitados' : `${plan.limits.aiAgents} Agente de IA`}</span>
+                  </div>
+                )}
+                {plan.limits.automations && (
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Check size={12} strokeWidth={3} /></div>
+                    <span>Automações</span>
+                  </div>
+                )}
+                {plan.limits.triggers && (
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Check size={12} strokeWidth={3} /></div>
+                    <span>Disparos</span>
+                  </div>
+                )}
+                {plan.limits.flows && (
+                  <div className="flex items-center gap-3 text-sm font-bold text-slate-700">
+                    <div className="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><Check size={12} strokeWidth={3} /></div>
+                    <span>Fluxo Próprio</span>
+                  </div>
+                )}
               </div>
 
               {isCurrent ? (
@@ -126,11 +148,10 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
                   <ShieldCheck size={20} /> Plano Atual
                 </div>
               ) : (
-                <button 
+                <button
                   onClick={() => handleOpenCheckout(plan)}
-                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${
-                    isPro ? 'bg-legal-bronze text-white shadow-legal-bronze/20 hover:brightness-110' : 'bg-legal-navy text-white shadow-legal-navy/20 hover:brightness-110'
-                  }`}
+                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${isPro ? 'bg-legal-bronze text-white shadow-legal-bronze/20 hover:brightness-110' : 'bg-legal-navy text-white shadow-legal-navy/20 hover:brightness-110'
+                    }`}
                 >
                   Fazer Upgrade <ArrowRight size={20} />
                 </button>
@@ -145,7 +166,7 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={closeModals}></div>
           <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95">
-            
+
             {step === 'checkout' && (
               <>
                 <div className="bg-legal-navy p-8 text-white relative">
@@ -158,7 +179,7 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="p-8 space-y-6">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
                     <div>
@@ -191,7 +212,7 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
                     </div>
                   </div>
 
-                  <button 
+                  <button
                     onClick={handleConfirmUpgrade}
                     disabled={loading}
                     className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 flex items-center justify-center gap-3 hover:brightness-110 disabled:opacity-50 transition-all"
@@ -224,7 +245,7 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
                   </div>
                 </div>
 
-                <button 
+                <button
                   onClick={closeModals}
                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-slate-800 transition-all"
                 >
