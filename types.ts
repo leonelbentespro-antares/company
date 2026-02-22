@@ -33,6 +33,7 @@ export interface Plan {
   price: number;
   currency: string;
   setupFee: number;
+  stripePriceId?: string;
   limits: {
     maxUsers: number | 'Unlimited';
     maxClients: number | 'Unlimited';

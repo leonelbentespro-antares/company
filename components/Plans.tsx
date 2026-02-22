@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PLANS } from '../constants.ts';
 import { PlanName } from '../types.ts';
+import { supabase } from '../services/supabaseClient';
 
 interface PlansProps {
   currentPlan?: PlanName;
@@ -34,13 +35,25 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
     setIsCheckoutOpen(true);
   };
 
-  const handleConfirmUpgrade = () => {
+  const handleConfirmUpgrade = async () => {
     setLoading(true);
-    // Simula processamento de pagamento e envio de e-mail
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { planId: selectedPlan?.stripePriceId }
+      });
+      if (error) throw error;
+
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        setStep('success'); // Fallback in case of no url configured properly yet
+      }
+    } catch (err) {
+      console.error('Error creating checkout session', err);
+      alert('Erro ao processar checkout. Verifique o console.');
+    } finally {
       setLoading(false);
-      setStep('success');
-    }, 2000);
+    }
   };
 
   const closeModals = () => {
