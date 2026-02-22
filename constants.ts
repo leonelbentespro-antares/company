@@ -14,7 +14,7 @@ export const PLANS: Plan[] = [
     price: 297,
     currency: 'BRL',
     setupFee: 997,
-    stripePriceId: 'price_starter_placeholder', // TODO: Replace with real Stripe Price ID
+    stripePriceId: 'price_1T3jHtJ9ZEZzMZTmJ5KkKRJ0',
     limits: {
       maxUsers: 5,
       maxClients: 200,
@@ -32,7 +32,7 @@ export const PLANS: Plan[] = [
     price: 697,
     currency: 'BRL',
     setupFee: 1997,
-    stripePriceId: 'price_professional_placeholder', // TODO: Replace with real Stripe Price ID
+    stripePriceId: 'price_1T3jHvJ9ZEZzMZTmLmeSeRpP',
     limits: {
       maxUsers: 20,
       maxClients: 1000,
@@ -50,7 +50,7 @@ export const PLANS: Plan[] = [
     price: 1497,
     currency: 'BRL',
     setupFee: 4997,
-    stripePriceId: 'price_enterprise_placeholder', // TODO: Replace with real Stripe Price ID
+    stripePriceId: 'price_1T3jHwJ9ZEZzMZTmoobBAcbc',
     limits: {
       maxUsers: 'Unlimited',
       maxClients: 'Unlimited',
