@@ -11,10 +11,10 @@ import {
   ChevronDown, GripVertical, Terminal, AlertCircle, Share2,
   MousePointer2, Timer, MailCheck, Eye, Smartphone, MoreHorizontal,
   LayoutDashboard, Megaphone, UploadCloud, Music, Power, PowerOff,
-  AlarmClock, BellRing, MessageSquare
+  AlarmClock, BellRing, MessageSquare, Sparkles
 } from 'lucide-react';
 
-type BlockType = 'text' | 'wait' | 'image' | 'file' | 'audio';
+type BlockType = 'text' | 'wait' | 'image' | 'file' | 'audio' | 'menu';
 
 interface FlowBlock {
   id: string;
@@ -65,7 +65,7 @@ interface BroadcastCampaign {
 type AutomationTab = 'broadcaster' | 'flows' | 'followups';
 
 const SECTORS = ['Comercial', 'Triagem Jurídica', 'Documentação', 'Jurídico Técnico', 'Protocolo', 'Acompanhamento', 'Financeiro'];
-const TAGS = ['Novo Lead', 'Urgente', 'Aguardando Doc', 'Sentença', 'Recurso', 'Finalizado', 'Prioridade'];
+const TAGS = ['Novo Lead', 'Urgente', 'Aguardando Doc', 'Sentença', 'Recurso', 'Finalizado', 'Prioridade', 'Salário Maternidade', 'TEA (Autismo)', 'Consumidor', 'Trabalhista'];
 
 export const Automation: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AutomationTab>('broadcaster');
@@ -78,21 +78,95 @@ export const Automation: React.FC = () => {
   };
   const save = (key: string, d: any) => localStorage.setItem(key, JSON.stringify(d));
 
-  const [flows, setFlows] = useState<AutomationFlow[]>(() => load('lex_flows', [
+  const PRE_BUILT_FLOWS: AutomationFlow[] = [
     {
-      id: 'f1',
-      name: 'Boas-vindas Cível',
-      description: 'Fluxo automático para novos leads interessados em processos cíveis.',
-      trigger: 'INFO',
+      id: 'f1_mat',
+      name: 'Salário Maternidade',
+      description: 'Triagem inicial para mães interessadas em benefícios de Salário Maternidade.',
+      trigger: 'MATERNIDADE, BEBE, GRAVIDA, LICENCA',
       active: true,
       blocks: [
-        { id: 'b1', type: 'text', content: 'Olá! Bem-vindo ao escritório Almeida Advocacia. Como posso ajudar?' },
-        { id: 'b2', type: 'wait', content: '3', metadata: { duration: 3 } },
-        { id: 'b3', type: 'audio', content: 'audio_explicativo.mp3', metadata: { duration: 15 } },
-        { id: 'b4', type: 'text', content: 'Este áudio explica como funcionam nossos honorários iniciais.' }
+        { id: 'b1', type: 'text', content: 'Olá! Sou a assistente virtual da LexHub especializada em Direitos Previdenciários.' },
+        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
+        { id: 'b3', type: 'text', content: 'Vi que você tem interesse no Salário Maternidade. O processo é rápido e seguro conosco.' },
+        {
+          id: 'b4', type: 'menu', content: 'Qual a sua situação atual?',
+          metadata: {
+            options: [
+              { id: 'opt1', label: 'Estou Gestante', targetTag: 'Salário Maternidade', reply: 'Excelente! Vamos iniciar a análise de documentos.' },
+              { id: 'opt2', label: 'Bebê já nasceu', targetTag: 'Salário Maternidade', reply: 'Maravilha! Vamos solicitar a Certidão para avaliar.' },
+              { id: 'opt3', label: 'Falar com Atendente', targetTag: 'Atendimento Humano', reply: 'Ok, transferindo para nosso(a) consultor(a)...' }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'f2_tea',
+      name: 'TEA (Autismo) - BPC/LOAS',
+      description: 'Atendimento inicial para leads buscando benefícios assistenciais e laudos TEA.',
+      trigger: 'TEA, AUTISMO, BPC, LOAS',
+      active: true,
+      blocks: [
+        { id: 'b1', type: 'text', content: 'Olá, me chamo Ana. Aqui na LexHub somos especialistas em assegurar os direitos do Autista (TEA).' },
+        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
+        {
+          id: 'b3', type: 'menu', content: 'Como posso te direcionar da melhor forma?',
+          metadata: {
+            options: [
+              { id: 'opt1', label: 'Benefício BPC/LOAS', targetTag: 'TEA (Autismo)', reply: 'Vamos avaliar a elegibilidade e requisitos para o BPC.' },
+              { id: 'opt2', label: 'Direitos na Escola', targetTag: 'TEA (Autismo)', reply: 'Certo, a educação inclusiva é direito garantido!' },
+              { id: 'opt3', label: 'Convênio Médico', targetTag: 'TEA (Autismo)', reply: 'Iremos analisar as negativas do seu plano de saúde.' }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'f3_con',
+      name: 'Defesa do Consumidor',
+      description: 'Fluxo para problemas com voos, bancos, cobranças indevidas e inclusão no SPC/Serasa.',
+      trigger: 'CONSUMIDOR, VOO, BANCO, NOME SUJO',
+      active: true,
+      blocks: [
+        { id: 'b1', type: 'text', content: 'Seja bem-vindo(a)! Se os seus direitos como consumidor foram violados, você está no lugar certo.' },
+        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
+        {
+          id: 'b3', type: 'menu', content: 'Selecione abaixo o serviço principal que você procura:',
+          metadata: {
+            options: [
+              { id: 'opt1', label: 'Voo Cancelado/Atraso', targetTag: 'Consumidor', reply: 'Precisaremos dos comprovantes de passagens e gastos extras.' },
+              { id: 'opt2', label: 'Nome Negativado', targetTag: 'Consumidor', reply: 'Cobrança indevida gera dano moral. Vamos investigar!' },
+              { id: 'opt3', label: 'Problemas com Bancos', targetTag: 'Consumidor', reply: 'Entendi. Fraudes ou empréstimos não reconhecidos?' }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      id: 'f4_tra',
+      name: 'Direito Trabalhista',
+      description: 'Rescisão, horas extras, acidente de trabalho ou demissão sem justa causa.',
+      trigger: 'TRABALHO, EMPRESA, DEMISSAO, JUSTA CAUSA',
+      active: true,
+      blocks: [
+        { id: 'b1', type: 'text', content: 'Olá! Sou especialista em Direitos do Trabalhador na LexHub.' },
+        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
+        {
+          id: 'b3', type: 'menu', content: 'Qual problema ocorreu com seu empregador?',
+          metadata: {
+            options: [
+              { id: 'opt1', label: 'Demissão S/ Justa Causa', targetTag: 'Trabalhista', reply: 'Vamos conferir se as verbas foram pagas corretamente.' },
+              { id: 'opt2', label: 'Horas Extras/Assédio', targetTag: 'Trabalhista', reply: 'Certo, isso é grave. Precisa de testemunhas?' },
+              { id: 'opt3', label: 'Não tem Carteira Assinada', targetTag: 'Trabalhista', reply: 'Iremos buscar o reconhecimento do vínculo.' }
+            ]
+          }
+        }
       ]
     }
-  ]));
+  ];
+
+  const [flows, setFlows] = useState<AutomationFlow[]>(() => load('lex_flows', PRE_BUILT_FLOWS));
 
   const [broadcasts, setBroadcasts] = useState<BroadcastCampaign[]>(() => load('lex_broadcasts', [
     {
@@ -914,6 +988,7 @@ export const Automation: React.FC = () => {
                       { type: 'image' as BlockType, label: 'Imagem', icon: <ImageIcon size={18} />, color: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/40' },
                       { type: 'file' as BlockType, label: 'PDF', icon: <FileText size={18} />, color: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 hover:bg-rose-100 dark:hover:bg-rose-900/40' },
                       { type: 'audio' as BlockType, label: 'Áudio', icon: <Mic size={18} />, color: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 hover:bg-emerald-100 dark:hover:bg-emerald-900/40' },
+                      { type: 'menu' as BlockType, label: 'Menu', icon: <ListTodo size={18} />, color: 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900/40' },
                     ]).map(({ type, label, icon, color }) => (
                       <button
                         key={type}
@@ -974,6 +1049,7 @@ export const Automation: React.FC = () => {
                         image: { label: 'Enviar Imagem', color: 'border-l-purple-400', icon: <ImageIcon size={16} className="text-purple-500" /> },
                         file: { label: 'Enviar Arquivo PDF', color: 'border-l-rose-400', icon: <FileText size={16} className="text-rose-500" /> },
                         audio: { label: 'Mensagem de Áudio', color: 'border-l-emerald-400', icon: <Mic size={16} className="text-emerald-500" /> },
+                        menu: { label: 'Menu de Opções', color: 'border-l-indigo-400', icon: <ListTodo size={16} className="text-indigo-500" /> },
                       };
                       const cfg = cfgMap[block.type];
                       return (
@@ -1009,6 +1085,102 @@ export const Automation: React.FC = () => {
                               <Mic size={16} className="text-emerald-500 shrink-0" />
                               <input type="text" placeholder="Nome do arquivo de áudio (ex: audio_boas_vindas.mp3)" className="flex-1 bg-transparent text-sm dark:text-white outline-none" value={block.content} onChange={(e) => updateBlockContent(block.id, e.target.value)} />
                               <span className="text-[9px] text-emerald-600 font-black bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">Áudio</span>
+                            </div>
+                          )}
+                          {block.type === 'menu' && (
+                            <div className="space-y-3">
+                              <input
+                                type="text"
+                                placeholder="Pergunta do menu (Ex: Qual o seu serviço desejado?)"
+                                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-indigo-500/10 mb-2"
+                                value={block.content}
+                                onChange={(e) => updateBlockContent(block.id, e.target.value)}
+                              />
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Opções do Botão</p>
+                              <div className="space-y-2">
+                                {(block.metadata?.options || []).map((opt: any, optIdx: number) => (
+                                  <div key={opt.id} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="bg-indigo-500 text-white w-5 h-5 flex items-center justify-center rounded-lg text-[10px] font-black shrink-0">{optIdx + 1}</span>
+                                      <input
+                                        type="text"
+                                        placeholder="Rótulo do botão"
+                                        className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs dark:text-white outline-none"
+                                        value={opt.label}
+                                        onChange={(e) => {
+                                          const newOpts = [...block.metadata.options];
+                                          newOpts[optIdx] = { ...opt, label: e.target.value };
+                                          setFlowForm(prev => ({
+                                            ...prev,
+                                            blocks: prev.blocks?.map(b => b.id === block.id ? { ...b, metadata: { ...b.metadata, options: newOpts } } : b)
+                                          }));
+                                        }}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="text-rose-400 hover:text-rose-500 p-1"
+                                        onClick={() => {
+                                          const newOpts = block.metadata.options.filter((_: any, i: number) => i !== optIdx);
+                                          setFlowForm(prev => ({
+                                            ...prev,
+                                            blocks: prev.blocks?.map(b => b.id === block.id ? { ...b, metadata: { ...b.metadata, options: newOpts } } : b)
+                                          }));
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2 pl-7">
+                                      <Tag size={12} className="text-slate-400" />
+                                      <input
+                                        type="text"
+                                        placeholder="Tag Alvo (Ex: Trabalhista)"
+                                        className="flex-1 bg-transparent border-b border-slate-200 dark:border-slate-700 pb-0.5 text-[10px] dark:text-slate-300 outline-none"
+                                        value={opt.targetTag || ''}
+                                        onChange={(e) => {
+                                          const newOpts = [...block.metadata.options];
+                                          newOpts[optIdx] = { ...opt, targetTag: e.target.value };
+                                          setFlowForm(prev => ({
+                                            ...prev,
+                                            blocks: prev.blocks?.map(b => b.id === block.id ? { ...b, metadata: { ...b.metadata, options: newOpts } } : b)
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2 pl-7">
+                                      <MessageSquare size={12} className="text-slate-400" />
+                                      <input
+                                        type="text"
+                                        placeholder="Resposta do bot"
+                                        className="flex-1 bg-transparent border-b border-slate-200 dark:border-slate-700 pb-0.5 text-[10px] dark:text-slate-300 outline-none"
+                                        value={opt.reply || ''}
+                                        onChange={(e) => {
+                                          const newOpts = [...block.metadata.options];
+                                          newOpts[optIdx] = { ...opt, reply: e.target.value };
+                                          setFlowForm(prev => ({
+                                            ...prev,
+                                            blocks: prev.blocks?.map(b => b.id === block.id ? { ...b, metadata: { ...b.metadata, options: newOpts } } : b)
+                                          }));
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  className="w-full py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-xl font-bold text-xs hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                                  onClick={() => {
+                                    const currOpts = block.metadata?.options || [];
+                                    const newOpts = [...currOpts, { id: `opt_${Date.now()}`, label: 'Nova Opção', targetTag: '', reply: '' }];
+                                    setFlowForm(prev => ({
+                                      ...prev,
+                                      blocks: prev.blocks?.map(b => b.id === block.id ? { ...b, metadata: { ...b.metadata, options: newOpts } } : b)
+                                    }));
+                                  }}
+                                >
+                                  <Plus size={14} /> Adicionar Botão
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1062,6 +1234,44 @@ export const Automation: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <FileText size={16} className="text-rose-300" />
                             <p className="text-white text-xs">{msg.content || 'Documento PDF'}</p>
+                          </div>
+                        ) : msg.type === 'menu' ? (
+                          <div className="space-y-3 pb-1">
+                            <p className="text-white font-bold text-sm leading-relaxed">{msg.content || 'Selecione uma opção:'}</p>
+                            <div className="space-y-2">
+                              {msg.metadata?.options?.map((opt: any, optIdx: number) => (
+                                <button
+                                  key={optIdx}
+                                  onClick={() => {
+                                    if (isSimulating) return; // For visual only, wait for typing simulation
+                                    setSimMessages(prev => [...prev, { type: 'text', content: opt.label, fromMe: true }]);
+                                    setSimTyping(true);
+                                    if (opt.targetTag) {
+                                      setTimeout(() => {
+                                        setSimMessages(prev => [...prev, { type: 'text', content: `[Sistema] Tag Aplicada: ${opt.targetTag}`, fromMe: false, isTag: true }]);
+                                      }, 500);
+                                    }
+                                    if (opt.reply) {
+                                      setTimeout(() => {
+                                        setSimMessages(prev => [...prev, { type: 'text', content: opt.reply, fromMe: false }]);
+                                        setSimTyping(false);
+                                      }, 1500);
+                                    } else {
+                                      setTimeout(() => setSimTyping(false), 800);
+                                    }
+                                  }}
+                                  className="w-full py-2.5 px-4 bg-indigo-500 hover:bg-indigo-600 transition-colors text-white text-xs font-bold rounded-xl flex items-center justify-between group-btn"
+                                >
+                                  {opt.label || `Opção ${optIdx + 1}`}
+                                  <ChevronRight size={14} className="opacity-50" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : msg.isTag ? (
+                          <div className="bg-slate-800/80 rounded-lg p-2 flex items-center justify-center gap-2 border border-slate-600">
+                            <Tag size={12} className="text-slate-400" />
+                            <p className="text-slate-300 text-[10px] font-bold uppercase tracking-widest">{msg.content}</p>
                           </div>
                         ) : (
                           <p className="text-white text-xs leading-relaxed">{msg.content}</p>

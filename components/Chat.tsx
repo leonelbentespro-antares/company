@@ -46,7 +46,9 @@ import {
   Download,
   FileSpreadsheet,
   ArrowRightLeft,
-  Building2
+  Building2,
+  KanbanSquare,
+  List
 } from 'lucide-react';
 import { ChatConversation, ChatMessage } from '../types.ts';
 
@@ -131,6 +133,10 @@ const INITIAL_TAGS: ChatTag[] = [
   { id: 't1', label: 'Urgente', color: '#ef4444' },
   { id: 't2', label: 'Financeiro', color: '#10b981' },
   { id: 't3', label: 'Revisão', color: '#f59e0b' },
+  { id: 't4', label: 'Salário Maternidade', color: '#ec4899' },
+  { id: 't5', label: 'TEA (Autismo)', color: '#3b82f6' },
+  { id: 't6', label: 'Consumidor', color: '#8b5cf6' },
+  { id: 't7', label: 'Trabalhista', color: '#A67C52' },
 ];
 
 const INITIAL_QUICK_REPLIES: QuickReply[] = [
@@ -209,6 +215,7 @@ const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4
 
 export const Chat: React.FC = () => {
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
+  const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>('list');
   const [externalConversations, setExternalConversations] = useState<ChatConversation[]>(() => {
     const saved = localStorage.getItem('lexhub_chat_external_v1');
     return saved ? JSON.parse(saved) : MOCK_EXTERNAL_CONVERSATIONS;
@@ -565,6 +572,38 @@ export const Chat: React.FC = () => {
     qr.command.toLowerCase().includes(newMessage.toLowerCase().substring(1))
   );
 
+  // --- KANBAN LOGIC ---
+  const handleDragStart = (e: React.DragEvent, chatId: string) => {
+    e.dataTransfer.setData('chatId', chatId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetTagId: string | null) => {
+    e.preventDefault();
+    const chatId = e.dataTransfer.getData('chatId');
+    if (!chatId) return;
+
+    const currentTags = chatTagRelations[chatId] || [];
+
+    // Se "targetTagId" for null, significa que soltou na coluna "Sem Tag"
+    // Removemos todas as outras tags de serviço principais para este exemplo simplificado,
+    // ou mantemos o controle de trocar a tag do card.
+
+    // Simplificando o Kanban: quando arrasta para uma coluna, ele SETA a tag da coluna 
+    // e remove de outras tags do "Kanban" se for exclusivo. 
+    // Para simplificar: apenas add a "targetTagId" e remove o resto.
+    if (targetTagId === null) {
+      setChatTagRelations({ ...chatTagRelations, [chatId]: [] });
+      setShowToast('Card movido para "Sem Tag"');
+    } else {
+      setChatTagRelations({ ...chatTagRelations, [chatId]: [targetTagId] });
+      setShowToast('Tag atualizada via Kanban!');
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-140px)] bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex animate-in fade-in duration-700 relative">
 
@@ -581,6 +620,22 @@ export const Chat: React.FC = () => {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">Mensagens</h2>
             <div className="flex gap-2">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mr-2">
+                <button
+                  onClick={() => setChatViewMode('list')}
+                  title="Modo Lista"
+                  className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <List size={14} />
+                </button>
+                <button
+                  onClick={() => setChatViewMode('kanban')}
+                  title="Modo Kanban"
+                  className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  <KanbanSquare size={14} />
+                </button>
+              </div>
               <button
                 onClick={() => setIsTagsModalOpen(true)}
                 title="Gerenciar Etiquetas"
@@ -697,9 +752,9 @@ export const Chat: React.FC = () => {
         </div>
       </div>
 
-      {/* Área Principal de Chat */}
+      {/* Área Principal de Chat / Kanban */}
       <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 ${isSidebarOpen && 'hidden md:flex'}`}>
-        {selectedChat ? (
+        {selectedChat && chatViewMode === 'list' ? (
           <>
             <div className="p-4 md:p-6 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3 md:gap-4">
@@ -865,6 +920,103 @@ export const Chat: React.FC = () => {
               </form>
             </div>
           </>
+        ) : chatViewMode === 'kanban' ? (
+          <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900/50 overflow-hidden">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
+              <div>
+                <h3 className="text-2xl font-black text-legal-navy dark:text-white flex items-center gap-3">
+                  <KanbanSquare size={24} className="text-legal-bronze" />
+                  Kanban de Atendimentos
+                </h3>
+                <p className="text-slate-500 text-sm font-medium mt-1">Organize conversas processuais arrastando entre as etapas.</p>
+              </div>
+            </div>
+            <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 flex items-start gap-6 custom-scrollbar">
+              {/* Coluna Sem Tag (Caixa de Entrada) */}
+              <div
+                className="w-80 shrink-0 flex flex-col max-h-full"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, null)}
+              >
+                <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-slate-300"></span>
+                    <h4 className="font-bold text-sm text-slate-800 dark:text-white">Sem Etiqueta</h4>
+                  </div>
+                  <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
+                    {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).length}
+                  </span>
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
+                  {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).map(chat => (
+                    <div
+                      key={chat.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, chat.id)}
+                      onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
+                      className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
+                        <div className="flex-1 min-w-0">
+                          <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
+                          <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2 italic">"{chat.lastMessage}"</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Colunas por Tag */}
+              {tags.map(tag => {
+                const chatsInTag = currentConversations.filter(c => chatTagRelations[c.id]?.includes(tag.id));
+                return (
+                  <div
+                    key={tag.id}
+                    className="w-80 shrink-0 flex flex-col max-h-full"
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, tag.id)}
+                  >
+                    <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm" style={{ borderTop: `4px solid ${tag.color}` }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }}></span>
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-white">{tag.label}</h4>
+                      </div>
+                      <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
+                        {chatsInTag.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
+                      {chatsInTag.map(chat => (
+                        <div
+                          key={chat.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, chat.id)}
+                          onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
+                          className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
+                              <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
+                            </div>
+                            {chat.unreadCount > 0 && <span className="bg-legal-bronze text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{chat.unreadCount}</span>}
+                          </div>
+                          <p className="text-xs text-slate-500 line-clamp-2 italic mb-3">"{chat.lastMessage}"</p>
+                          <div className="flex justify-end gap-1">
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded text-white" style={{ backgroundColor: tag.color }}>{tag.label}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-6">
             <MessageCircle size={64} className="text-slate-200" />
@@ -986,8 +1138,8 @@ export const Chat: React.FC = () => {
                           onClick={() => !isOffline && handleConfirmTransfer(agent)}
                           disabled={isOffline}
                           className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-all text-left ${isOffline
-                              ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'
-                              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'
+                            ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'
                             }`}
                         >
                           <div className="relative shrink-0">
@@ -1279,70 +1431,69 @@ export const Chat: React.FC = () => {
       )}
 
       {/* MODAL: RESPOSTAS RÁPIDAS */}
-      {isQuickReplyModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsQuickReplyModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
-            <div className="bg-legal-navy p-8 text-white relative flex-shrink-0">
-              <button onClick={() => setIsQuickReplyModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-              </button>
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg">
-                  <Zap size={32} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold">Respostas Rápidas</h3>
-                  <p className="text-white/60 text-sm tracking-tight uppercase font-bold">Atalhos de Atendimento</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-              <div className={`p-6 rounded-[2rem] border space-y-4 transition-all bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700`}>
-                <h4 className="text-sm font-black text-legal-navy dark:text-white uppercase flex items-center gap-2">
-                  {editingQRId ? <Edit3 size={16} className="text-amber-600" /> : <Plus size={16} />}
-                  {editingQRId ? 'Editando Atalho' : 'Novo Atalho'}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Comando (barra)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">/</span>
-                      <input type="text" placeholder="ola" className="w-full pl-8 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none dark:text-white" value={newQR.command} onChange={(e) => setNewQR({ ...newQR, command: e.target.value.toLowerCase() })} />
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Texto da Resposta</label>
-                    <textarea placeholder="Digite o texto que substituirá o atalho..." className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium outline-none resize-none h-20 dark:text-white" value={newQR.text} onChange={(e) => setNewQR({ ...newQR, text: e.target.value })} />
-                  </div>
-                </div>
-                <button onClick={handleSaveQuickReply} disabled={!newQR.command || !newQR.text} className={`w-full py-3.5 text-white rounded-xl font-bold text-sm shadow-xl bg-legal-navy hover:brightness-110 disabled:opacity-50`}>
-                  {editingQRId ? 'Salvar Alterações' : 'Criar Resposta Rápida'}
+      {
+        isQuickReplyModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsQuickReplyModalOpen(false)}></div>
+            <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+              <div className="bg-legal-navy p-8 text-white relative flex-shrink-0">
+                <button onClick={() => setIsQuickReplyModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={24} />
                 </button>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg">
+                    <Zap size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Respostas Rápidas</h3>
+                    <p className="text-white/60 text-sm tracking-tight uppercase font-bold">Atalhos de Atendimento</p>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 pb-2">Seus Atalhos</h4>
-                <div className="grid grid-cols-1 gap-3">
-                  {quickReplies.map(qr => (
-                    <div key={qr.id} className="p-4 bg-white dark:bg-slate-800 border rounded-2xl flex items-center justify-between group hover:shadow-lg transition-all border-slate-100 dark:border-slate-700">
-                      <div className="flex-1 min-w-0 pr-4">
-                        <span className="text-xs font-black text-legal-bronze uppercase block mb-1">/{qr.command}</span>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{qr.text}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => { setEditingQRId(qr.id); setNewQR({ command: qr.command, text: qr.text }); }} className="p-2 text-slate-400 hover:text-legal-navy transition-all"><Edit3 size={16} /></button>
-                        <button onClick={() => setQuickReplies(quickReplies.filter(q => q.id !== qr.id))} className="p-2 text-slate-400 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
+              <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                <div className={`p-6 rounded-[2rem] border space-y-4 transition-all bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700`}>
+                  <h4 className="text-sm font-black text-legal-navy dark:text-white uppercase flex items-center gap-2">
+                    {editingQRId ? <Edit3 size={16} className="text-amber-600" /> : <Plus size={16} />}
+                    {editingQRId ? 'Editando Atalho' : 'Novo Atalho'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Comando (barra)</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">/</span>
+                        <input type="text" placeholder="ola" className="w-full pl-8 pr-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold outline-none dark:text-white" value={newQR.command} onChange={(e) => setNewQR({ ...newQR, command: e.target.value.toLowerCase() })} />
                       </div>
                     </div>
-                  ))}
+                    <div className="md:col-span-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Texto da Resposta</label>
+                      <textarea placeholder="Digite o texto que substituirá o atalho..." className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium outline-none resize-none h-20 dark:text-white" value={newQR.text} onChange={(e) => setNewQR({ ...newQR, text: e.target.value })} />
+                    </div>
+                  </div>
+                  <button onClick={handleSaveQuickReply} disabled={!newQR.command || !newQR.text} className={`w-full py-3.5 text-white rounded-xl font-bold text-sm shadow-xl bg-legal-navy hover:brightness-110 disabled:opacity-50`}>
+                    {editingQRId ? 'Salvar Alterações' : 'Criar Resposta Rápida'}
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 pb-2">Seus Atalhos</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    {quickReplies.map(qr => (
+                      <div key={qr.id} className="p-4 bg-white dark:bg-slate-800 border rounded-2xl flex items-center justify-between group hover:shadow-lg transition-all border-slate-100 dark:border-slate-700">
+                        <div className="flex-1 min-w-0 pr-4">
+                          <span className="text-xs font-black text-legal-bronze uppercase block mb-1">/{qr.command}</span>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 truncate">{qr.text}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };
