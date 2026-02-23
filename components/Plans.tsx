@@ -38,19 +38,32 @@ export const Plans: React.FC<PlansProps> = ({ currentPlan = PlanName.Starter, us
   const handleConfirmUpgrade = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: { planId: selectedPlan?.stripePriceId }
+      const res = await supabase.functions.invoke('create-checkout', {
+        body: {
+          planId: selectedPlan?.stripePriceId,
+          rootEmail: userEmail,
+          rootUserId: 'mock-frontend-user-' + Math.floor(Math.random() * 1000)
+        }
       });
-      if (error) throw error;
+
+      const { data, error } = res;
+      if (error) {
+        let detail = '';
+        try {
+          const jsonErr = await error.context.json();
+          detail = JSON.stringify(jsonErr);
+        } catch (e) { }
+        throw new Error(error.message + ' | Details: ' + detail);
+      }
 
       if (data?.url) {
         window.location.href = data.url;
       } else {
         setStep('success'); // Fallback in case of no url configured properly yet
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating checkout session', err);
-      alert('Erro ao processar checkout. Verifique o console.');
+      alert('Erro ao processar checkout: ' + (err.message || JSON.stringify(err)));
     } finally {
       setLoading(false);
     }
