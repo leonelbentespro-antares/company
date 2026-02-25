@@ -59,6 +59,9 @@ import { Chat } from './components/Chat.tsx';
 import { Integrations } from './components/Integrations.tsx';
 import { Team } from './components/Team.tsx';
 import { User, UserRole } from './types.ts';
+import { useTenant } from './services/tenantContext.tsx';
+import { useLanguage } from './services/languageContext.tsx';
+import { LanguageSelector } from './components/LanguageSelector.tsx';
 
 interface Notification {
   id: string;
@@ -91,6 +94,8 @@ const SidebarItem: React.FC<{
 );
 
 const App: React.FC = () => {
+  const { tenantId, loading: tenantContextLoading, error } = useTenant();
+  const { t } = useLanguage();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -225,6 +230,37 @@ const App: React.FC = () => {
     return <Auth onLogin={handleLogin} />;
   }
 
+  // Trava a tela enquanto o Tenant não acorda no Contexto
+  if (tenantContextLoading || (!tenantId && !error)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-legal-bronze border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-legal-navy dark:text-white font-bold animate-pulse">{t.loading.workspace}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Se houver um erro fatal de carregamento (ex: Auto-provision falhou)
+  if (error && !tenantId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+        <div className="flex flex-col items-center gap-4 max-w-lg text-center">
+          <AlertTriangle size={48} className="text-rose-500" />
+          <h2 className="text-2xl font-black text-slate-800 dark:text-white">{t.loading.failedTitle}</h2>
+          <p className="text-slate-500 dark:text-slate-400">{t.loading.failedDesc}</p>
+          <div className="bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 p-4 rounded-xl border border-rose-100 dark:border-rose-900/50 w-full font-mono text-xs text-left break-all select-all">
+            {error}
+          </div>
+          <button onClick={() => window.location.reload()} className="mt-4 px-6 py-3 bg-legal-navy text-white rounded-xl font-bold hover:bg-legal-navy/90 transition-colors">
+            {t.loading.retry}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Visualização específica para o CLIENTE FINAL
   if (currentUser?.role === UserRole.Client) {
     return (
@@ -235,10 +271,11 @@ const App: React.FC = () => {
             <span className="text-xl font-bold text-legal-navy dark:text-white tracking-tight uppercase">LexHub Client</span>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageSelector variant="minimal" />
             <button
               onClick={toggleTheme}
               className="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all"
-              title={isDarkMode ? "Ativar Modo Claro" : "Ativar Modo Escuro"}
+              title={isDarkMode ? t.header.lightMode : t.header.darkMode}
             >
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
@@ -563,82 +600,82 @@ const App: React.FC = () => {
       <nav className="flex-1 space-y-2">
         <SidebarItem
           icon={<LayoutDashboard size={20} />}
-          label="Dashboard"
+          label={t.nav.dashboard}
           active={activeTab === 'dashboard'}
           onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<MessageCircle size={20} />}
-          label="Chat"
+          label={t.nav.chat}
           active={activeTab === 'chat'}
           onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
           badge={3}
         />
         <SidebarItem
           icon={<Users size={20} />}
-          label="Tenants"
+          label={t.nav.tenants}
           active={activeTab === 'tenants'}
           onClick={() => { setActiveTab('tenants'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Briefcase size={20} />}
-          label="Team"
+          label={t.nav.team}
           active={activeTab === 'team'}
           onClick={() => { setActiveTab('team'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Scale size={20} />}
-          label="Processos"
+          label={t.nav.processes}
           active={activeTab === 'processes'}
           onClick={() => { setActiveTab('processes'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<BrainCircuit size={20} />}
-          label="Módulo IA"
+          label={t.nav.aiModule}
           active={activeTab === 'ai'}
           onClick={() => { setActiveTab('ai'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Share2 size={20} />}
-          label="Automação"
+          label={t.nav.automation}
           active={activeTab === 'automation'}
           onClick={() => { setActiveTab('automation'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<PlugZap size={20} />}
-          label="Integrações"
+          label={t.nav.integrations}
           active={activeTab === 'integrations'}
           onClick={() => { setActiveTab('integrations'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<MessageSquare size={20} />}
-          label="Agentes de IA"
+          label={t.nav.aiAgents}
           active={activeTab === 'agents'}
           onClick={() => { setActiveTab('agents'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<CreditCard size={20} />}
-          label="Faturamento"
+          label={t.nav.billing}
           active={activeTab === 'billing'}
           onClick={() => { setActiveTab('billing'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Sparkles size={20} />}
-          label="Planos & Upgrade"
+          label={t.nav.plans}
           active={activeTab === 'plans'}
           onClick={() => { setActiveTab('plans'); setIsSidebarOpen(false); }}
         />
         <div className="pt-8 pb-4">
-          <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Administração</p>
+          <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">{t.nav.administration}</p>
           <SidebarItem
             icon={<SettingsIcon size={20} />}
-            label="Configurações"
+            label={t.nav.settings}
             active={activeTab === 'settings'}
             onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
           />
           <SidebarItem
             icon={<ShieldCheck size={20} />}
-            label="Segurança & Logs"
+            label={t.nav.security}
             active={activeTab === 'security'}
             onClick={() => { setActiveTab('security'); setIsSidebarOpen(false); }}
           />
@@ -651,7 +688,7 @@ const App: React.FC = () => {
           className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white transition-colors"
         >
           <LogOut size={20} />
-          <span className="font-medium">Sair do Painel</span>
+          <span className="font-medium">{t.nav.logout}</span>
         </button>
       </div>
     </>
@@ -699,18 +736,20 @@ const App: React.FC = () => {
               <Search size={18} className="text-slate-400" />
               <input
                 type="text"
-                placeholder="Pesquisar..."
+                placeholder={t.header.search}
                 className="bg-transparent border-none outline-none text-sm w-full text-slate-900 dark:text-slate-100"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-2 lg:gap-4">
+            {/* Seletor de Idioma */}
+            <LanguageSelector variant="minimal" />
             {/* Toggle Tema Sun/Moon */}
             <button
               onClick={toggleTheme}
               className="p-2.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all"
-              title={isDarkMode ? "Ativar Modo Claro" : "Ativar Modo Escuro"}
+              title={isDarkMode ? t.header.lightMode : t.header.darkMode}
             >
               {isDarkMode ? <Sun size={20} className="text-amber-500" /> : <Moon size={20} />}
             </button>
@@ -731,14 +770,14 @@ const App: React.FC = () => {
                 <div className="absolute right-0 mt-3 w-[22rem] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden animate-in slide-in-from-top-2">
                   <div className="p-6 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between">
                     <div>
-                      <h4 className="font-black text-legal-navy dark:text-white uppercase tracking-tighter">Notificações</h4>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">Você tem {unreadNotificationsCount} novas</p>
+                      <h4 className="font-black text-legal-navy dark:text-white uppercase tracking-tighter">{t.header.notifications}</h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{t.header.unreadCount(unreadNotificationsCount)}</p>
                     </div>
                     <button
                       onClick={markAllAsRead}
                       className="text-[10px] font-black text-legal-bronze hover:underline uppercase"
                     >
-                      Lidas
+                      {t.header.markAllRead}
                     </button>
                   </div>
                   <div className="max-h-[24rem] overflow-y-auto">

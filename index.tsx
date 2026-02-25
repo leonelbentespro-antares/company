@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { TenantProvider } from './services/tenantContext.tsx';
+import { LanguageProvider } from './services/languageContext.tsx';
 
 const rootElement = document.getElementById('root');
 
@@ -13,10 +14,13 @@ if (!rootElement) {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
-        {/* TenantProvider garante que cada usuário logado acessa apenas seu próprio banco de dados */}
-        <TenantProvider>
-          <App />
-        </TenantProvider>
+        {/* LanguageProvider — i18n antes de tudo */}
+        <LanguageProvider>
+          {/* TenantProvider garante que cada usuário logado acessa apenas seu próprio banco */}
+          <TenantProvider>
+            <App />
+          </TenantProvider>
+        </LanguageProvider>
       </React.StrictMode>
     );
   } catch (error) {

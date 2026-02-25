@@ -246,23 +246,28 @@ export async function createProcess(
 ): Promise<Process> {
     const tid = requireTenantId(tenantId);
 
+    const insertPayload: Record<string, any> = {
+        tenant_id: tid,                       // ← SEMPRE incluir tenant_id
+        number: process.number,
+        client_name: process.clientName,
+        subject: process.subject,
+        court: process.court,
+        status: process.status,
+        stage: process.stage,
+        last_movement: process.lastMovement,
+    };
+    if (process.clientCpf !== undefined) insertPayload.client_cpf = process.clientCpf;
+
     const { data, error } = await supabase
         .from('processes')
-        .insert({
-            tenant_id: tid,                       // ← SEMPRE incluir tenant_id
-            number: process.number,
-            client_name: process.clientName,
-            client_cpf: process.clientCpf,
-            subject: process.subject,
-            court: process.court,
-            status: process.status,
-            stage: process.stage,
-            last_movement: process.lastMovement,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
-    if (error) throw error;
+    if (error) {
+        console.error('Supabase DB Error [createProcess]:', JSON.stringify(error, null, 2));
+        throw error;
+    }
 
     return {
         id: data.id, number: data.number, clientName: data.client_name,
@@ -275,13 +280,21 @@ export async function createProcess(
 
 export async function updateProcess(id: string, tenantId: string | null, updates: Partial<Process>): Promise<void> {
     const tid = requireTenantId(tenantId);
+    
+    // Create an update payload mapping camelCase to snake_case only for defined properties
+    const updatePayload: Record<string, any> = {};
+    if (updates.number !== undefined) updatePayload.number = updates.number;
+    if (updates.clientName !== undefined) updatePayload.client_name = updates.clientName;
+    if (updates.clientCpf !== undefined) updatePayload.client_cpf = updates.clientCpf;
+    if (updates.subject !== undefined) updatePayload.subject = updates.subject;
+    if (updates.court !== undefined) updatePayload.court = updates.court;
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+    if (updates.stage !== undefined) updatePayload.stage = updates.stage;
+    if (updates.lastMovement !== undefined) updatePayload.last_movement = updates.lastMovement;
+
     const { error } = await supabase
         .from('processes')
-        .update({
-            client_name: updates.clientName, subject: updates.subject,
-            court: updates.court, status: updates.status, stage: updates.stage,
-            last_movement: updates.lastMovement,
-        })
+        .update(updatePayload)
         .eq('id', id)
         .eq('tenant_id', tid);                  // ← Dupla proteção
     if (error) throw error;

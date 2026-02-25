@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: lexhub-redis
+    # Porta NÃO exposta externamente — acessível apenas via rede interna Docker
+    # ports: - "6379:6379"  ← Descomentado só em desenvolvimento local
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    # Senha obrigatória — configure REDIS_PASSWORD no .env
+    command: >
+      redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-lexhub_redis_changeme} --maxmemory 256mb --maxmemory-policy allkeys-lru --bind 0.0.0.0 --protected-mode yes
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-lexhub_redis_changeme}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lexhub-internal
+
+  # API Gateway (Core Service)
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: lexhub-api
+    env_file: .env.local
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - lexhub-internal
+    restart: unless-stopped
+    # Expor apenas para o reverse proxy (Nginx/Coolify)
+    expose:
+      - "3001"
+
+networks:
+  lexhub-internal:
+    driver: bridge
+    internal: false
+
+volumes:
+  redis_data:

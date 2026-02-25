@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
-import { 
-  Mail, 
-  Lock, 
-  User as UserIcon, 
-  ArrowRight, 
-  ShieldCheck, 
+import {
+  Mail,
+  Lock,
+  User as UserIcon,
+  ArrowRight,
+  ShieldCheck,
   Scale,
   CheckCircle2,
   Briefcase,
@@ -14,6 +14,7 @@ import {
   Hash
 } from 'lucide-react';
 import { UserRole } from '../types.ts';
+import { supabase } from '../services/supabaseClient.ts';
 
 interface AuthProps {
   onLogin: (userData: any) => void;
@@ -31,7 +32,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     confirmPassword: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -42,29 +43,62 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     }
 
     setLoading(true);
-    
-    // Simulação de autenticação
-    setTimeout(() => {
-      setLoading(false);
-      
+
+    try {
+      let authUser = null;
+
+      if (isLogin) {
+        // Tentativa de Login
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (signInError) throw signInError;
+        authUser = data.user;
+
+      } else {
+        // Cadastro de nova banca Admin
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: formData.password,
+          options: {
+            data: {
+              full_name: formData.name
+            }
+          }
+        });
+
+        if (signUpError) throw signUpError;
+        authUser = data.user;
+      }
+
       const role = authType === 'client' ? UserRole.Client : UserRole.Admin;
-      const name = authType === 'client' ? 'Carlos Eduardo Oliveira' : (formData.name || 'Admin LexHub');
-      
-      // Gerar um ID de registro único (ex: LH-2024-XXXX)
+      const name = authType === 'client' ? 'Carlos Eduardo Oliveira' : (formData.name || authUser?.user_metadata?.full_name || 'Admin LexHub');
+
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const registrationId = `LH-2024-${randomSuffix}`;
 
-      onLogin({ 
-        id: Math.random().toString(36).substr(2, 9),
-        registrationId: registrationId,
-        name: name, 
-        email: formData.email || 'contato@exemplo.com',
-        role: role,
-        avatar: role === UserRole.Client 
-          ? 'https://ui-avatars.com/api/?name=Carlos+Eduardo&background=002B49&color=fff' 
-          : undefined
-      });
-    }, 1500);
+      // Envia os dados provisórios para o front end exibir enquanto o Tenant carrega em background
+      if (authUser) {
+        onLogin({
+          id: authUser.id,
+          registrationId: registrationId,
+          name: name,
+          email: authUser.email || formData.email,
+          role: role,
+          avatar: role === UserRole.Client
+            ? 'https://ui-avatars.com/api/?name=Carlos+Eduardo&background=002B49&color=fff'
+            : undefined
+        });
+      }
+
+    } catch (err: any) {
+      console.error("[Auth] Falha:", err);
+      setError(err.message || 'Erro ao autenticar no servidor.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,12 +109,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-inter text-slate-900">
       <div className="max-w-5xl w-full bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[700px]">
-        
+
         {/* Lado Esquerdo - Branding & Info */}
         <div className="md:w-1/2 bg-legal-navy p-12 text-white flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-legal-bronze/20 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-legal-bronze/10 rounded-full blur-3xl"></div>
-          
+
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-12">
               <div className="w-12 h-12 bg-legal-bronze rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg">
@@ -88,7 +122,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
               <span className="text-2xl font-bold tracking-tight uppercase">LexHub</span>
             </div>
-            
+
             <h1 className="text-4xl font-bold leading-tight mb-6">
               Transparência e <span className="text-legal-bronze">agilidade</span> jurídica.
             </h1>
@@ -115,16 +149,16 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
         {/* Lado Direito - Form de Auth */}
         <div className="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
-          
+
           {/* Auth Type Selector */}
           <div className="flex p-1 bg-slate-100 rounded-2xl mb-10 w-full max-w-sm mx-auto">
-            <button 
+            <button
               onClick={() => setAuthType('professional')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${authType === 'professional' ? 'bg-white shadow-sm text-legal-navy' : 'text-slate-400 hover:text-slate-600'}`}
             >
               <Briefcase size={14} /> Profissional
             </button>
-            <button 
+            <button
               onClick={() => setAuthType('client')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${authType === 'client' ? 'bg-legal-bronze shadow-sm text-white' : 'text-slate-400 hover:text-slate-600'}`}
             >
@@ -137,8 +171,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               {isLogin ? (authType === 'client' ? 'Portal do Cliente' : 'Acesso Profissional') : 'Criar minha conta'}
             </h2>
             <p className="text-slate-500 font-medium">
-              {isLogin 
-                ? (authType === 'client' ? 'Consulte seus processos com transparência.' : 'Acesse seu painel administrativo.') 
+              {isLogin
+                ? (authType === 'client' ? 'Consulte seus processos com transparência.' : 'Acesse seu painel administrativo.')
                 : 'Cadastre sua banca e comece agora.'}
             </p>
           </div>
@@ -156,8 +190,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
                 <div className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    type="text" name="name" required placeholder="Ex: João Silva" 
+                  <input
+                    type="text" name="name" required placeholder="Ex: João Silva"
                     className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                     value={formData.name} onChange={handleChange}
                   />
@@ -171,7 +205,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
+                <input
                   type="text" name="email" required placeholder={authType === 'client' ? "nome@email.com" : "advogado@escritorio.com"}
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                   value={formData.email} onChange={handleChange}
@@ -186,8 +220,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="password" name="password" required placeholder="••••••••" 
+                <input
+                  type="password" name="password" required placeholder="••••••••"
                   className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                   value={formData.password} onChange={handleChange}
                 />
@@ -199,8 +233,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Confirmar Senha</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input 
-                    type="password" name="confirmPassword" required placeholder="••••••••" 
+                  <input
+                    type="password" name="confirmPassword" required placeholder="••••••••"
                     className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                     value={formData.confirmPassword} onChange={handleChange}
                   />
@@ -208,7 +242,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
             )}
 
-            <button 
+            <button
               type="submit" disabled={loading}
               className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl disabled:opacity-70 mt-4 ${authType === 'client' ? 'bg-legal-bronze text-white shadow-legal-bronze/20' : 'bg-legal-navy text-white shadow-legal-navy/20'}`}
             >
@@ -227,7 +261,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             <div className="mt-8 pt-8 border-t border-slate-100 text-center">
               <p className="text-slate-500 text-sm font-medium">
                 {isLogin ? 'Não possui uma conta?' : 'Já possui uma conta?'}
-                <button 
+                <button
                   onClick={() => setIsLogin(!isLogin)}
                   className="ml-2 text-legal-navy font-bold hover:underline"
                 >

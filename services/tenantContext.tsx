@@ -151,20 +151,27 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     domain: `${domain}_${user.id.slice(0, 8)}`,
                     plan: 'Starter',
                     status: 'Active',
-                    crm_stage: 'Client',
-                    mrr: 0,
+                    crm_stage: 'c4901030-f28e-4d59-9802-3a887057d723'
                 })
                 .select()
                 .single();
 
-            if (tenantError || !newTenant) return;
+            if (tenantError || !newTenant) {
+                console.error('[TenantContext] Falha ao criar Tenant (Auto-Provision):', tenantError);
+                setError(`Erro Supabase Auto-Provision (tenants): ${tenantError?.message || tenantError?.details || JSON.stringify(tenantError)}`);
+                return;
+            }
 
             // Vincular usuário ao tenant
-            await supabase.from('tenant_users').insert({
+            const { error: linkError } = await supabase.from('tenant_users').insert({
                 user_id: user.id,
                 tenant_id: newTenant.id,
                 role: 'admin',
             });
+            if (linkError) {
+                setError(`Erro Supabase Auto-Provision (tenant_users): ${linkError.message || JSON.stringify(linkError)}`);
+                return;
+            }
 
             // Criar assinatura trial
             await supabase.from('tenant_subscriptions').insert({

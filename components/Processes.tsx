@@ -253,9 +253,9 @@ export const Processes: React.FC = () => {
             setIsCreateModalOpen(false);
             setIsAddingNewClient(false);
             setShowFeedback({ message: 'Processo cadastrado no CRM com sucesso!', type: 'success' });
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao criar processo:', err);
-            setShowFeedback({ message: 'Erro ao criar processo.', type: 'error' });
+            setShowFeedback({ message: `Erro: ${err.message || 'Falha ao criar processo no banco de dados.'}`, type: 'error' });
         }
     };
 

@@ -48,14 +48,18 @@ Deno.serve(async (req) => {
         // Obter os detalhes da Subscription para atualizar a data de Trial/Pagamento
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         
-        // Mapeia o preço do Stripe (plan ID) para o seu nome de plano no sistema local
-        // Isso precisará ser sincronizado com os Product IDs que serão criados no Stripe
-        let planName = 'Starter';
-        // Aqui mapeia-se: subscription.items.data[0].price.id === 'price_1xyz' -> 'Professional'
+        // Mapeamento Price ID → Nome do Plano (sincronizado com constants.ts)
+        const PRICE_TO_PLAN: Record<string, string> = {
+          'price_1T3jHtJ9ZEZzMZTmJ5KkKRJ0': 'Starter',
+          'price_1T3jHvJ9ZEZzMZTmLmeSeRpP': 'Professional',
+          'price_1T3jHwJ9ZEZzMZTmoobBAcbc': 'Enterprise',
+        };
+        const priceId = subscription.items.data[0]?.price.id ?? '';
+        const planName = PRICE_TO_PLAN[priceId] ?? 'Starter';
 
         await supabaseAdmin.from('tenant_subscriptions').upsert({
           tenant_id: tenantId,
-          plan: planName, // Atualizar de acordo com prod_id ou metadata do prod
+          plan: planName,
           status: subscription.status,
           trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
           current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
@@ -73,6 +77,15 @@ Deno.serve(async (req) => {
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
+
+      // Mapeamento Price ID → Nome do Plano
+      const PRICE_TO_PLAN: Record<string, string> = {
+        'price_1T3jHtJ9ZEZzMZTmJ5KkKRJ0': 'Starter',
+        'price_1T3jHvJ9ZEZzMZTmLmeSeRpP': 'Professional',
+        'price_1T3jHwJ9ZEZzMZTmoobBAcbc': 'Enterprise',
+      };
+      const priceId = subscription.items.data[0]?.price.id ?? '';
+      const planName = PRICE_TO_PLAN[priceId] ?? 'Starter';
       
       const { data: tenant } = await supabaseAdmin
         .from('tenants')
@@ -82,11 +95,11 @@ Deno.serve(async (req) => {
         
       if (tenant) {
           await supabaseAdmin.from('tenant_subscriptions').update({
+              plan: planName,
               status: subscription.status,
               current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
           }).eq('tenant_id', tenant.id);
       }
-      // Then define and call a function to handle the event customer.subscription.updated
       break;
     }
     default:

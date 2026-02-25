@@ -452,16 +452,51 @@ export const Chat: React.FC = () => {
     setShowToast('Lista exportada com sucesso!');
   };
 
-  const handleImportMock = () => {
-    setShowToast('Processando arquivo...');
-    setTimeout(() => {
-      const imported: Contact[] = [
-        { id: 'imp1', name: 'Maria Souza', phone: '+55 11 91234-1234', email: 'maria@test.com', company: 'Importado' },
-        { id: 'imp2', name: 'João Batista', phone: '+55 11 95555-4444', email: 'joao@test.com', company: 'Importado' },
-      ];
-      setContacts([...imported, ...contacts]);
-      setShowToast(`${imported.length} contatos importados!`);
-    }, 1500);
+  const handleImportFile = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setShowToast('Processando arquivo...');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        try {
+          const rows = text.split('\n').filter(r => r.trim());
+          const imported: Contact[] = [];
+
+          const startIndex = rows.length > 0 && rows[0].toLowerCase().includes('nome') ? 1 : 0;
+
+          for (let i = startIndex; i < rows.length; i++) {
+            // Basic CSV parsing splitting by comma, ignoring commas inside quotes could be complex but basic is fine for now
+            const cols = rows[i].split(',');
+            if (cols.length >= 2) {
+              imported.push({
+                id: `imp_${Date.now()}_${i}`,
+                name: cols[0]?.trim() || 'Sem Nome',
+                phone: cols[1]?.trim() || '',
+                email: cols[2]?.trim() || '',
+                company: cols[3]?.trim() || 'Importado'
+              });
+            }
+          }
+
+          if (imported.length > 0) {
+            setContacts(prev => [...imported, ...prev]);
+            setShowToast(`${imported.length} contatos importados com sucesso!`);
+          } else {
+            setShowToast('Nenhum contato válido encontrado no arquivo.');
+          }
+        } catch (error) {
+          setShowToast('Erro ao ler o arquivo CSV.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   };
 
   // --- TAG HANDLERS ---
@@ -1306,7 +1341,7 @@ export const Chat: React.FC = () => {
               {newActionTab === 'import' && (
                 <div className="space-y-8 animate-in zoom-in-95 duration-300">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-navy transition-all group cursor-pointer" onClick={handleImportMock}>
+                    <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-navy transition-all group cursor-pointer" onClick={handleImportFile}>
                       <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform"><UploadCloud size={32} className="text-legal-navy" /></div>
                       <div>
                         <h4 className="font-bold text-slate-900 dark:text-white">Importar Lista</h4>

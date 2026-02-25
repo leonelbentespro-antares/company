@@ -64,6 +64,13 @@ ehthumbs.db
 vite.config.ts.timestamp-*
 
 # ===========================
+# Scripts temporários de fix (não pertencem ao repo)
+# ===========================
+fix_*.js
+format.js
+test_jsx.js
+
+# ===========================
 # Outros
 # ===========================
 *.local
