@@ -11,8 +11,10 @@ import {
   ChevronDown, GripVertical, Terminal, AlertCircle, Share2,
   MousePointer2, Timer, MailCheck, Eye, Smartphone, MoreHorizontal,
   LayoutDashboard, Megaphone, UploadCloud, Music, Power, PowerOff,
-  AlarmClock, BellRing, MessageSquare, Sparkles
+  AlarmClock, BellRing, MessageSquare, Sparkles, LayoutTemplate
 } from 'lucide-react';
+import { FlowTemplates, FLOW_TEMPLATES } from './FlowTemplates.tsx';
+import type { FlowTemplate } from './FlowTemplates.tsx';
 
 type BlockType = 'text' | 'wait' | 'image' | 'file' | 'audio' | 'menu';
 
@@ -70,6 +72,7 @@ const TAGS = ['Novo Lead', 'Urgente', 'Aguardando Doc', 'Sentença', 'Recurso', 
 export const Automation: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AutomationTab>('broadcaster');
   const [showToast, setShowToast] = useState<string | null>(null);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
 
   // --- PERSISTENCE ---
   const load = (key: string, fallback: any) => {
@@ -398,6 +401,54 @@ export const Automation: React.FC = () => {
     setIsFlowEditorOpen(false);
   };
 
+  // Converte um FlowTemplate (sistema de steps rico) para AutomationFlow (builder de blocos)
+  const handleUseTemplate = (template: FlowTemplate) => {
+    setIsTemplatesOpen(false);
+    // Converte os steps do template em blocos editáveis
+    const blocks: FlowBlock[] = template.steps
+      .filter(s => s.type !== 'end')
+      .flatMap(step => {
+        const msgs: FlowBlock[] = [];
+        msgs.push({ id: `b_${Date.now()}_${step.id}`, type: 'text', content: step.message });
+        if (step.options && step.options.length > 0) {
+          msgs.push({
+            id: `menu_${Date.now()}_${step.id}`,
+            type: 'menu',
+            content: step.message.split('\n')[0],
+            metadata: {
+              options: step.options.map((opt, i) => ({
+                id: `opt_${i}`,
+                label: opt.label,
+                targetTag: opt.tag,
+                reply: `Entendido! TAG [${opt.tag}] aplicada.`
+              }))
+            }
+          });
+        }
+        if (step.actions && step.actions.length > 0) {
+          msgs.push({
+            id: `act_${Date.now()}_${step.id}`,
+            type: 'text',
+            content: `[AÇÃO AUTOMÁTICA]\n${step.actions.join('\n')}`,
+          });
+        }
+        return msgs;
+      });
+
+    const newFlow: AutomationFlow = {
+      id: `f_${Date.now()}`,
+      name: template.name,
+      description: template.description,
+      trigger: template.trigger,
+      blocks: blocks.length > 0 ? blocks : [{ id: `b_${Date.now()}`, type: 'text', content: 'Olá! Como posso ajudar?' }],
+      active: true,
+    };
+    setEditingId(null);
+    setFlowForm(newFlow);
+    setIsFlowEditorOpen(true);
+    setShowToast(`Template "${template.name}" carregado! Edite e salve.`);
+  };
+
   const toggleFlowStatus = (id: string) => {
     setFlows(prev => prev.map(f => {
       if (f.id === id) {
@@ -462,6 +513,14 @@ export const Automation: React.FC = () => {
         <div className="fixed top-24 right-8 z-[260] px-6 py-4 bg-emerald-600 text-white rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right duration-300">
           <CheckCircle2 size={20} /> <p className="font-bold text-sm">{showToast}</p>
         </div>
+      )}
+
+      {/* MODAL — GALERIA DE TEMPLATES PRÉ-PRONTOS */}
+      {isTemplatesOpen && (
+        <FlowTemplates
+          onUseTemplate={handleUseTemplate}
+          onClose={() => setIsTemplatesOpen(false)}
+        />
       )}
 
       {/* Header & Tabs */}
@@ -578,9 +637,14 @@ export const Automation: React.FC = () => {
             <div className="relative z-10 max-w-2xl">
               <h2 className="text-3xl font-black mb-4">Construtor de <span className="text-legal-bronze">Fluxos Inteligentes</span></h2>
               <p className="text-white/60 text-lg leading-relaxed">Crie árvores de conversa complexas com envio de áudios simulados, fotos e documentos PDF.</p>
-              <button onClick={() => openFlowEditor()} className="mt-8 px-8 py-4 bg-legal-bronze text-white rounded-2xl font-bold flex items-center gap-3 hover:brightness-110 transition-all shadow-xl">
-                <Plus size={20} /> Criar Fluxo por Blocos
-              </button>
+              <div className="flex gap-4 mt-8">
+                <button onClick={() => setIsTemplatesOpen(true)} className="px-8 py-4 bg-legal-bronze text-white rounded-2xl font-bold flex items-center gap-3 hover:brightness-110 transition-all shadow-xl">
+                  <LayoutTemplate size={20} /> Usar Fluxo Pré-Pronto
+                </button>
+                <button onClick={() => openFlowEditor()} className="px-8 py-4 bg-white/10 text-white border border-white/20 rounded-2xl font-bold flex items-center gap-3 hover:bg-white/20 transition-all">
+                  <Plus size={20} /> Criar do Zero
+                </button>
+              </div>
             </div>
           </div>
 
