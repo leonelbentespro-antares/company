@@ -1,16 +1,25 @@
 // import { GoogleGenAI, Type } from "@google/genai";
 // ↑ Removido: O Frontend não deve mais instanciar SDKs de inteligência artificial ou importar tokens localmente.
 
+import { supabase } from './supabaseClient.ts';
+
 export async function analyzeLegalDocument(documentText: string) {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     // Agora o Frontend atua apenas como cliente enviando o dispatch para o API Gateway
-    const response = await fetch('http://localhost:3001/api/documents/generate', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    
+    const response = await fetch(`${apiUrl}/api/documents/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
         body: JSON.stringify({
-            tenantId: 'tenant-atual', // Em produção, usar contexto de sessão real
-            userId: 'user-id',
-            type: 'ANALYZE_DOCUMENT',
+            // type pode ser 'RESUMO_PROCESSO', 'PETICAO_INICIAL', 'CONTRATO', 'PARECER'
+            type: 'PARECER',
             context: { text: documentText }
         })
     });

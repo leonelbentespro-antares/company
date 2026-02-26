@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lexhub-core-api
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://lexhub-saas.vercel.app # URL da Vercel após o deploy do frontend
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false # Será preenchido com a URL do broker managed pelo Render ou Upstash
+      - key: GEMINI_API_KEY
+        sync: false

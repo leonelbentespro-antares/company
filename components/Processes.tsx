@@ -176,28 +176,132 @@ export const Processes: React.FC = () => {
 
         setIsProcessing(true);
         const reader = new FileReader();
-        reader.onload = (event) => {
-            const text = event.target?.result as string;
-            // Simulação de parsing de CSV simplificado
-            setTimeout(() => {
-                const imported: Process[] = [
-                    {
-                        id: `imp_${Date.now()}_1`,
-                        number: '0001234-99.2024.8.26.0000',
-                        clientName: 'Novo Cliente Importado',
-                        subject: 'Processo via CSV',
-                        court: 'Tribunal de Justiça',
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+
+                const rows: string[][] = [];
+                let currentRow: string[] = [];
+                let currentCell = '';
+                let insideQuotes = false;
+
+                const firstLine = text.substring(0, text.indexOf('\n') > -1 ? text.indexOf('\n') : text.length);
+                const separator = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
+
+                for (let i = 0; i < text.length; i++) {
+                    const char = text[i];
+                    const nextChar = text[i + 1];
+
+                    if (char === '"' && insideQuotes && nextChar === '"') {
+                        currentCell += '"';
+                        i++;
+                    } else if (char === '"') {
+                        insideQuotes = !insideQuotes;
+                    } else if (char === separator && !insideQuotes) {
+                        currentRow.push(currentCell.trim());
+                        currentCell = '';
+                    } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !insideQuotes) {
+                        currentRow.push(currentCell.trim());
+                        rows.push(currentRow);
+                        currentRow = [];
+                        currentCell = '';
+                        if (char === '\r') i++;
+                    } else {
+                        currentCell += char;
+                    }
+                }
+
+                if (currentCell !== '' || currentRow.length > 0) {
+                    currentRow.push(currentCell.trim());
+                    rows.push(currentRow);
+                }
+
+                const validRows = rows.filter(row => row.length > 1 || (row.length === 1 && row[0] !== ''));
+                if (validRows.length < 2) throw new Error("O arquivo não contém dados para importar.");
+
+                const headers = validRows[0].map(h => h.toLowerCase().replace(/^["'](.*)["']$/, '$1').trim());
+
+                const getColIndex = (possibleNames: string[]) => {
+                    return headers.findIndex(h => possibleNames.some(name => h.includes(name.toLowerCase())));
+                };
+
+                const cnjIdx = getColIndex(['número cnj', 'numero cnj', 'cnj', 'numero', 'processo', 'nº cnj', 'nº do processo']);
+                const clientIdx = getColIndex(['cliente', 'parte', 'nome', 'autor', 'réu', 'reu']);
+                const subjectIdx = getColIndex(['assunto', 'objeto', 'tema', 'ação', 'acao', 'tipo de ação']);
+                const courtIdx = getColIndex(['tribunal', 'vara', 'órgão', 'orgao', 'juízo', 'juizo', 'comarca']);
+
+                const missingCols = [];
+                if (cnjIdx === -1) missingCols.push('"Número CNJ"');
+                if (clientIdx === -1) missingCols.push('"Cliente"');
+
+                if (missingCols.length > 0) {
+                    const cabecalhoLido = validRows[0].join(' | ');
+                    throw new Error(`As seguintes colunas obrigatórias não foram encontradas: ${missingCols.join(' e ')}. Verifique se a 1ª linha do seu arquivo contém esses títulos. Cabeçalho lido do arquivo: [ ${cabecalhoLido} ]`);
+                }
+
+                const imported: Process[] = [];
+                const currentDate = new Date().toISOString().split('T')[0];
+
+                for (let i = 1; i < validRows.length; i++) {
+                    const row = validRows[i];
+                    if (!row[cnjIdx] || !row[clientIdx]) continue;
+
+                    const clean = (val: string) => val ? val.replace(/^["'](.*)["']$/, '$1').trim() : '';
+
+                    const newProcess: Process = {
+                        id: `imp_${Date.now()}_${i}`,
+                        number: clean(row[cnjIdx]),
+                        clientName: clean(row[clientIdx]),
+                        subject: subjectIdx !== -1 ? clean(row[subjectIdx]) : 'Processo importado',
+                        court: courtIdx !== -1 ? clean(row[courtIdx]) : '',
                         status: 'Active',
                         stage: ProcessStage.Initial,
-                        lastMovement: new Date().toISOString().split('T')[0],
-                        createdAt: new Date().toISOString().split('T')[0]
+                        lastMovement: currentDate,
+                        createdAt: currentDate,
+                    };
+
+                    const exists = processes.some(p => p.number === newProcess.number) || imported.some(p => p.number === newProcess.number);
+                    if (!exists) {
+                        imported.push(newProcess);
                     }
-                ];
-                setProcesses(prev => [...imported, ...prev]);
+                }
+
+                if (imported.length > 0) {
+                    const createdProcesses: Process[] = [];
+                    for (const p of imported) {
+                        try {
+                            const created = await createProcess(tenantId, {
+                                number: p.number,
+                                clientName: p.clientName,
+                                subject: p.subject,
+                                court: p.court,
+                                status: p.status,
+                                stage: p.stage,
+                                lastMovement: p.lastMovement
+                            });
+                            createdProcesses.push(created);
+                        } catch (err) {
+                            console.error('Erro inserindo processo:', err);
+                        }
+                    }
+
+                    if (createdProcesses.length > 0) {
+                        setProcesses(prev => [...createdProcesses, ...prev]);
+                        setShowFeedback({ message: `${createdProcesses.length} processo(s) importado(s) com sucesso!`, type: 'success' });
+                    } else {
+                        setShowFeedback({ message: `Erro ao salvar processos no banco de dados. Processos lidos: ${imported.length}.`, type: 'error' });
+                    }
+                } else {
+                    setShowFeedback({ message: `Nenhum processo novo para importar (podem ser duplicados na base atual).`, type: 'error' });
+                }
+
+            } catch (err: any) {
+                console.error("Erro na importação: ", err);
+                setShowFeedback({ message: `Erro ao importar: ${err.message}`, type: 'error' });
+            } finally {
                 setIsProcessing(false);
-                setShowFeedback({ message: `${imported.length} processos importados com sucesso!`, type: 'success' });
                 if (fileInputRef.current) fileInputRef.current.value = '';
-            }, 1500);
+            }
         };
         reader.readAsText(file);
     };

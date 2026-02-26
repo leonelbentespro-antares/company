@@ -62,6 +62,7 @@ import { User, UserRole } from './types.ts';
 import { useTenant } from './services/tenantContext.tsx';
 import { useLanguage } from './services/languageContext.tsx';
 import { LanguageSelector } from './components/LanguageSelector.tsx';
+import { supabase } from './services/supabaseClient.ts';
 
 interface Notification {
   id: string;
@@ -127,6 +128,9 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
 
+  // 🔔 Toast global de notificação de IA (Supabase Realtime)
+  const [aiToast, setAiToast] = useState<{ message: string; type: string } | null>(null);
+
   // Efeito para aplicar o tema dark/light
   useEffect(() => {
     if (isDarkMode) {
@@ -163,6 +167,52 @@ const App: React.FC = () => {
       });
     }
   }, [isAuthenticated, currentUser]);
+
+  // 🔔 Supabase Realtime — Assinar notificações de jobs de IA concluídos
+  useEffect(() => {
+    if (!isAuthenticated || !tenantId) return;
+
+    const channel = supabase
+      .channel(`ai-jobs-${tenantId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ai_generated_docs',
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          const doc = payload.new as { type?: string; status?: string };
+          if (doc.status === 'completed') {
+            const typeLabels: Record<string, string> = {
+              RESUMO_PROCESSO: 'Resumo de Processo',
+              PETICAO_INICIAL: 'Petição Inicial',
+              CONTRATO: 'Contrato',
+              PARECER: 'Parecer',
+            };
+            const label = typeLabels[doc.type ?? ''] ?? 'Documento';
+            setAiToast({ message: `✅ ${label} gerado pela IA!`, type: 'success' });
+            setTimeout(() => setAiToast(null), 5000);
+
+            // Adicionar tb ao painel de notificações
+            setNotifications(prev => [{
+              id: Date.now().toString(),
+              title: 'IA Concluiu Geração',
+              description: `${label} está pronto para visualização.`,
+              time: 'Agora',
+              type: 'success',
+              read: false,
+            }, ...prev.slice(0, 9)]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, tenantId]);
 
   const handleLogin = (userData: User) => {
     setCurrentUser(userData);
@@ -847,6 +897,27 @@ const App: React.FC = () => {
 
       {/* MODAL DE PERFIL DO USUÁRIO */}
       {isProfileModalOpen && renderProfileModal()}
+
+      {/* 🔔 TOAST GLOBAL DE IA (Supabase Realtime) */}
+      {aiToast && (
+        <div className="fixed bottom-6 right-6 z-[200] animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl shadow-emerald-600/30 border border-emerald-500">
+            <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+            <div>
+              <p className="font-black text-sm">{aiToast.message}</p>
+              <p className="text-emerald-100 text-xs font-medium">Resultado disponível na aba Módulo IA</p>
+            </div>
+            <button
+              onClick={() => setAiToast(null)}
+              className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

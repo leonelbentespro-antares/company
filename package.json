@@ -14,9 +14,11 @@
     "@stripe/stripe-js": "^8.8.0",
     "@supabase/supabase-js": "^2.96.0",
     "lucide-react": "0.460.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "2.15.0",
+    "socket.io-client": "^4.8.3",
     "stripe": "^20.3.1"
   },
   "devDependencies": {

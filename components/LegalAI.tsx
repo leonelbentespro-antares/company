@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
-import { 
-  BrainCircuit, 
-  Send, 
-  Loader2, 
-  FileText, 
-  CheckCircle2, 
-  AlertTriangle, 
-  Calendar, 
-  ArrowRightCircle 
+import {
+  BrainCircuit,
+  Send,
+  Loader2,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Calendar,
+  ArrowRightCircle
 } from 'lucide-react';
 import { analyzeLegalDocument } from '../services/geminiService.ts';
 
@@ -23,10 +23,18 @@ export const LegalAI: React.FC = () => {
     try {
       const result = await analyzeLegalDocument(text);
       setAnalysis(result);
+
+      // Feedback imediato que a rotina foi pro background (Não trava o Front)
+      if (result.subjects && result.subjects[0].includes("Assíncrono")) {
+        // Aqui seria ideal disparar um toast. Vamos assumir que a refatoração do App.tsx cobre a notificação.
+        setLoading(false);
+        setText(''); // Limpa pra próxima petição
+      }
     } catch (err) {
       console.error(err);
-      alert("Falha na análise. Verifique sua chave API.");
+      alert("Falha na análise. Verifique se o API Gateway (Background) está online.");
     } finally {
+      // Sempre soltamos o loader pq a resposta definitiva virá por WebSocket 
       setLoading(false);
     }
   };
@@ -44,17 +52,17 @@ export const LegalAI: React.FC = () => {
             <p className="text-slate-500 font-medium text-sm lg:text-base">Análise documental avançada com tecnologia Gemini 3.</p>
           </div>
         </div>
-        
+
         <div className="space-y-4">
           <label className="block text-[10px] font-bold text-legal-navy uppercase tracking-widest ml-1">Documento para Análise</label>
-          <textarea 
+          <textarea
             className="w-full h-48 p-5 bg-slate-50 border border-slate-200 rounded-3xl text-legal-navy placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-legal-navy/5 focus:border-legal-navy/20 transition-all font-medium text-base shadow-inner"
             placeholder="Cole aqui o conteúdo da petição, contrato ou documento jurídico..."
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
           <div className="flex justify-end">
-            <button 
+            <button
               onClick={handleAnalyze}
               disabled={loading || !text.trim()}
               className="flex items-center gap-3 px-8 py-4 bg-legal-navy text-white rounded-2xl font-bold hover:bg-opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-legal-navy/20"

@@ -200,8 +200,18 @@ function checkSuspiciousPath(path: string): number {
 // MIDDLEWARE 1: BLOQUEIO DE IPs NA BLACKLIST
 // ============================================================
 
+// IPs que nunca devem ser bloqueados (ambiente de desenvolvimento local)
+const LOCAL_WHITELIST = new Set(['::1', '127.0.0.1', '::ffff:127.0.0.1', 'localhost']);
+
 export function ipBlacklistGuard(req: Request, res: Response, next: NextFunction): void {
     const ip = getClientIP(req);
+
+    // Nunca bloquear IPs locais — isso evita que o polling do frontend seja penalizado em dev
+    if (LOCAL_WHITELIST.has(ip)) {
+        next();
+        return;
+    }
+
     const entry = threatStore.get(ip);
 
     if (entry?.blockedUntil !== undefined && entry.blockedUntil > Date.now()) {

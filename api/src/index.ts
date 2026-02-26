@@ -6,11 +6,13 @@
  */
 
 import express from 'express';
+import http from 'http';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const app = express();
+const httpServer = http.createServer(app);
 const port = process.env.PORT || 3001;
 
 // ============================================================
@@ -56,7 +58,7 @@ app.use(anomalyDetector);
 registerHoneypotRoutes(app);
 
 // ============================================================
-// CAMADA 3: WORKERS DO BULLMQ
+// CAMADA 3: WORKERS DO BULLMQ (Ativos)
 // ============================================================
 
 import './workers/whatsappWorker.js';
@@ -67,15 +69,21 @@ import './workers/documentWorker.js';
 // ============================================================
 
 import { webhookRouter } from './routes/webhooks.js';
-import { aiRouter } from './routes/ai.js';
+// import { aiRouter } from './routes/ai.js';
 import { adminRouter } from './routes/admin.js';
+import { whatsappRouter } from './routes/whatsapp.js';
+import { initSocketIO } from './socket/index.js';
+
+// Inicializar Socket.IO no servidor HTTP compartilhado
+initSocketIO(httpServer);
 
 // Webhooks da Meta: validação HMAC própria (não usa JWT)
 app.use('/webhooks', webhookRouter);
 
 // Rotas da API: exigem JWT válido + tenant extraído
 // O middleware de auth é aplicado dentro de cada router
-app.use('/api', aiRouter);
+app.use('/api/whatsapp', whatsappRouter);
+// app.use('/api', aiRouter);
 
 // Rota de admin para visualizar alertas de segurança (uso interno)
 app.use('/internal', adminRouter);
@@ -118,11 +126,12 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // START
 // ============================================================
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
     console.log(`
 ╔══════════════════════════════════════════════╗
 ║       LexHub Core API — Modo Seguro          ║
 ║  Endpoint: http://localhost:${port}             ║
+║  WebSocket: ws://localhost:${port}              ║
 ║  CORS: ${(process.env.ALLOWED_ORIGINS || 'localhost:5173').substring(0, 30)}  ║
 ║  Honeypots: ATIVOS                           ║
 ║  Threat Detection: ATIVO                    ║

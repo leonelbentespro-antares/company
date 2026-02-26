@@ -8,7 +8,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import rateLimit from 'express-rate-limit';
+import { rateLimit } from 'express-rate-limit';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
@@ -28,7 +28,7 @@ declare global {
 // 1. HELMET — Headers de Segurança HTTP
 // ============================================================
 
-export const configureHelmet = () => helmet({
+export const configureHelmet = () => (helmet as any)({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],

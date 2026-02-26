@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare, Plus, Settings2, QrCode, Power, BrainCircuit, CheckCircle2,
   Clock, Zap, Smartphone, Info, X, RefreshCw, MoreVertical, Trash2,
@@ -83,23 +83,75 @@ export const AIAgents: React.FC = () => {
     }
   };
 
-  const simulateConnection = async () => {
-    setLoading(true);
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<string>('');
+  const pollTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!isModalOpen && pollTimeout.current) {
+      clearTimeout(pollTimeout.current);
+    }
+  }, [isModalOpen]);
+
+  const pollStatus = async () => {
+    if (!tenantId) return;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     try {
-      const newAgent = await createAIAgent(tenantId, {
-        name: formData.name,
-        personality: formData.personality,
-        status: 'Active',
-        whatsappNumber: '+55 (11) 9' + Math.floor(10000000 + Math.random() * 90000000),
-        totalInteractions: 0
-      });
-      setAgents([newAgent, ...agents]);
-      setIsModalOpen(false);
-      setShowFeedback('Novo agente conectado e persistido!');
+      const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`);
+      if (!res.ok) throw new Error('Falha HTTP do Backend');
+
+      const data = await res.json();
+
+      if (data.status === 'QR_READY' && data.qr) {
+        setConnectionStatus('Aguardando escaneamento do QR Code...');
+        setQrCodeData(data.qr);
+        setLoading(false);
+      } else if (data.status === 'Connected') {
+        setConnectionStatus('Criptografia Estabelecida. Conectado!');
+        setShowFeedback('WhatsApp Conectado com Sucesso!');
+
+        try {
+          const newAgent = await createAIAgent(tenantId, {
+            name: formData.name || 'Assistente WhatsApp',
+            personality: formData.personality || 'Atendimento',
+            status: 'Active',
+            whatsappNumber: data.user?.id?.split(':')[0] || 'Desconhecido',
+            totalInteractions: 0
+          });
+          setAgents(prev => [newAgent, ...prev]);
+        } catch (e) { console.error('Erro ao salvar agente:', e) }
+
+        setIsModalOpen(false);
+        setQrCodeData(null);
+        return;
+      } else {
+        setConnectionStatus('Iniciando Sessão Segura com WhatsApp...');
+      }
+
+      if (modalStep === 'pairing' && data.status !== 'Connected') {
+        pollTimeout.current = setTimeout(pollStatus, 3000);
+      }
     } catch (err) {
-      console.error('Erro ao criar agente:', err);
-      setShowFeedback('Erro ao criar agente.');
-    } finally {
+      console.error('Erro no polling:', err);
+      pollTimeout.current = setTimeout(pollStatus, 5000);
+    }
+  };
+
+  const startRealConnection = async () => {
+    setLoading(true);
+    setConnectionStatus('Requisitando código via API...');
+    setQrCodeData(null);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      await fetch(`${apiUrl}/api/whatsapp/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId })
+      });
+      pollStatus();
+    } catch (err) {
+      console.error(err);
+      setShowFeedback('Erro ao iniciar pareamento com o backend.');
       setLoading(false);
     }
   };
@@ -337,10 +389,17 @@ export const AIAgents: React.FC = () => {
                 <h3 className="text-3xl font-bold text-legal-navy dark:text-white">Pareamento WhatsApp</h3>
                 <div className="relative group max-w-[280px] mx-auto p-4 bg-white border-4 border-legal-navy rounded-[2rem] shadow-2xl">
                   {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-xl"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-xs font-bold text-slate-400 uppercase">Validando...</p></div> :
-                    <div className="aspect-square bg-slate-100 rounded-xl flex items-center justify-center relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-80" />
-                      <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={simulateConnection} className="bg-legal-navy text-white px-6 py-3 rounded-full font-bold shadow-xl">Clique para Escanear</button></div>
-                    </div>}
+                    qrCodeData ? (
+                      <div className="aspect-square bg-white rounded-xl flex items-center justify-center relative overflow-hidden">
+                        <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain" />
+                      </div>
+                    ) : (
+                      <div className="aspect-square bg-slate-100 rounded-xl flex items-center justify-center relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-80" />
+                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={startRealConnection} className="bg-legal-navy text-white px-6 py-3 rounded-full font-bold shadow-xl">Gerar QR Code</button></div>
+                      </div>
+                    )}
                 </div>
+                {connectionStatus && <p className="text-sm font-bold text-legal-bronze mt-4">{connectionStatus}</p>}
                 <button onClick={() => setModalStep('config')} className="text-slate-400 font-bold text-sm hover:underline">Voltar</button>
               </div>
             )}

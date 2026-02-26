@@ -1,5 +1,6 @@
-
-import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabaseClient';
+import { io as socketIO } from 'socket.io-client';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Mail, FolderOpen, Layout, Slack, Plus, Check, Settings2, Globe, Loader2, ArrowRight,
   PlugZap, MessageCircle, QrCode, Zap, Trash2, RefreshCw, X, Lock, SmartphoneNfc,
@@ -11,6 +12,7 @@ import {
   getWhatsAppDevices, createWhatsAppDevice, updateWhatsAppDevice, deleteWhatsAppDevice,
   getIntegrations, upsertIntegration
 } from '../services/supabaseService';
+import { useTenant } from '../services/tenantContext';
 
 // WhatsAppSession interface removed in favor of WhatsAppDevice from types
 
@@ -37,6 +39,7 @@ const CLOUD_APPS: CloudApp[] = [
 // INITIAL_SESSIONS removed
 
 export const Integrations: React.FC = () => {
+  const { tenantId } = useTenant();
   const [activeTab, setActiveTab] = useState<'channels' | 'apps'>('channels');
   const [sessions, setSessions] = useState<WhatsAppDevice[]>([]);
   const [connectedApps, setConnectedApps] = useState<string[]>([]);
@@ -81,6 +84,8 @@ export const Integrations: React.FC = () => {
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success'>('naming');
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const socketRef = useRef<ReturnType<typeof socketIO> | null>(null);
 
   const [editingSession, setEditingSession] = useState<WhatsAppDevice | null>(null);
   const [sessionForm, setSessionForm] = useState({ name: '', phone: '' });
@@ -98,39 +103,88 @@ export const Integrations: React.FC = () => {
     }
   }, [showToast]);
 
+  // Cleanup: desconectar socket ao fechar o modal de QR
+  useEffect(() => {
+    if (!isQRModalOpen) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+    }
+  }, [isQRModalOpen]);
+
+  // Conectar ao WebSocket e escutar eventos do WhatsApp
+  const connectSocket = (sessionName: string) => {
+    if (!tenantId) return;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+    // Evitar múltiplas conexões
+    if (socketRef.current?.connected) return;
+
+    const socket = socketIO(apiUrl, {
+      auth: { tenantId },
+      transports: ['websocket', 'polling'],
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[Socket] Conectado ao backend. Aguardando QR...');
+    });
+
+    // Evento: QR Code gerado pelo Baileys
+    socket.on('qr:update', (data: { qr: string; status: string }) => {
+      setQrCodeData(data.qr);
+      setIsConnecting(false);
+    });
+
+    // Evento: WhatsApp conectado com sucesso
+    socket.on('whatsapp:connected', async (data: { status: string; user: any }) => {
+      setShowToast('WhatsApp Conectado com Sucesso! 🎉');
+      setQrStep('success');
+      try {
+        const newDevice = await createWhatsAppDevice({
+          name: sessionName,
+          phone: data.user?.id?.split(':')[0] || 'Desconhecido',
+          status: 'connected',
+          type: 'qr',
+          batteryLevel: 100,
+          lastActive: new Date().toISOString()
+        });
+        setSessions(prev => [newDevice, ...prev]);
+      } catch (error) {
+        console.error('Error saving device:', error);
+      }
+      setQrCodeData(null);
+      socket.disconnect();
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[Socket] Erro de conexão:', err.message);
+    });
+  };
+
   const handleCreateSession = async () => {
     if (!sessionForm.name.trim()) return;
     setQrStep('scanning');
     setIsConnecting(true);
+    setQrCodeData(null);
+    const name = sessionForm.name;
+    try {
+      // 1. Conectar ao WebSocket ANTES de iniciar a sessão (evita race condition)
+      connectSocket(name);
 
-    // Simulate connection delay
-    setTimeout(async () => {
+      // 2. Disparar início da sessão no backend
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      await fetch(`${apiUrl}/api/whatsapp/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId })
+      });
+    } catch (err) {
+      console.error(err);
+      setShowToast('Erro ao iniciar pareamento com o backend.');
       setIsConnecting(false);
-      // ... steps simulation
-      setTimeout(async () => {
-        setIsConnecting(true);
-        setTimeout(async () => {
-          setIsConnecting(false);
-          setQrStep('success');
-
-          try {
-            const newDevice = await createWhatsAppDevice({
-              name: sessionForm.name,
-              phone: sessionForm.phone || '+55 (11) 9' + Math.floor(10000000 + Math.random() * 90000000),
-              status: 'connected',
-              type: 'qr',
-              batteryLevel: 100,
-              lastActive: new Date().toISOString()
-            });
-            setSessions(prev => [newDevice, ...prev]);
-            setShowToast(`Aparelho "${sessionForm.name}" conectado com sucesso!`);
-          } catch (error) {
-            console.error('Error creating device:', error);
-            setShowToast('Erro ao conectar aparelho.');
-          }
-        }, 2000);
-      }, 3000);
-    }, 1500);
+    }
   };
 
   const handleEditSession = async (e: React.FormEvent) => {
@@ -575,11 +629,15 @@ export const Integrations: React.FC = () => {
                       <RefreshCw size={48} className="text-legal-bronze animate-spin" />
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Validando Conexão...</p>
                     </div>
+                  ) : qrCodeData ? (
+                    <div className="aspect-square bg-white rounded-[1.5rem] flex flex-col items-center justify-center p-2 relative">
+                      <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain" />
+                    </div>
                   ) : (
                     <div className="aspect-square bg-white rounded-[1.5rem] flex flex-col items-center justify-center p-2 relative">
-                      <QrCode size={240} className="text-slate-900" />
-                      <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center rounded-[1.5rem] opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="bg-legal-navy text-white px-4 py-2 rounded-full text-[10px] font-black uppercase">Código Ativo</span>
+                      <QrCode size={240} className="text-slate-900 opacity-20" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-bold text-slate-500">Gerando...</span>
                       </div>
                     </div>
                   )}

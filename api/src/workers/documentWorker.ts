@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
-// import { supabaseAdmin } from '../config/supabase'; // Criação futura de client Admin
-// import { generateDocumentComGenAI } from '../services/aiService';
+import { supabaseAdmin } from '../config/supabase.js'; 
+import { generateDocumentComGenAI } from '../services/aiService.js';
 
 export const documentWorker = new Worker(
     'document-generation',
@@ -11,15 +11,10 @@ export const documentWorker = new Worker(
         try {
             const { tenantId, userId, type, context } = job.data;
             
-            // 1. Simula processamento pesado na IA (5 a 15 segundos)
-            // const generatedText = await generateDocumentComGenAI(type, context);
+            // 1. Processamento pesado na IA via Gemini
+            const generatedText = await generateDocumentComGenAI(type, context);
             
-            // Simulação de delay:
-            await new Promise(resolve => setTimeout(resolve, 8000));
-            const generatedText = `[Simulação] Documento gerado do tipo ${type} para o cliente ${context?.clientName || 'Desconhecido'}`;
-
             // 2. Salva o resultado no banco de dados (Supabase) via Admin Client
-            /*
             const { data, error } = await supabaseAdmin
                 .from('ai_generated_docs')
                 .insert({
@@ -29,14 +24,17 @@ export const documentWorker = new Worker(
                     content: generatedText,
                     status: 'completed'
                 });
-            if (error) throw error;
-            */
+                
+            if (error) {
+                console.error(`❌ [DocWorker] Supabase DB Error:`, error);
+                throw error;
+            }
 
-             console.log(`✅ [DocWorker] Documento finalizado e salvo no banco! Supabase Realtime notificará o React do usuário ${userId}.`);
+            console.log(`✅ [DocWorker] Documento finalizado e salvo no banco! Supabase Realtime notificará o React do usuário ${userId}.`);
              
         } catch (error) {
             console.error(`❌ [DocWorker] Falha ao gerar documento ${job.id}:`, error);
-            // Aqui poderíamos atualizar o banco para status="failed" para a UI sinalizar erro também
+            // Poderíamos atualizar o banco para status="failed" aqui
             throw error; 
         }
     },

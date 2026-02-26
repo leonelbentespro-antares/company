@@ -1,7 +1,7 @@
 import { Worker, Job } from 'bullmq';
 import { redisConnection } from '../config/redis.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
-// import { getAIResponse } from '../services/aiService';
+import { getAIResponse } from '../services/aiService.js';
 
 export const whatsappWorker = new Worker(
     'whatsapp-incoming',
@@ -27,17 +27,16 @@ export const whatsappWorker = new Worker(
             console.log(`[Worker] Mensagem de ${senderPhone}: "${textBody}"`);
 
             // Aqui consultaríamos o Supabase para pegar o Tenant, o Agente configurado e o histórico (RAG)
-            // const tenantContext = await getTenantContextByPhone(value.metadata.display_phone_number);
+            const mockTenantContext = { agent_id: 'default' };
             
-            // Simulação de delay de IA pesado (ex: Chamada a LLM de 4 a 10 segundos)
-            // const aiReply = await getAIResponse(textBody, tenantContext);
-            const aiReply = `Simulação de IA Backend. Você disse: "${textBody}"`;
+            // Requerindo resposta gerada do LLM
+            console.log(`[Worker] Chamando LLM...`);
+            const aiReply = await getAIResponse(textBody, mockTenantContext);
 
             // Uma vez processado pela IA de forma assíncrona, enfileiramos a RESPOSTA no webhook
             await whatsappOutgoingQueue.add('send-reply', {
                 to: senderPhone,
-                text: aiReply,
-                // tenantId: tenantContext.id
+                text: aiReply
             });
 
             console.log(`[Worker] Resposta calculada e enviada para a fila outgoing.`);
