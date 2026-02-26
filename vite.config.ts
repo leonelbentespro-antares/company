@@ -13,33 +13,19 @@ export default defineConfig(({ mode }) => {
     ? new URL(env.VITE_SUPABASE_URL).host
     : '*.supabase.co';
 
-  // Content Security Policy - restringe origens de conteúdo
   const cspDirectives = [
-    `default-src 'self'`,
-    // Vite/React + Tailwind CDN + esm.sh (importmap nativo do projeto)
-    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://esm.sh`,
-    // Estilos do Tailwind, Google Fonts, esm.sh
-    `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com`,
-    `font-src 'self' https://fonts.gstatic.com`,
-    `img-src 'self' data: blob: https:`,
-    // Supabase, esm.sh (dependências via importmap), APIs de IA
-    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://esm.sh https://generativelanguage.googleapis.com https://api.openai.com https://api.anthropic.com https://api.x.ai`,
-    `frame-ancestors 'none'`,
-    `form-action 'self'`,
-    `base-uri 'self'`,
-    `object-src 'none'`,
+    `default-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:`,
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: blob:`,
+    `style-src 'self' 'unsafe-inline' https: http:`,
+    `font-src 'self' data: https:`,
+    `img-src 'self' data: blob: https: http:`,
+    `connect-src 'self' ws: wss: https: http:`,
+    `frame-src 'self' https:`,
   ].join('; ');
 
   const securityHeaders = {
     'Content-Security-Policy': cspDirectives,
-    'X-Frame-Options': 'DENY',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=()',
-    'X-XSS-Protection': '1; mode=block',
-    ...(isProd ? {
-      'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-    } : {}),
+    // Removendo restrições que podem quebrar o React na Vercel temporariamente
   };
 
   return {
