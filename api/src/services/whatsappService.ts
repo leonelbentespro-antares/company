@@ -5,7 +5,10 @@ import fs from 'fs';
 import path from 'path';
 import { emitToTenant } from '../socket/index.js';
 
-const sessionsDir = path.join(process.cwd(), 'sessions');
+const sessionsDir = process.env.DATA_DIR 
+    ? path.join(process.env.DATA_DIR, 'sessions')
+    : path.join(process.cwd(), 'sessions');
+
 if (!fs.existsSync(sessionsDir)) {
     fs.mkdirSync(sessionsDir, { recursive: true });
 }

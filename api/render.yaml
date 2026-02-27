@@ -10,7 +10,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: ALLOWED_ORIGINS
-        value: https://lexhub-saas.vercel.app # URL da Vercel após o deploy do frontend
+        value: https://lexhub-saas.vercel.app,https://lexhub.company # URLs do Frontend
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
@@ -19,3 +19,7 @@ services:
         sync: false # Será preenchido com a URL do broker managed pelo Render ou Upstash
       - key: GEMINI_API_KEY
         sync: false
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
