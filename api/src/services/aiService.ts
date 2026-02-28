@@ -1,8 +1,10 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { FunctionDeclaration } from '@google/genai';
 import { supabaseAdmin } from '../config/supabase.js';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const ai = new GoogleGenAI({ apiKey: process.env.VITE_GEMINI_API_KEY || '' });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || '' });
 
 // Tool definitions for Function Calling ported from frontend
 export const MANAGE_CONVERSATION_TOOL: FunctionDeclaration = {

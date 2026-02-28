@@ -84,12 +84,15 @@ export const AIAgents: React.FC = () => {
   };
 
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [pairCodeData, setPairCodeData] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>('');
   const pollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    if (!isModalOpen && pollTimeout.current) {
-      clearTimeout(pollTimeout.current);
+    if (!isModalOpen) {
+      if (pollTimeout.current) clearTimeout(pollTimeout.current);
+      setQrCodeData(null);
+      setPairCodeData(null);
     }
   }, [isModalOpen]);
 
@@ -105,6 +108,12 @@ export const AIAgents: React.FC = () => {
       if (data.status === 'QR_READY' && data.qr) {
         setConnectionStatus('Aguardando escaneamento do QR Code...');
         setQrCodeData(data.qr);
+        setPairCodeData(null);
+        setLoading(false);
+      } else if (data.status === 'PAIR_CODE_READY' && data.paircode) {
+        setConnectionStatus('Utilize o código abaixo no seu WhatsApp...');
+        setPairCodeData(data.paircode);
+        setQrCodeData(null);
         setLoading(false);
       } else if (data.status === 'Connected') {
         setConnectionStatus('Criptografia Estabelecida. Conectado!');
@@ -389,7 +398,15 @@ export const AIAgents: React.FC = () => {
                 <h3 className="text-3xl font-bold text-legal-navy dark:text-white">Pareamento WhatsApp</h3>
                 <div className="relative group max-w-[280px] mx-auto p-4 bg-white border-4 border-legal-navy rounded-[2rem] shadow-2xl">
                   {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-xl"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-xs font-bold text-slate-400 uppercase">Validando...</p></div> :
-                    qrCodeData ? (
+                    pairCodeData ? (
+                      <div className="aspect-square bg-slate-50 rounded-xl flex flex-col items-center justify-center gap-4 text-center p-6 transition-all animate-in zoom-in-95">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código de Pareamento</p>
+                        <div className="text-4xl font-black text-legal-navy tracking-[0.2em] bg-white px-6 py-4 rounded-2xl shadow-inner border border-slate-100">
+                          {pairCodeData}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
+                      </div>
+                    ) : qrCodeData ? (
                       <div className="aspect-square bg-white rounded-xl flex items-center justify-center relative overflow-hidden">
                         <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain" />
                       </div>

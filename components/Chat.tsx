@@ -215,6 +215,7 @@ const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4
 
 export const Chat: React.FC = () => {
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
+  const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
   const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>('list');
   const [externalConversations, setExternalConversations] = useState<ChatConversation[]>(() => {
     const saved = localStorage.getItem('lexhub_chat_external_v1');
@@ -224,6 +225,12 @@ export const Chat: React.FC = () => {
     const saved = localStorage.getItem('lexhub_chat_internal_v1');
     return saved ? JSON.parse(saved) : MOCK_INTERNAL_CONVERSATIONS;
   });
+
+  const [chatAssignments, setChatAssignments] = useState<Record<string, { departmentId: string; departmentName: string; agentId: string; agentName: string; color: string }>>(() => {
+    const saved = localStorage.getItem('lexhub_chat_assignments');
+    return saved ? JSON.parse(saved) : {};
+  });
+
 
   const [contacts, setContacts] = useState<Contact[]>(() => {
     const saved = localStorage.getItem('lexhub_chat_contacts');
@@ -246,6 +253,10 @@ export const Chat: React.FC = () => {
 
   const currentConversations = (chatTab === 'external' ? externalConversations : internalConversations)
     .filter(chat => {
+      const isAssigned = !!chatAssignments[chat.id];
+      if (mainTab === 'inbox' && !isAssigned) return false;
+      if (mainTab === 'pending' && isAssigned) return false;
+
       if (!filterTagId) return true;
       return chatTagRelations[chat.id]?.includes(filterTagId);
     });
@@ -272,10 +283,7 @@ export const Chat: React.FC = () => {
   const [transferStep, setTransferStep] = useState<'department' | 'agent'>('department');
   const [transferSelectedDept, setTransferSelectedDept] = useState<Department | null>(null);
   const [transferNote, setTransferNote] = useState('');
-  const [chatAssignments, setChatAssignments] = useState<Record<string, { departmentId: string; departmentName: string; agentId: string; agentName: string; color: string }>>(() => {
-    const saved = localStorage.getItem('lexhub_chat_assignments');
-    return saved ? JSON.parse(saved) : {};
-  });
+
 
   const [newQR, setNewQR] = useState({ command: '', text: '' });
   const [editingQRId, setEditingQRId] = useState<string | null>(null);
@@ -697,16 +705,31 @@ export const Chat: React.FC = () => {
 
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
             <button
-              onClick={() => { setChatTab('external'); setSelectedChat(null); setFilterTagId(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${chatTab === 'external' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <MessageCircle size={14} /> WhatsApp
+              <MessageSquareText size={14} /> Caixa de Entrada
+            </button>
+            <button
+              onClick={() => { setMainTab('pending'); setSelectedChat(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-bronze text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Clock size={14} /> Pendentes
+            </button>
+          </div>
+
+          <div className="flex bg-slate-100/50 dark:bg-slate-800/50 p-1 rounded-xl">
+            <button
+              onClick={() => { setChatTab('external'); setSelectedChat(null); setFilterTagId(null); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${chatTab === 'external' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <MessageCircle size={12} /> WhatsApp
             </button>
             <button
               onClick={() => { setChatTab('internal'); setSelectedChat(null); setFilterTagId(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${chatTab === 'internal' ? 'bg-legal-bronze text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${chatTab === 'internal' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <Users size={14} /> Equipe
+              <Users size={12} /> Equipe
             </button>
           </div>
 
@@ -744,46 +767,55 @@ export const Chat: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 space-y-2">
-          {currentConversations.map(chat => {
-            const chatTags = (chatTagRelations[chat.id] || [])
-              .map(tid => tags.find(t => t.id === tid))
-              .filter(Boolean) as ChatTag[];
+          {currentConversations.length > 0 ? (
+            currentConversations.map(chat => {
+              const chatTags = (chatTagRelations[chat.id] || [])
+                .map(tid => tags.find(t => t.id === tid))
+                .filter(Boolean) as ChatTag[];
 
-            return (
-              <button
-                key={chat.id}
-                onClick={() => { setSelectedChat(chat); setIsSidebarOpen(false); }}
-                className={`w-full p-4 rounded-3xl flex items-center gap-4 transition-all text-left group ${selectedChat?.id === chat.id ? 'bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-black/50 ring-1 ring-slate-100 dark:ring-slate-700' : 'hover:bg-white/40 dark:hover:bg-slate-800/40'}`}
-              >
-                <div className="relative shrink-0">
-                  <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
-                  {chat.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-800 rounded-full"></div>}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-0.5">
-                    <h4 className={`font-black text-sm truncate ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>{chat.contactName}</h4>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
+              return (
+                <button
+                  key={chat.id}
+                  onClick={() => { setSelectedChat(chat); setIsSidebarOpen(false); }}
+                  className={`w-full p-4 rounded-3xl flex items-center gap-4 transition-all text-left group ${selectedChat?.id === chat.id ? 'bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-black/50 ring-1 ring-slate-100 dark:ring-slate-700' : 'hover:bg-white/40 dark:hover:bg-slate-800/40'}`}
+                >
+                  <div className="relative shrink-0">
+                    <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
+                    {chat.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-800 rounded-full"></div>}
                   </div>
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate italic flex-1">
-                      {chat.lastMessage}
-                    </p>
-                    {chat.unreadCount > 0 && (
-                      <span className="bg-legal-bronze text-white text-[10px] font-black px-2 py-0.5 rounded-full ml-2">{chat.unreadCount}</span>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-0.5">
+                      <h4 className={`font-black text-sm truncate ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>{chat.contactName}</h4>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
+                    </div>
+                    <div className="flex justify-between items-center mb-1">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate italic flex-1">
+                        {chat.lastMessage}
+                      </p>
+                      {chat.unreadCount > 0 && (
+                        <span className="bg-legal-bronze text-white text-[10px] font-black px-2 py-0.5 rounded-full ml-2">{chat.unreadCount}</span>
+                      )}
+                    </div>
+                    {chatTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {chatTags.map(t => (
+                          <div key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.label} />
+                        ))}
+                      </div>
                     )}
                   </div>
-                  {chatTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {chatTags.map(t => (
-                        <div key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.label} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+                </button>
+              );
+            })
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-center opacity-50 space-y-3">
+              <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full">
+                <MessageSquareText size={32} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-bold text-slate-500">Nenhuma conversa encontrada em {mainTab === 'inbox' ? 'Caixa de Entrada' : 'Pendentes'}</p>
+            </div>
+          )}
         </div>
       </div>
 

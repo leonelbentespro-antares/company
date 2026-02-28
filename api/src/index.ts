@@ -72,6 +72,7 @@ import { webhookRouter } from './routes/webhooks.js';
 // import { aiRouter } from './routes/ai.js';
 import { adminRouter } from './routes/admin.js';
 import { whatsappRouter } from './routes/whatsapp.js';
+import { integrationsRouter } from './routes/integrations.js';
 import { initSocketIO } from './socket/index.js';
 
 // Inicializar Socket.IO no servidor HTTP compartilhado
@@ -83,6 +84,7 @@ app.use('/webhooks', webhookRouter);
 // Rotas da API: exigem JWT válido + tenant extraído
 // O middleware de auth é aplicado dentro de cada router
 app.use('/api/whatsapp', whatsappRouter);
+app.use('/api/integrations', integrationsRouter);
 // app.use('/api', aiRouter);
 
 // Rota de admin para visualizar alertas de segurança (uso interno)

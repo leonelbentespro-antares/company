@@ -34,6 +34,7 @@ const CLOUD_APPS: CloudApp[] = [
   { id: 'slack', name: 'Slack', description: 'Notificações de movimentações judiciais em seus canais.', icon: <Slack size={24} />, color: 'bg-purple-600', category: 'Communication' },
   { id: 'facebook', name: 'Facebook', description: 'Conecte sua página para gerenciar mensagens e comentários.', icon: <Facebook size={24} />, color: 'bg-blue-600', category: 'Social' },
   { id: 'instagram', name: 'Instagram', description: 'Responda DMs e interaja com seus seguidores diretamente.', icon: <Instagram size={24} />, color: 'bg-pink-600', category: 'Social' },
+  { id: 'notificame', name: 'NotificaMe Hub', description: 'Centralize canais de atendimento e automação via NotificaMe.', icon: <Globe size={24} />, color: 'bg-indigo-600', category: 'Communication' },
 ];
 
 // INITIAL_SESSIONS removed
@@ -47,15 +48,18 @@ export const Integrations: React.FC = () => {
   const [metaConfig, setMetaConfig] = useState({ token: '', phoneId: '', businessId: '' });
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (tenantId) {
+      loadData();
+    }
+  }, [tenantId]);
 
   const loadData = async () => {
+    if (!tenantId) return;
     try {
-      const devices = await getWhatsAppDevices();
+      const devices = await getWhatsAppDevices(tenantId);
       setSessions(devices);
 
-      const integrations = await getIntegrations();
+      const integrations = await getIntegrations(tenantId);
 
       // Process Connected Apps
       const apps = integrations
@@ -73,6 +77,15 @@ export const Integrations: React.FC = () => {
           businessId: metaIntegration.settings.businessId || ''
         });
       }
+
+      // Process NotificaMe Config
+      const notificaMeIntegration = integrations.find(i => i.provider === 'notificame');
+      if (notificaMeIntegration) {
+        setNotificaMeConfig({
+          token: notificaMeIntegration.settings.token || '',
+          channelId: notificaMeIntegration.settings.channelId || ''
+        });
+      }
     } catch (error) {
       console.error('Error loading integrations data:', error);
     }
@@ -81,10 +94,13 @@ export const Integrations: React.FC = () => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
+  const [isNotificaMeModalOpen, setIsNotificaMeModalOpen] = useState(false);
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success'>('naming');
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [pairCode, setPairCode] = useState<string | null>(null);
+  const [notificaMeConfig, setNotificaMeConfig] = useState({ token: '', channelId: '' });
   const socketRef = useRef<ReturnType<typeof socketIO> | null>(null);
 
   const [editingSession, setEditingSession] = useState<WhatsAppDevice | null>(null);
@@ -110,31 +126,45 @@ export const Integrations: React.FC = () => {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      setPairCode(null);
+      setQrCodeData(null);
     }
   }, [isQRModalOpen]);
 
   // Conectar ao WebSocket e escutar eventos do WhatsApp
   const connectSocket = (sessionName: string) => {
     if (!tenantId) return;
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
     // Evitar múltiplas conexões
     if (socketRef.current?.connected) return;
 
-    const socket = socketIO(apiUrl, {
+    const socket = socketIO(import.meta.env.VITE_API_URL || '', {
       auth: { tenantId },
       transports: ['websocket', 'polling'],
+      withCredentials: true
     });
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      console.log('[Socket] Conectado ao backend. Aguardando QR...');
+      console.log(`[Socket Debug] Conectado! Tenant=${tenantId}, SocketId=${socket.id}`);
     });
 
-    // Evento: QR Code gerado pelo Baileys
-    socket.on('qr:update', (data: { qr: string; status: string }) => {
-      setQrCodeData(data.qr);
+    // Evento: QR Code ou Pair Code gerado
+    socket.on('qr:update', (data: { qr?: string; paircode?: string; status: string }) => {
+      console.log('[Socket Debug] qr:update recebido:', data);
+      if (data.paircode) {
+        setPairCode(data.paircode);
+      }
+      if (data.qr) {
+        setQrCodeData(data.qr);
+      }
       setIsConnecting(false);
+    });
+
+    socket.on('qr:error', (data: { message: string }) => {
+      console.warn('[Socket Debug] qr:error recebido:', data);
+      setIsConnecting(false);
+      setShowToast(`Erro: ${data.message}`);
     });
 
     // Evento: WhatsApp conectado com sucesso
@@ -155,6 +185,8 @@ export const Integrations: React.FC = () => {
         console.error('Error saving device:', error);
       }
       setQrCodeData(null);
+      setPairCode(null);
+      setIsConnecting(false);
       socket.disconnect();
     });
 
@@ -163,12 +195,47 @@ export const Integrations: React.FC = () => {
     });
   };
 
+  // Fallback Polling: Se o socket demorar, consulta o status via HTTP
+  useEffect(() => {
+    let pollTimer: NodeJS.Timeout;
+
+    if (isConnecting && isQRModalOpen) {
+      pollTimer = setInterval(async () => {
+        console.log('[Fallback] Consultando status via HTTP...');
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        try {
+          const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`);
+          const data = await res.json();
+
+          if (data.status === 'QR_READY' && data.qr) {
+            setQrCodeData(data.qr);
+            setIsConnecting(false);
+          } else if (data.status === 'PAIR_CODE_READY' && data.paircode) {
+            setPairCode(data.paircode);
+            setIsConnecting(false);
+          } else if (data.status === 'Connected') {
+            setIsConnecting(false);
+            setQrStep('success');
+            setShowToast('WhatsApp Conectado! 🎉');
+          }
+        } catch (err) {
+          console.warn('[Fallback] Erro ao consultar status:', err);
+        }
+      }, 3000);
+    }
+
+    return () => clearInterval(pollTimer);
+  }, [isConnecting, isQRModalOpen, tenantId]);
+
   const handleCreateSession = async () => {
     if (!sessionForm.name.trim()) return;
     setQrStep('scanning');
     setIsConnecting(true);
     setQrCodeData(null);
+    setPairCode(null);
     const name = sessionForm.name;
+    const phone = sessionForm.phone; // Captura o telefone para Pair Code
+
     try {
       // 1. Conectar ao WebSocket ANTES de iniciar a sessão (evita race condition)
       connectSocket(name);
@@ -178,7 +245,7 @@ export const Integrations: React.FC = () => {
       await fetch(`${apiUrl}/api/whatsapp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId })
+        body: JSON.stringify({ tenantId, phone })
       });
     } catch (err) {
       console.error(err);
@@ -261,7 +328,48 @@ export const Integrations: React.FC = () => {
     }
   };
 
+  const handleSaveNotificaMeConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAppLoading('notificame');
+
+    try {
+      await upsertIntegration({
+        provider: 'notificame',
+        settings: {
+          ...notificaMeConfig,
+          enabled: true
+        }
+      });
+
+      setConnectedApps(prev => [...prev, 'notificame']);
+      setIsNotificaMeModalOpen(false);
+      setShowToast("NotificaMe Hub conectado com sucesso!");
+
+      // Registrar webhook automaticamente (opcional, pode ser feito no backend ao salvar)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const webhookUrl = `${apiUrl}/api/webhooks/notificame`;
+
+      // Chamada para o backend registrar o webhook no NotificaMe
+      await fetch(`${apiUrl}/api/integrations/notificame/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId, token: notificaMeConfig.token, channelId: notificaMeConfig.channelId, webhookUrl })
+      });
+
+    } catch (error) {
+      console.error('Error saving NotificaMe config:', error);
+      setShowToast("Erro ao conectar NotificaMe Hub.");
+    } finally {
+      setAppLoading(null);
+    }
+  };
+
   const toggleAppConnection = async (appId: string) => {
+    if (appId === 'notificame' && !connectedApps.includes('notificame')) {
+      setIsNotificaMeModalOpen(true);
+      return;
+    }
+
     setAppLoading(appId);
 
     const isConnected = connectedApps.includes(appId);
@@ -629,6 +737,14 @@ export const Integrations: React.FC = () => {
                       <RefreshCw size={48} className="text-legal-bronze animate-spin" />
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Validando Conexão...</p>
                     </div>
+                  ) : pairCode ? (
+                    <div className="aspect-square bg-slate-50 rounded-[1.5rem] flex flex-col items-center justify-center gap-4 text-center p-6">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código de Pareamento</p>
+                      <div className="text-4xl font-black text-legal-navy tracking-[0.2em] bg-white px-6 py-4 rounded-2xl shadow-inner border border-slate-100">
+                        {pairCode}
+                      </div>
+                      <p className="text-[10px] text-slate-500 font-medium">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
+                    </div>
                   ) : qrCodeData ? (
                     <div className="aspect-square bg-white rounded-[1.5rem] flex flex-col items-center justify-center p-2 relative">
                       <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain" />
@@ -840,6 +956,74 @@ export const Integrations: React.FC = () => {
                   className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-legal-navy/20 flex items-center justify-center gap-3 hover:brightness-110 disabled:opacity-50"
                 >
                   {appLoading === 'suggestion' ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} /> Enviar Sugestão</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL: NOTIFICAME HUB CONFIG */}
+      {isNotificaMeModalOpen && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md animate-in fade-in" onClick={() => !appLoading && setIsNotificaMeModalOpen(false)}></div>
+          <div className="relative bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
+            <div className="bg-indigo-600 p-10 text-white relative flex-shrink-0">
+              <button onClick={() => setIsNotificaMeModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 bg-white text-indigo-600 rounded-2xl flex items-center justify-center shadow-xl"><Globe size={32} /></div>
+                <div>
+                  <h3 className="text-3xl font-black">NotificaMe Hub</h3>
+                  <p className="text-white/60 text-[10px] uppercase font-black tracking-widest mt-1">Configuração de Integração Omnichannel</p>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveNotificaMeConfig} className="p-10 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Account API Token</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                    <input
+                      required
+                      type="password"
+                      placeholder="Token da sua conta NotificaMe"
+                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-indigo-600/5"
+                      value={notificaMeConfig.token}
+                      onChange={(e) => setNotificaMeConfig({ ...notificaMeConfig, token: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Channel ID (WhatsApp)</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Ex: 5511999999999 ou UUID do canal"
+                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-indigo-600/5"
+                    value={notificaMeConfig.channelId}
+                    onChange={(e) => setNotificaMeConfig({ ...notificaMeConfig, channelId: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl flex items-start gap-4">
+                <Info className="text-indigo-600 shrink-0" size={20} />
+                <div className="space-y-1">
+                  <p className="text-[10px] text-indigo-700 dark:text-indigo-300 font-bold uppercase tracking-tight">Registro Automático</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">Ao salvar, o LexHub tentará registrar automaticamente o webhook no seu canal NotificaMe para receber mensagens em tempo real.</p>
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button type="button" onClick={() => setIsNotificaMeModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancelar</button>
+                <button
+                  type="submit"
+                  disabled={appLoading === 'notificame'}
+                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                >
+                  {appLoading === 'notificame' ? <Loader2 size={20} className="animate-spin" /> : 'Salvar e Conectar'}
                 </button>
               </div>
             </form>
