@@ -395,24 +395,24 @@ export const AIAgents: React.FC = () => {
               </>
             ) : (
               <div className="p-12 text-center space-y-8">
-                <h3 className="text-3xl font-bold text-legal-navy dark:text-white">Pareamento WhatsApp</h3>
-                <div className="relative group max-w-[280px] mx-auto p-4 bg-white border-4 border-legal-navy rounded-[2rem] shadow-2xl">
-                  {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-xl"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-xs font-bold text-slate-400 uppercase">Validando...</p></div> :
+                <h3 className="text-3xl font-bold text-legal-navy dark:text-white tracking-tight">Pareamento WhatsApp</h3>
+                <div className="relative group max-w-[340px] mx-auto p-2 bg-white border-4 border-legal-navy rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
+                  {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-[2.5rem]"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-[10px] font-bold text-slate-400 uppercase">Validando...</p></div> :
                     pairCodeData ? (
-                      <div className="aspect-square bg-slate-50 rounded-xl flex flex-col items-center justify-center gap-4 text-center p-6 transition-all animate-in zoom-in-95">
+                      <div className="aspect-square bg-slate-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-center p-8 transition-all">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código de Pareamento</p>
-                        <div className="text-4xl font-black text-legal-navy tracking-[0.2em] bg-white px-6 py-4 rounded-2xl shadow-inner border border-slate-100">
+                        <div className="text-5xl font-black text-legal-navy tracking-[0.2em] bg-white px-8 py-6 rounded-3xl shadow-inner border border-slate-100">
                           {pairCodeData}
                         </div>
-                        <p className="text-[10px] text-slate-500 font-medium">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-4">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
                       </div>
                     ) : qrCodeData ? (
-                      <div className="aspect-square bg-white rounded-xl flex items-center justify-center relative overflow-hidden">
-                        <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain" />
+                      <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                        <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain scale-110" />
                       </div>
                     ) : (
-                      <div className="aspect-square bg-slate-100 rounded-xl flex items-center justify-center relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-80" />
-                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={startRealConnection} className="bg-legal-navy text-white px-6 py-3 rounded-full font-bold shadow-xl">Gerar QR Code</button></div>
+                      <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-20" />
+                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={startRealConnection} className="bg-legal-navy text-white px-8 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-all">Gerar QR Code</button></div>
                       </div>
                     )}
                 </div>
