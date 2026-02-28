@@ -12,6 +12,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { supabase } from './supabaseClient';
+import { User, UserRole } from '../types.ts';
 
 // ============================================================
 // TIPOS
@@ -37,6 +38,8 @@ interface TenantContextValue {
     tenantId: string | null;
     tenant: TenantInfo | null;
     subscription: TenantSubscription | null;
+    user: User | null;
+    isAuthenticated: boolean;
     loading: boolean;
     error: string | null;
     refresh: () => Promise<void>;
@@ -52,6 +55,8 @@ const TenantContext = createContext<TenantContextValue>({
     tenantId: null,
     tenant: null,
     subscription: null,
+    user: null,
+    isAuthenticated: false,
     loading: true,
     error: null,
     refresh: async () => { },
@@ -67,6 +72,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const [tenantId, setTenantId] = useState<string | null>(null);
     const [tenant, setTenant] = useState<TenantInfo | null>(null);
     const [subscription, setSubscription] = useState<TenantSubscription | null>(null);
+    const [user, setUser] = useState<User | null>(null);
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -75,28 +82,52 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setError(null);
 
         try {
-            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
-            if (authError || !user) {
+            if (authError || !authUser) {
                 setTenantId(null);
                 setTenant(null);
                 setSubscription(null);
+                setUser(null);
+                setIsAuthenticated(false);
                 setLoading(false);
                 return;
             }
 
-            // Buscar o tenant_id do usuário autenticado
+            // 1. Buscar Perfil do Usuário
+            const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('auth_user_id', authUser.id)
+                .single();
+
+            if (profileData) {
+                setUser({
+                    id: profileData.id,
+                    registrationId: profileData.registration_id,
+                    name: profileData.name,
+                    email: profileData.email,
+                    role: profileData.role as UserRole,
+                    cpfCnpj: profileData.cpf_cnpj,
+                    avatar: profileData.avatar_url,
+                    oab: profileData.oab,
+                    phone: profileData.phone
+                });
+                setIsAuthenticated(true);
+            }
+
+            // 2. Buscar o tenant_id do usuário autenticado
             const { data: tuData, error: tuError } = await supabase
                 .from('tenant_users')
                 .select('tenant_id, role')
-                .eq('user_id', user.id)
+                .eq('user_id', authUser.id)
                 .limit(1)
                 .single();
 
             if (tuError || !tuData) {
                 // Usuário sem tenant (pode ter sido criado antes do trigger)
                 // Tentar criar automaticamente
-                await attemptTenantProvision(user);
+                await attemptTenantProvision(authUser);
                 setLoading(false);
                 return;
             }
@@ -206,6 +237,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 setTenantId(null);
                 setTenant(null);
                 setSubscription(null);
+                setUser(null);
+                setIsAuthenticated(false);
             }
         });
 
@@ -223,6 +256,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             tenantId,
             tenant,
             subscription,
+            user,
+            isAuthenticated,
             loading,
             error,
             refresh: loadTenant,

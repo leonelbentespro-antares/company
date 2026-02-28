@@ -95,15 +95,23 @@ const SidebarItem: React.FC<{
 );
 
 const App: React.FC = () => {
-  const { tenantId, loading: tenantContextLoading, error } = useTenant();
+  const { tenantId, loading: tenantContextLoading, error, user: contextUser, isAuthenticated: contextAuth } = useTenant();
   const { t } = useLanguage();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showProfileFeedback, setShowProfileFeedback] = useState(false);
+
+  // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
+  useEffect(() => {
+    if (contextUser) {
+      setCurrentUser(contextUser);
+    } else {
+      setCurrentUser(null);
+    }
+  }, [contextUser]);
 
   // State de Modo Escuro
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -155,7 +163,7 @@ const App: React.FC = () => {
 
   // Ensure default state on auth change
   useEffect(() => {
-    if (isAuthenticated && currentUser) {
+    if (contextAuth && currentUser) {
       setActiveTab(currentUser.role === UserRole.Client ? 'portal' : 'dashboard');
       setProfileForm({
         name: currentUser.name,
@@ -166,11 +174,11 @@ const App: React.FC = () => {
         registrationId: currentUser.registrationId
       });
     }
-  }, [isAuthenticated, currentUser]);
+  }, [contextAuth, currentUser]);
 
   // 🔔 Supabase Realtime — Assinar notificações de jobs de IA concluídos
   useEffect(() => {
-    if (!isAuthenticated || !tenantId) return;
+    if (!contextAuth || !tenantId) return;
 
     const channel = supabase
       .channel(`ai-jobs-${tenantId}`)
@@ -212,16 +220,16 @@ const App: React.FC = () => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, tenantId]);
+  }, [contextAuth, tenantId]);
 
   const handleLogin = (userData: User) => {
+    // Agora o TenantProvider cuida do login via onAuthStateChange no refresh
+    // Mas para login imediato sem refresh, mantemos a atualização do estado local se necessário
     setCurrentUser(userData);
-    setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const toggleTheme = () => setIsDarkMode(!isDarkMode);
@@ -276,12 +284,12 @@ const App: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
+  if (!contextAuth && !tenantContextLoading) {
     return <Auth onLogin={handleLogin} />;
   }
 
   // Trava a tela enquanto o Tenant não acorda no Contexto
-  if (tenantContextLoading || (!tenantId && !error)) {
+  if (tenantContextLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
