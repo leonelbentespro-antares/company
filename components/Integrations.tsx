@@ -1,6 +1,7 @@
 import { supabase } from '../services/supabaseClient';
 import { io as socketIO } from 'socket.io-client';
 import React, { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Mail, FolderOpen, Layout, Slack, Plus, Check, Settings2, Globe, Loader2, ArrowRight,
   PlugZap, MessageCircle, QrCode, Zap, Trash2, RefreshCw, X, Lock, SmartphoneNfc,
@@ -771,7 +772,7 @@ export const Integrations: React.FC = () => {
                   <p className="text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto">Abra o WhatsApp no seu celular {'>'} Configurações {'>'} Aparelhos Conectados.</p>
                 </div>
 
-                <div className="relative group max-w-[340px] mx-auto p-2 bg-white rounded-[3rem] shadow-2xl border-4 border-legal-navy animate-in zoom-in-95 duration-500">
+                <div className="relative group max-w-[340px] mx-auto p-4 bg-white rounded-[3rem] shadow-2xl border-4 border-legal-navy animate-in zoom-in-95 duration-500 overflow-hidden">
                   {isConnecting ? (
                     <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-[2.5rem]">
                       <RefreshCw size={48} className="text-legal-bronze animate-spin" />
@@ -786,8 +787,25 @@ export const Integrations: React.FC = () => {
                       <p className="text-[10px] text-slate-500 font-medium mt-4">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
                     </div>
                   ) : qrCodeData ? (
-                    <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-                      <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain scale-110" />
+                    <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-0 relative overflow-hidden">
+                      {qrCodeData.startsWith('data:') ? (
+                        <img
+                          src={qrCodeData}
+                          alt="QR Code do WhatsApp"
+                          className="w-full h-full object-contain"
+                          style={{ imageRendering: 'pixelated' }}
+                        />
+                      ) : (
+                        <div className="p-4 bg-white w-full h-full flex items-center justify-center">
+                          <QRCodeSVG
+                            value={qrCodeData}
+                            size={280}
+                            level="H"
+                            includeMargin={true}
+                            className="w-full h-full"
+                          />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative">

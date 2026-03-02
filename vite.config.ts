@@ -35,12 +35,12 @@ export default defineConfig(({ mode }) => {
       headers: securityHeaders,
       proxy: {
         '/api': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:3005',
           changeOrigin: true,
           secure: false,
         },
         '/socket.io': {
-          target: 'http://localhost:3001',
+          target: 'http://localhost:3005',
           ws: true,
           changeOrigin: true,
         },

@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   MessageSquare, Plus, Settings2, QrCode, Power, BrainCircuit, CheckCircle2,
   Clock, Zap, Smartphone, Info, X, RefreshCw, MoreVertical, Trash2,
@@ -407,8 +408,25 @@ export const AIAgents: React.FC = () => {
                         <p className="text-[10px] text-slate-500 font-medium mt-4">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
                       </div>
                     ) : qrCodeData ? (
-                      <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-                        <img src={qrCodeData} alt="QR Code do WhatsApp" className="w-full h-full object-contain scale-110" />
+                      <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-0 relative overflow-hidden">
+                        {qrCodeData.startsWith('data:') ? (
+                          <img
+                            src={qrCodeData}
+                            alt="QR Code do WhatsApp"
+                            className="w-full h-full object-contain"
+                            style={{ imageRendering: 'pixelated' }}
+                          />
+                        ) : (
+                          <div className="p-4 bg-white w-full h-full flex items-center justify-center">
+                            <QRCodeSVG
+                              value={qrCodeData}
+                              size={220}
+                              level="H"
+                              includeMargin={true}
+                              className="w-full h-full"
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-20" />

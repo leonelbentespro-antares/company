@@ -12,6 +12,9 @@ import { rateLimit } from 'express-rate-limit';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import type { JwtPayload } from 'jsonwebtoken';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Extender o tipo Request para incluir dados injetados pelos middlewares
 declare global {
@@ -55,7 +58,7 @@ export const configureHelmet = () => (helmet as any)({
 // 2. CORS — Whitelist de Origins Permitidas
 // ============================================================
 
-const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:5173')
+const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:5173,http://127.0.0.1:5173')
     .split(',')
     .map(o => o.trim());
 
@@ -131,9 +134,11 @@ export const verifySupabaseJWT = (req: Request, res: Response, next: NextFunctio
     const token = authHeader.split(' ')[1] ?? '';
 
     try {
+        console.log(`[DEBUG_JWT] Verificando token para IP: ${req.ip}`);
         const decoded = jwt.verify(token, SUPABASE_JWT_SECRET) as JwtPayload;
         req.userId    = decoded['sub'] as string | undefined ?? undefined;
         req.userEmail = decoded['email'] as string | undefined ?? undefined;
+        console.log(`[DEBUG_JWT] Token válido para usuário: ${req.userId}`);
         next();
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Token inválido';
@@ -156,6 +161,7 @@ export const extractTenant = async (req: Request, res: Response, next: NextFunct
     }
 
     try {
+        console.log(`[DEBUG_TENANT] Buscando tenant para usuário: ${req.userId}`);
         const { createClient } = await import('@supabase/supabase-js');
         const supabase = createClient(
             process.env['SUPABASE_URL'] ?? '',
@@ -168,6 +174,9 @@ export const extractTenant = async (req: Request, res: Response, next: NextFunct
             .eq('user_id', req.userId)
             .limit(1)
             .single();
+        
+        if (error) console.error(`[DEBUG_TENANT] Erro Supabase:`, error);
+        if (data) console.log(`[DEBUG_TENANT] Tenant encontrado: ${data.tenant_id}`);
 
         if (error || !data) {
             res.status(403).json({

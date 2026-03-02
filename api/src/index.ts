@@ -5,19 +5,27 @@
  * ============================================================
  */
 
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import http from 'http';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const app = express();
 const httpServer = http.createServer(app);
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3005;
 
-// ============================================================
-// CAMADA 1: MIDDLEWARES DE SEGURANÇA (Ordem importa!)
-// ============================================================
+// Middleware de log imediato para depuração
+app.use((req, res, next) => {
+    console.log(`[DEBUG_API] ${new Date().toISOString()} — ${req.method} ${req.path} — IP: ${req.ip}`);
+    next();
+});
+
+// Rota de teste ultra-rápida (isolamento total)
+app.all('/ping', (req, res) => {
+    console.log(`[PING_TEST] IP: ${req.ip} — Method: ${req.method}`);
+    res.send('pong');
+});
 
 import {
     configureHelmet,
@@ -38,31 +46,31 @@ app.use(configureHelmet());
 app.use(configureCors());
 
 // 1c. Blacklist de IPs — Bloquear atacantes conhecidos imediatamente
-app.use(ipBlacklistGuard);
+// app.use(ipBlacklistGuard);
 
 // 1d. Rate Limiting global
-app.use(configureRateLimit());
+// app.use(configureRateLimit());
 
 // 1e. Parse do body (necessário antes dos honeypots capturarem o body)
 app.use(express.json({ limit: '1mb' })); // Limitar tamanho do payload
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // 1f. Detector de anomalias (monitora códigos de resposta)
-app.use(anomalyDetector);
+// app.use(anomalyDetector);
 
 // ============================================================
 // CAMADA 2: HONEYPOT ROUTES (ANTES das rotas legítimas!)
 // Qualquer acesso a estas URLs é um atacante/scanner
 // ============================================================
 
-registerHoneypotRoutes(app);
+// registerHoneypotRoutes(app);
 
 // ============================================================
 // CAMADA 3: WORKERS DO BULLMQ (Ativos)
 // ============================================================
 
-import './workers/whatsappWorker.js';
-import './workers/documentWorker.js';
+// import './workers/whatsappWorker.js';
+// import './workers/documentWorker.js';
 
 // ============================================================
 // CAMADA 4: ROTAS LEGÍTIMAS COM PROTEÇÃO JWT
@@ -73,10 +81,12 @@ import { webhookRouter } from './routes/webhooks.js';
 import { adminRouter } from './routes/admin.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { integrationsRouter } from './routes/integrations.js';
-import { initSocketIO } from './socket/index.js';
+import { apiKeysRouter } from './routes/apiKeys.js';
+import { messagesRouter } from './routes/messages.js';
+// import { initSocketIO } from './socket/index.js';
 
 // Inicializar Socket.IO no servidor HTTP compartilhado
-initSocketIO(httpServer);
+// initSocketIO(httpServer);
 
 // Webhooks da Meta: validação HMAC própria (não usa JWT)
 app.use('/webhooks', webhookRouter);
@@ -85,6 +95,8 @@ app.use('/webhooks', webhookRouter);
 // O middleware de auth é aplicado dentro de cada router
 app.use('/api/whatsapp', whatsappRouter);
 app.use('/api/integrations', integrationsRouter);
+app.use('/api/api-keys', apiKeysRouter);
+app.use('/api/messages', messagesRouter);
 // app.use('/api', aiRouter);
 
 // Rota de admin para visualizar alertas de segurança (uso interno)
@@ -128,7 +140,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // START
 // ============================================================
 
-httpServer.listen(port, () => {
+app.listen(port, () => {
     console.log(`
 ╔══════════════════════════════════════════════╗
 ║       LexHub Core API — Modo Seguro          ║

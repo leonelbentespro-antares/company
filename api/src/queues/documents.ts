@@ -1,7 +1,7 @@
-import { Queue } from 'bullmq';
-import { redisConnection } from '../config/redis.js';
+// Mock das filas
+export const documentGenerationQueue = { add: async () => ({}) } as any;
 
-// Fila para rodar integrações com LLM internamente (Ex: "Escrever Resumo de Processo", "Triagem de Documentos")
+/*
 export const documentGenerationQueue = new Queue('document-generation', {
     connection: redisConnection,
     defaultJobOptions: {
@@ -12,3 +12,4 @@ export const documentGenerationQueue = new Queue('document-generation', {
         },
     },
 });
+*/

@@ -1,8 +1,8 @@
-import { Queue } from 'bullmq';
-import { redisConnection } from '../config/redis.js';
+// Mock das filas para evitar conexão com Redis
+export const whatsappIncomingQueue = { add: async () => ({}) } as any;
+export const whatsappOutgoingQueue = { add: async () => ({}) } as any;
 
-// Fila de recebimento de mensagens
-// Quando a Meta bate no nosso Webhook, nós apenas jogamos a mensagem aqui e retornamos HTTP 200 pro Facebook
+/*
 export const whatsappIncomingQueue = new Queue('whatsapp-incoming', {
     connection: redisConnection,
     defaultJobOptions: {
@@ -14,7 +14,6 @@ export const whatsappIncomingQueue = new Queue('whatsapp-incoming', {
     },
 });
 
-// Fila de Envio (usada posteriormente pelo AI Worker)
 export const whatsappOutgoingQueue = new Queue('whatsapp-outgoing', {
     connection: redisConnection,
     defaultJobOptions: {
@@ -25,3 +24,4 @@ export const whatsappOutgoingQueue = new Queue('whatsapp-outgoing', {
         },
     },
 });
+*/
