@@ -65,7 +65,11 @@ const ALLOWED_ORIGINS = (process.env['ALLOWED_ORIGINS'] ?? 'http://localhost:517
 export const configureCors = () => cors({
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        if (ALLOWED_ORIGINS.includes(origin)) {
+        
+        // Permitir QUALQUER porta em localhost ou 127.0.0.1 para desenvolvimento
+        const isLocalhost = origin.match(/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/);
+        
+        if (isLocalhost || ALLOWED_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
             console.warn(`[CORS] Origin bloqueada: ${origin}`);
