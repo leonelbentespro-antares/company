@@ -1,10 +1,10 @@
 import { emitToTenant } from '../socket/index.js';
+import { supabaseAdmin } from '../config/supabase.js';
 import { uploadFileToR2, getSecureFileUrl } from './storage/cloudflareR2Service.js';
-
 const UAZAPI_BASE_URL = process.env.UAZAPI_BASE_URL || 'https://free.uazapi.com';
 const UAZAPI_ADMIN_TOKEN = process.env.UAZAPI_TOKEN || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
-const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://lexhub.company/api/webhooks/uazapi';
+const WEBHOOK_URL = process.env.WEBHOOK_URL || 'http://187.77.232.237/api/webhooks/uazapi';
 
 // Em memória temporária (Para produção seria ideal usar Redis / Supabase)
 export const sessions = new Map<string, { tenantId: string; token: string; status: string }>();
@@ -100,9 +100,9 @@ export async function startWhatsAppSession(tenantId: string, phone?: string) {
     try {
         await uazapiFetch('/webhook', 'POST', {
             enabled: true,
-            url: WEBHOOK_URL,
+            url: WEBHOOK_URL, // Using the imported WEBHOOK_URL
             events: ['messages', 'connection', 'messages_update'],
-            addUrlEvents: true
+            addUrlEvents: false
         }, instanceToken);
     } catch (e) {
         console.warn(`[WhatsApp] Falha ao configurar webhook para ${tenantId}`);
@@ -204,14 +204,76 @@ export function getQR(tenantId: string) {
  */
 export async function logoutSession(tenantId: string) {
     const session = sessions.get(tenantId);
-    if (!session) return;
+    if (!session || !session.token) {
+        sessions.delete(tenantId);
+        qrCodes.delete(tenantId);
+        return;
+    }
     
     try {
-        await uazapiFetch('/instance/disconnect', 'POST', {}, session.token);
+        await uazapiFetch('/instance/logout', 'DELETE', {}, session.token);
     } catch (e) {
-        console.error(`[WhatsApp] Falha ao desconectar tenant ${tenantId}:`, e);
+        console.warn(`[WhatsApp] Falha ao fazer logout remoto para ${tenantId}:`, e);
     }
     
     sessions.delete(tenantId);
     qrCodes.delete(tenantId);
+    emitToTenant(tenantId, 'whatsapp:disconnected', { status: 'Disconnected' });
+}
+
+/**
+ * Handle incoming connection events from webhooks to persist the session via Supabase directly.
+ */
+export async function handleConnectionEvent(tenantId: string, status: string, phone: string = '') {
+    if (status === 'connected' || status === 'open') {
+        const session = sessions.get(tenantId);
+        if (session) {
+            session.status = 'Connected';
+            qrCodes.delete(tenantId);
+            emitToTenant(tenantId, 'whatsapp:connected', { status: 'Connected' });
+        }
+        
+        // Assegurar que o dispositivo está no Supabase via service role (backend-side)
+        try {
+            console.log(`[WhatsAppService] Inserindo/Confirmando conexão do tenant ${tenantId} no banco de dados...`);
+            
+            // Verifica se já existe um dispositivo conectado com esse tenant
+            const { data: existing } = await supabaseAdmin
+                .from('whatsapp_devices')
+                .select('*')
+                .eq('tenant_id', tenantId)
+                .order('created_at', { ascending: false })
+                .limit(1);
+            
+            if (!existing || existing.length === 0) {
+                 await supabaseAdmin.from('whatsapp_devices').insert({
+                    tenant_id: tenantId,
+                    name: `WhatsApp ${phone || tenantId}`,
+                    phone: phone || 'Desconhecido',
+                    status: 'connected',
+                    type: 'qr',
+                    battery_level: 100,
+                    last_active: new Date().toISOString()
+                });
+            } else {
+                 await supabaseAdmin.from('whatsapp_devices')
+                    .update({ 
+                        status: 'connected', 
+                        phone: phone || existing[0].phone,
+                        last_active: new Date().toISOString()
+                    })
+                    .eq('id', existing[0].id);
+            }
+        } catch(e) {
+            console.error('[WhatsAppService] Erro ao persistir conexão no banco via webhook:', e);
+        }
+    } else if (status === 'disconnected' || status === 'close') {
+         sessions.delete(tenantId);
+         
+         try {
+             await supabaseAdmin.from('whatsapp_devices')
+                .update({ status: 'disconnected' })
+                .eq('tenant_id', tenantId);
+         } catch(e) {}
+    }
 }

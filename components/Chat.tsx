@@ -51,6 +51,8 @@ import {
   List
 } from 'lucide-react';
 import { ChatConversation, ChatMessage } from '../types.ts';
+import { supabase } from '../services/supabaseClient';
+import { io } from 'socket.io-client';
 
 interface ChatTag {
   id: string;
@@ -217,14 +219,8 @@ export const Chat: React.FC = () => {
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
   const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>('list');
-  const [externalConversations, setExternalConversations] = useState<ChatConversation[]>(() => {
-    const saved = localStorage.getItem('lexhub_chat_external_v1');
-    return saved ? JSON.parse(saved) : MOCK_EXTERNAL_CONVERSATIONS;
-  });
-  const [internalConversations, setInternalConversations] = useState<ChatConversation[]>(() => {
-    const saved = localStorage.getItem('lexhub_chat_internal_v1');
-    return saved ? JSON.parse(saved) : MOCK_INTERNAL_CONVERSATIONS;
-  });
+  const [externalConversations, setExternalConversations] = useState<ChatConversation[]>([]);
+  const [internalConversations, setInternalConversations] = useState<ChatConversation[]>(MOCK_INTERNAL_CONVERSATIONS);
 
   const [chatAssignments, setChatAssignments] = useState<Record<string, { departmentId: string; departmentName: string; agentId: string; agentName: string; color: string }>>(() => {
     const saved = localStorage.getItem('lexhub_chat_assignments');
@@ -309,13 +305,75 @@ export const Chat: React.FC = () => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem('lexhub_chat_external_v1', JSON.stringify(externalConversations));
     localStorage.setItem('lexhub_chat_internal_v1', JSON.stringify(internalConversations));
     localStorage.setItem('lexhub_chat_tags', JSON.stringify(tags));
     localStorage.setItem('lexhub_chat_tag_relations', JSON.stringify(chatTagRelations));
     localStorage.setItem('lexhub_chat_contacts', JSON.stringify(contacts));
     localStorage.setItem('lexhub_chat_assignments', JSON.stringify(chatAssignments));
-  }, [externalConversations, internalConversations, tags, chatTagRelations, contacts, chatAssignments]);
+  }, [internalConversations, tags, chatTagRelations, contacts, chatAssignments]);
+
+  const loadConversations = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/messages/conversations`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setExternalConversations(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar conversas:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadConversations();
+
+    // Configurar Socket.io para tempo real
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+    const socket = io(apiUrl);
+
+    socket.on('connect', () => console.log('[Chat] Socket conectado.'));
+
+    socket.on('new-message', (data: any) => {
+      console.log('[Chat] Nova mensagem via WS', data);
+      loadConversations(); // Recarrega rapido
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []); // eslint-disable-line
+
+  const loadChatMessages = async (conversationId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const res = await fetch(`${apiUrl}/api/messages/${conversationId}`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (res.ok) {
+        const msgs = await res.json();
+        setExternalConversations(prev => prev.map(c => {
+          if (c.id === conversationId) return { ...c, messages: msgs };
+          return c;
+        }));
+        if (selectedChat && selectedChat.id === conversationId) {
+          setSelectedChat(prev => prev ? ({ ...prev, messages: msgs }) : null);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar histórico:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedChat) {
+      loadChatMessages(selectedChat.id);
+    }
+  }, [selectedChat?.id]); // eslint-disable-line
 
   useEffect(() => {
     if (showToast) {
@@ -340,7 +398,7 @@ export const Chat: React.FC = () => {
     }
   }, [newMessage]);
 
-  const handleSendMessage = (e?: React.FormEvent, textOverride?: string) => {
+  const handleSendMessage = async (e?: React.FormEvent, textOverride?: string) => {
     if (e) e.preventDefault();
     const textToSend = textOverride || newMessage;
     if (!textToSend.trim() || !selectedChat) return;
@@ -356,7 +414,7 @@ export const Chat: React.FC = () => {
       if (c.id === selectedChat.id) {
         const updated = {
           ...c,
-          messages: [...c.messages, msg],
+          messages: [...(c.messages || []), msg],
           lastMessage: textToSend,
           timestamp: 'Agora'
         };
@@ -366,8 +424,30 @@ export const Chat: React.FC = () => {
       return c;
     });
 
-    if (chatTab === 'external') setExternalConversations(updateFn);
-    else setInternalConversations(updateFn);
+    if (chatTab === 'external') {
+      setExternalConversations(updateFn);
+      // Realiza disparo para o Backend via POST
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+
+        const phone = selectedChat.contactName;
+
+        await fetch(`${apiUrl}/api/messages/send`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ to: phone, text: textToSend })
+        });
+      } catch (err) {
+        console.error('Falha ao enviar mensagem', err);
+        setShowToast('Erro ao enviar mensagem.');
+      }
+    } else {
+      setInternalConversations(updateFn);
+    }
 
     setNewMessage('');
     setIsEmojiPickerOpen(false);

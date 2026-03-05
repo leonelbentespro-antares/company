@@ -169,19 +169,23 @@ export const Integrations: React.FC = () => {
     });
 
     // Evento: WhatsApp conectado com sucesso
-    socket.on('whatsapp:connected', async (data: { status: string; user: any }) => {
+    socket.on('whatsapp:connected', async (data: { status: string; user?: any }) => {
       setShowToast('WhatsApp Conectado com Sucesso! 🎉');
       setQrStep('success');
       try {
         const newDevice = await createWhatsAppDevice({
+          tenantId,
           name: sessionName,
-          phone: data.user?.id?.split(':')[0] || 'Desconhecido',
+          phone: data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido',
           status: 'connected',
           type: 'qr',
           batteryLevel: 100,
           lastActive: new Date().toISOString()
         });
-        setSessions(prev => [newDevice, ...prev]);
+        setSessions(prev => {
+          if (prev.some(d => d.name === newDevice.name)) return prev;
+          return [newDevice, ...prev];
+        });
       } catch (error) {
         console.error('Error saving device:', error);
       }
@@ -203,7 +207,7 @@ export const Integrations: React.FC = () => {
     if (isConnecting && isQRModalOpen) {
       pollTimer = setInterval(async () => {
         console.log('[Fallback] Consultando status via HTTP...');
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
         try {
           const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`);
           const data = await res.json();
@@ -218,6 +222,24 @@ export const Integrations: React.FC = () => {
             setIsConnecting(false);
             setQrStep('success');
             setShowToast('WhatsApp Conectado! 🎉');
+
+            try {
+              const newDevice = await createWhatsAppDevice({
+                tenantId,
+                name: sessionForm.name,
+                phone: sessionForm.phone || data.user?.id?.split(':')[0] || 'Desconhecido',
+                status: 'connected',
+                type: 'qr',
+                batteryLevel: 100,
+                lastActive: new Date().toISOString()
+              });
+              setSessions(prev => {
+                if (prev.some(d => d.name === newDevice.name)) return prev;
+                return [newDevice, ...prev];
+              });
+            } catch (error) {
+              console.error('Error saving device via fallback:', error);
+            }
           }
         } catch (err) {
           console.warn('[Fallback] Erro ao consultar status:', err);
@@ -242,7 +264,7 @@ export const Integrations: React.FC = () => {
       connectSocket(name);
 
       // 2. Disparar início da sessão no backend
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       await fetch(`${apiUrl}/api/whatsapp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -347,7 +369,7 @@ export const Integrations: React.FC = () => {
       setShowToast("NotificaMe Hub conectado com sucesso!");
 
       // Registrar webhook automaticamente (opcional, pode ser feito no backend ao salvar)
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       const webhookUrl = `${apiUrl}/api/webhooks/notificame`;
 
       // Chamada para o backend registrar o webhook no NotificaMe
@@ -412,7 +434,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading(`logout-${id}`);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       await fetch(`${apiUrl}/api/whatsapp/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

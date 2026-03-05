@@ -1,0 +1,2 @@
+#!/bin/bash
+sshpass -p 'TODO' ssh root@187.77.232.237 "sed -i 's/^/#/' /etc/apt/sources.list.d/monarx.list || true && apt-get update && apt-get install -y curl wget git nginx ufw && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs && npm install -g pm2 && mkdir -p /var/www/lexhub/api && mkdir -p /var/www/lexhub/frontend && echo 'Instalacao Concluida Com Sucesso'"

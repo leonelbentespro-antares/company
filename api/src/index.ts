@@ -83,13 +83,13 @@ import { whatsappRouter } from './routes/whatsapp.js';
 import { integrationsRouter } from './routes/integrations.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { messagesRouter } from './routes/messages.js';
-// import { initSocketIO } from './socket/index.js';
+import { initSocketIO } from './socket/index.js';
 
 // Inicializar Socket.IO no servidor HTTP compartilhado
-// initSocketIO(httpServer);
+initSocketIO(httpServer);
 
 // Webhooks da Meta: validação HMAC própria (não usa JWT)
-app.use('/webhooks', webhookRouter);
+app.use('/api/webhooks', webhookRouter);
 
 // Rotas da API: exigem JWT válido + tenant extraído
 // O middleware de auth é aplicado dentro de cada router
@@ -140,7 +140,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // START
 // ============================================================
 
-app.listen(port, () => {
+httpServer.listen(port, () => {
     console.log(`
 ╔══════════════════════════════════════════════╗
 ║       LexHub Core API — Modo Seguro          ║

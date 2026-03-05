@@ -35,12 +35,12 @@ export default defineConfig(({ mode }) => {
       headers: securityHeaders,
       proxy: {
         '/api': {
-          target: 'http://localhost:3005',
+          target: 'http://187.77.232.237',
           changeOrigin: true,
           secure: false,
         },
         '/socket.io': {
-          target: 'http://localhost:3005',
+          target: 'http://187.77.232.237',
           ws: true,
           changeOrigin: true,
         },
@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || process.env.GEMINI_API_KEY),
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
-      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || process.env.VITE_API_URL || (isProd ? 'https://api-lexhub.onrender.com' : '')),
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || process.env.VITE_API_URL || (isProd ? 'http://187.77.232.237' : '')),
     },
     resolve: {
       alias: {

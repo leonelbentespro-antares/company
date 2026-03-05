@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { whatsappIncomingQueue } from '../queues/whatsapp.js';
 import { verifyMetaHMAC } from '../middleware/security.js';
 import { reportThreat } from '../middleware/threatDetector.js';
+import { processIncomingMessage } from '../services/messageProcessor.js';
+import { handleConnectionEvent } from '../services/whatsappService.js';
 
 export const webhookRouter = Router();
 
@@ -26,10 +27,10 @@ webhookRouter.post('/meta', verifyMetaHMAC, async (req: Request, res: Response) 
 
     if (body.object === 'whatsapp_business_account') {
         try {
-            await whatsappIncomingQueue.add('process-incoming-message', req.body);
-            console.log('📥 Mensagem Meta recebida e enfileirada.');
+            await processIncomingMessage(req.body, 'meta');
+            console.log('📥 Mensagem Meta recebida e processada.');
         } catch (error) {
-            console.error('[Webhook] Erro ao enfileirar:', error);
+            console.error('[Webhook] Erro ao processar:', error);
         }
     }
 
@@ -38,26 +39,49 @@ webhookRouter.post('/meta', verifyMetaHMAC, async (req: Request, res: Response) 
 
 // Webhook para a uazapiGO V2
 // Suporta eventos: messages, connection, messages_update, etc.
-webhookRouter.post('/uazapi', async (req: Request, res: Response) => {
+webhookRouter.post(['/uazapi', '/uazapi/:event'], async (req: Request, res: Response) => {
     const body = req.body;
-    const event = body.event || 'unknown';
-    const instance = body.instance || body.instanceName || 'unknown';
+    
+    // Função auxiliar para pegar valor independente de case
+    const getVal = (obj: any, key: string) => {
+        if (!obj) return undefined;
+        const foundKey = Object.keys(obj).find(k => k.toLowerCase() === key.toLowerCase());
+        return foundKey ? obj[foundKey] : undefined;
+    };
 
-    console.log(`📥 [uazapiGO V2] Evento "${event}" da instância "${instance}"`);
+    const eventType = getVal(body, 'EventType') || getVal(body, 'type');
+    const eventObj = getVal(body, 'event');
+    const instanceName = getVal(body, 'instanceName') || getVal(body, 'instance');
+    const eventUrl = req.params.event;
 
-    // Eventos de connection podem ser tratados inline para atualizar status
-    if (event === 'connection') {
-        const status = body.data?.status || body.status;
-        console.log(`📡 [uazapiGO V2] Status de conexão: ${status} (instância: ${instance})`);
-        // Os eventos de connection são processados mas não precisam de fila
-        // O serviço de sessão será atualizado via Socket.IO
+    const event = eventType || (typeof eventObj === 'string' ? eventObj : null) || eventUrl || 'unknown';
+    const instance = (typeof instanceName === 'object' ? (instanceName.name || instanceName.id) : instanceName) || 'unknown';
+
+    console.log(`📥 [uazapiGO V2] Evento "${event}" da instância "${instance}" (Raw: ${eventType})`);
+
+    // Se recebermos mensagem ou qualquer evento de uma instância, e ela estiver como offline, podemos forçar o status para connected
+    if (instance !== 'unknown' && event !== 'unknown') {
+        // Se recebermos uma mensagem, garantimos que o status está ok
+        if (event === 'messages' || event === 'connection') {
+             const status = getVal(body.data || body, 'status') || (event === 'messages' ? 'connected' : undefined);
+             const phone = getVal(body.data || body, 'phone');
+             
+             if (status) {
+                 console.log(`📡 [uazapiGO V2] Atualizando status forçado via webhook: ${status} (instância: ${instance})`);
+                 await handleConnectionEvent(instance, status, phone);
+             }
+        }
     }
 
+    if (event === 'connection') {
+        return res.status(200).send('OK');
+    }    
+
     try {
-        // Enfileira o payload completo para processamento assíncrono
-        await whatsappIncomingQueue.add('process-uazapi-event', body);
+        // Enfileira o payload completo para processamento síncrono
+        await processIncomingMessage(body, 'uazapi');
     } catch (error) {
-        console.error('[Webhook uazapiGO V2] Erro ao enfileirar evento:', error);
+        console.error('[Webhook uazapiGO V2] Erro ao processar evento:', error);
     }
     
     // uazapiGO V2 requer retorno 200 rápido
@@ -73,10 +97,10 @@ webhookRouter.post('/notificame', async (req: Request, res: Response) => {
     console.log('📥 [NotificaMe Hub] Evento recebido:', JSON.stringify(body).substring(0, 200));
 
     try {
-        // Enfileira para processamento assíncrono
-        await whatsappIncomingQueue.add('process-notificame-event', body);
+        // Enfileira para processamento síncrono
+        await processIncomingMessage(body, 'notificame');
     } catch (error) {
-        console.error('[Webhook NotificaMe] Erro ao enfileirar evento:', error);
+        console.error('[Webhook NotificaMe] Erro ao processar evento:', error);
     }
 
     res.status(200).send('OK');
