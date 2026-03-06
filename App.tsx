@@ -46,20 +46,19 @@ import {
 import { Dashboard } from './components/Dashboard.tsx';
 import { Auth } from './components/Auth.tsx';
 
-// Lazy loaded components (Carregamento Módular sob Demanda)
-const Tenants = React.lazy(() => import('./components/Tenants.tsx').then(m => ({ default: m.Tenants })));
-const LegalAI = React.lazy(() => import('./components/LegalAI.tsx').then(m => ({ default: m.LegalAI })));
-const Processes = React.lazy(() => import('./components/Processes.tsx').then(m => ({ default: m.Processes })));
-const Settings = React.lazy(() => import('./components/Settings.tsx').then(m => ({ default: m.Settings })));
-const ClientPortal = React.lazy(() => import('./components/ClientPortal.tsx').then(m => ({ default: m.ClientPortal })));
-const Billing = React.lazy(() => import('./components/Billing.tsx').then(m => ({ default: m.Billing })));
-const Plans = React.lazy(() => import('./components/Plans.tsx').then(m => ({ default: m.Plans })));
-const AIAgents = React.lazy(() => import('./components/AIAgents.tsx').then(m => ({ default: m.AIAgents })));
-const Security = React.lazy(() => import('./components/Security.tsx').then(m => ({ default: m.Security })));
-const Automation = React.lazy(() => import('./components/Automation.tsx').then(m => ({ default: m.Automation })));
-const Chat = React.lazy(() => import('./components/Chat.tsx').then(m => ({ default: m.Chat })));
-const Integrations = React.lazy(() => import('./components/Integrations.tsx').then(m => ({ default: m.Integrations })));
-const Team = React.lazy(() => import('./components/Team.tsx').then(m => ({ default: m.Team })));
+import { Tenants } from './components/Tenants.tsx';
+import { LegalAI } from './components/LegalAI.tsx';
+import { Processes } from './components/Processes.tsx';
+import { Settings } from './components/Settings.tsx';
+import { ClientPortal } from './components/ClientPortal.tsx';
+import { Billing } from './components/Billing.tsx';
+import { Plans } from './components/Plans.tsx';
+import { AIAgents } from './components/AIAgents.tsx';
+import { Security } from './components/Security.tsx';
+import { Automation } from './components/Automation.tsx';
+import { Chat } from './components/Chat.tsx';
+import { Integrations } from './components/Integrations.tsx';
+import { Team } from './components/Team.tsx';
 import { User, UserRole } from './types.ts';
 import { useTenant } from './services/tenantContext.tsx';
 import { useLanguage } from './services/languageContext.tsx';
