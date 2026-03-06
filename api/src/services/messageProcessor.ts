@@ -3,6 +3,7 @@ import { emitToTenant } from '../socket/index.js';
 import { getAIResponse } from './aiService.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { uploadMediaToR2 } from './storage/cloudflareR2Service.js';
+import { v4 as uuidv4 } from 'uuid';
 
 const UAZAPI_BASE_URL = process.env['UAZAPI_BASE_URL'] || 'https://free.uazapi.com';
 const UAZAPI_TOKEN = process.env['UAZAPI_TOKEN'] || '';
@@ -103,6 +104,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         let mediaType = '';
         let messageId = '';
         let instanceNameVar = '';
+        let isFromMe = false;
 
         // 1. Extração por Fonte (Uazapi, Notificame, Meta)
         if (eventSource === 'uazapi') {
@@ -115,7 +117,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             }
 
             const msg = payload.message || payload.data || payload;
-            if (msg.fromMe === true || msg.fromMe === 'true') return;
+            isFromMe = msg.fromMe === true || msg.fromMe === 'true';
 
             senderPhone = (msg.sender || msg.chatid || '')
                 .replace(/@s\.whatsapp\.net$/i, '')
@@ -273,15 +275,23 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         if (!conversationId) return;
 
         // b) Inserir Mensagem
+        // Usar dobras de ID para evitar conflito
+        const safeMessageId = messageId || uuidv4();
+
+        const messageData = {
+            id: safeMessageId,
+            conversation_id: conversationId,
+            tenant_id: tenantId,
+            text: textBody,
+            from_me: isFromMe,
+            media_url: mediaUrl || null,
+            media_type: mediaType || null,
+            created_at: new Date().toISOString()
+        };
+
         const { data: newMsg, error: errM } = await supabase
             .from('chat_messages')
-            .insert([{
-                conversation_id: conversationId,
-                text: textBody,
-                from_me: false,
-                media_url: mediaUrl || null,
-                media_type: mediaType || null
-            }])
+            .insert([messageData])
             .select('*')
             .single();
 
@@ -306,7 +316,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         // 4. IA
         // ==========================================================
         try {
-            if (textBody && !mediaType) {
+            if (textBody && !mediaType && !isFromMe) {
                 const aiContext = { tenantId, agent_id: 'default' };
                 const aiReply = await getAIResponse(textBody, aiContext);
 

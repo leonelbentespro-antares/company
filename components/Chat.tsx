@@ -256,6 +256,15 @@ export const Chat: React.FC = () => {
     } catch { return new Set(); }
   });
 
+  // IDs de conversas arquivadas
+  const [archivedChatIds, setArchivedChatIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('lexhub_archived_chat_ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+
   const currentConversations = (chatTab === 'external' ? externalConversations : internalConversations)
     .filter(chat => {
       // Pendente = tem mensagens nao lidas E nao foi aberta pelo usuario ainda
@@ -265,9 +274,13 @@ export const Chat: React.FC = () => {
       if (mainTab === 'inbox' && hasPending) return false;
       if (mainTab === 'pending' && !hasPending) return false;
 
+      // Esconder conversas arquivadas das abas principais
+      if (archivedChatIds.has(chat.id)) return false;
+
       if (!filterTagId) return true;
       return chatTagRelations[chat.id]?.includes(filterTagId);
     });
+
 
   const [selectedChat, setSelectedChat] = useState<ChatConversation | null>(null);
   const [newMessage, setNewMessage] = useState('');
@@ -473,16 +486,41 @@ export const Chat: React.FC = () => {
     setIsSidebarOpen(false);
     setIsUserMenuOpen(false);
 
+    // Zerando unread localmente para refletir a mudança de abas imeditamente
+    if (chatTab === 'external') {
+      setExternalConversations(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
+    } else {
+      setInternalConversations(prev => prev.map(c => c.id === chat.id ? { ...c, unreadCount: 0 } : c));
+    }
+
     // Marcar conversa como lida (move de Pendentes para Caixa de Entrada)
     if (!readChatIds.has(chat.id)) {
       setReadChatIds(prev => {
         const updated = new Set(prev);
         updated.add(chat.id);
-        localStorage.setItem('lexhub_read_chat_ids', JSON.stringify([...updated]));
+        localStorage.setItem('lexhub_read_chat_ids', JSON.stringify(Array.from(updated)));
         return updated;
       });
     }
   };
+
+  const handleArchiveChat = (chatId: string) => {
+    setArchivedChatIds(prev => {
+      const updated = new Set(prev);
+      updated.add(chatId);
+      localStorage.setItem('lexhub_archived_chat_ids', JSON.stringify(Array.from(updated)));
+      return updated;
+    });
+    if (selectedChat?.id === chatId) setSelectedChat(null);
+    setIsUserMenuOpen(false);
+    setShowToast('Conversa arquivada com sucesso.');
+  };
+
+  const handleViewProfile = () => {
+    setIsUserMenuOpen(false);
+    setShowToast('Em breve: Visualizar Perfil do Contato');
+  };
+
 
   useEffect(() => {
     if (selectedChat) {
@@ -1132,7 +1170,7 @@ export const Chat: React.FC = () => {
                           })}
                         </div>
                       </div>
-                      <button className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3">
+                      <button onClick={handleViewProfile} className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3">
                         <UserCircle size={16} className="text-legal-bronze" /> Ver Perfil
                       </button>
                       <button
@@ -1141,9 +1179,10 @@ export const Chat: React.FC = () => {
                       >
                         <ArrowRightLeft size={16} className="text-indigo-500" /> Transferir Atendimento
                       </button>
-                      <button className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3">
+                      <button onClick={() => selectedChat && handleArchiveChat(selectedChat.id)} className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3">
                         <Archive size={16} className="text-slate-400" /> Arquivar
                       </button>
+
                       <hr className="border-slate-100 dark:border-slate-700 mx-4" />
                       <button
                         onClick={() => {
