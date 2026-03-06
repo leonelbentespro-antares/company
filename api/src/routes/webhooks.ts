@@ -63,11 +63,11 @@ webhookRouter.post(['/uazapi', '/uazapi/:event'], async (req: Request, res: Resp
     if (instance !== 'unknown' && event !== 'unknown') {
         // Se recebermos uma mensagem, garantimos que o status está ok
         if (event === 'messages' || event === 'connection') {
-             const status = getVal(body.data || body, 'status') || (event === 'messages' ? 'connected' : undefined);
-             const phone = getVal(body.data || body, 'phone');
+             const status = getVal(body.instance || body.data || body, 'status') || (event === 'messages' ? 'connected' : undefined);
+             const phone = getVal(body.instance || body.data || body, 'phone') || getVal(body.data?.instance || {}, 'phone');
              
              if (status) {
-                 console.log(`📡 [uazapiGO V2] Atualizando status forçado via webhook: ${status} (instância: ${instance})`);
+                 console.log(`📡 [uazapiGO V2] Atualizando status forçado via webhook: ${status} (instância: ${instance}, phone: ${phone || 'N/A'})`);
                  await handleConnectionEvent(instance, status, phone);
              }
         }

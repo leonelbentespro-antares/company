@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { apiKeyAuth } from '../middleware/apiKeyAuth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
 import { sendTextMessage, sessions } from '../services/whatsappService.js';
@@ -10,7 +10,7 @@ export const messagesRouter = Router();
  * Endpoint para envio de mensagens via API Key (Uso Externo)
  * POST /api/messages/send
  */
-messagesRouter.post('/send', apiKeyAuth, async (req, res) => {
+messagesRouter.post('/send', authMiddleware, async (req, res) => {
     const { to, text } = req.body;
 
     if (!to || !text) {
@@ -35,24 +35,30 @@ messagesRouter.post('/send', apiKeyAuth, async (req, res) => {
         console.log(`[Messages Router] Mensagem enviada para ${number} (Tenant: ${tenantId})`);
 
         // 2. Gravar no Banco de Dados
-        // a) Encontrar ou criar conversation
         let conversationId = '';
         const { data: convs } = await supabase
             .from('chat_conversations')
             .select('id')
             .eq('tenant_id', tenantId)
-            // Assumimos que a busca por número ou nome simplificada 
-            .ilike('contact_name', `%${number}%`)
+            .eq('contact_phone', number)
             .limit(1);
             
         if (convs && convs.length > 0) {
             conversationId = convs[0]?.id;
-            // Atualizar last_message
-            await supabase.from('chat_conversations').update({ last_message: text, updated_at: new Date().toISOString() }).eq('id', conversationId);
+            await supabase.from('chat_conversations').update({ 
+                last_message: text, 
+                updated_at: new Date().toISOString() 
+            }).eq('id', conversationId);
         } else {
-            // Cria
             const { data: newConvo } = await supabase.from('chat_conversations')
-               .insert([{ tenant_id: tenantId, contact_name: number, last_message: text, unread_count: 0, online: true }])
+               .insert([{ 
+                   tenant_id: tenantId, 
+                   contact_name: number, 
+                   contact_phone: number,
+                   last_message: text, 
+                   unread_count: 0, 
+                   online: true 
+               }])
                .select('id').single();
             if (newConvo) conversationId = newConvo.id;
         }
@@ -83,7 +89,7 @@ messagesRouter.post('/send', apiKeyAuth, async (req, res) => {
  * GET /api/messages/conversations
  * Lista todas as conversas do tenant logado.
  */
-messagesRouter.get('/conversations', apiKeyAuth, async (req, res) => {
+messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
         const { data: conversations, error } = await supabase
@@ -101,6 +107,8 @@ messagesRouter.get('/conversations', apiKeyAuth, async (req, res) => {
             .order('updated_at', { ascending: false });
 
         if (error) throw error;
+        
+        console.log(`[Messages Router] Encontradas ${conversations?.length || 0} conversas para o tenant ${tenantId}`);
         
         // Formatar para o frontend (ChatConversation)
         const formatted = conversations?.map(c => ({
@@ -125,7 +133,7 @@ messagesRouter.get('/conversations', apiKeyAuth, async (req, res) => {
  * GET /api/messages/:conversationId
  * Retorna as mensagens de uma conversa específica.
  */
-messagesRouter.get('/:conversationId', apiKeyAuth, async (req, res) => {
+messagesRouter.get('/:conversationId', authMiddleware, async (req, res) => {
     try {
         const { conversationId } = req.params;
         const tenantId = req.tenantId!; // Segurança: garantir que só acesse se for dono
@@ -163,4 +171,46 @@ messagesRouter.get('/:conversationId', apiKeyAuth, async (req, res) => {
         res.status(500).json({ error: 'Erro ao listar mensagens' });
     }
 });
+
+/**
+ * DELETE /api/messages/:conversationId
+ * Exclui uma conversa e todas as suas mensagens.
+ */
+messagesRouter.delete('/:conversationId', authMiddleware, async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const tenantId = req.tenantId!;
+
+        // Verificar que a conversa pertence ao tenant (segurança)
+        const { data: convCheck } = await supabase
+            .from('chat_conversations')
+            .select('id')
+            .eq('id', conversationId)
+            .eq('tenant_id', tenantId)
+            .single();
+
+        if (!convCheck) {
+            return res.status(404).json({ error: 'Conversa não encontrada ou acesso negado' });
+        }
+
+        // Excluir mensagens primeiro (FK constraint)
+        await supabase.from('chat_messages').delete().eq('conversation_id', conversationId);
+        
+        // Excluir a conversa
+        const { error } = await supabase
+            .from('chat_conversations')
+            .delete()
+            .eq('id', conversationId)
+            .eq('tenant_id', tenantId);
+        
+        if (error) throw error;
+
+        console.log(`[Messages Router] Conversa ${conversationId} excluída pelo tenant ${tenantId}`);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[Messages Router] Erro ao excluir conversa:', err);
+        res.status(500).json({ error: 'Erro ao excluir conversa' });
+    }
+});
+
 

@@ -73,7 +73,7 @@ export const Settings: React.FC = () => {
   const loadApiKeys = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       const response = await fetch(`${apiUrl}/api/api-keys`, {
         headers: {
           'Authorization': `Bearer ${session?.access_token}`

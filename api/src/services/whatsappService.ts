@@ -51,7 +51,7 @@ export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, 
             } catch {
                 err = await res.text();
             }
-            console.error(`[UAZAPI V2 ERROR] ${method} ${endpoint}:`, err);
+            console.error(`[UAZAPI V2 ERROR] ${method} ${endpoint} - Status: ${res.status}, Headers:`, Object.fromEntries(res.headers.entries()), `Error:`, err);
             throw new Error(typeof err === 'string' ? err : (err.error || err.message || JSON.stringify(err)));
         }
         

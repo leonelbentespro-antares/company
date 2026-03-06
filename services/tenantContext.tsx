@@ -121,10 +121,9 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 .from('tenant_users')
                 .select('tenant_id, role')
                 .eq('user_id', authUser.id)
-                .limit(1)
-                .single();
+                .limit(1);
 
-            if (tuError || !tuData) {
+            if (tuError || !tuData || tuData.length === 0) {
                 // Usuário sem tenant (pode ter sido criado antes do trigger)
                 // Tentar criar automaticamente
                 await attemptTenantProvision(authUser);
@@ -132,7 +131,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 return;
             }
 
-            const tid = tuData.tenant_id;
+            const tid = tuData[0].tenant_id;
             setTenantId(tid);
 
             // Buscar dados completos do tenant em paralelo

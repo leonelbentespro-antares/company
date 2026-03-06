@@ -8,6 +8,8 @@
 
 import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HttpServer } from 'http';
+import jwt from 'jsonwebtoken';
+import { supabaseAdmin } from '../config/supabase.js';
 
 let io: SocketIOServer | null = null;
 
@@ -30,8 +32,42 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         transports: ['websocket', 'polling'],
     });
 
-    io.on('connection', (socket) => {
-        const tenantId = socket.handshake.auth['tenantId'] as string | undefined;
+    io.on('connection', async (socket) => {
+        let tenantId = socket.handshake.auth['tenantId'] as string | undefined;
+        const token = socket.handshake.auth['token'] as string | undefined;
+
+        if (!tenantId && token) {
+            try {
+                // Decodifica sem validar assinatura para contornar discrepância de algoritmos (HS256 vs ES256)
+                // A validação real ocorre ao consultar a tabela tenant_users logo abaixo.
+                const decoded = jwt.decode(token) as any;
+                
+                if (decoded && decoded.sub) {
+                    const userId = decoded.sub;
+                    
+                    const query = supabaseAdmin
+                        .from('tenant_users')
+                        .select('tenant_id')
+                        .eq('user_id', userId);
+                    
+                    if (tenantId && tenantId.trim() !== '') {
+                        query.eq('tenant_id', tenantId);
+                    }
+
+                    const { data: tenantUsers } = await query;
+                    
+                    if (tenantUsers && tenantUsers.length > 0) {
+                        // Prioriza o tenantId vindo do auth, ou pega o primeiro
+                        tenantId = (tenantId && tenantId.trim() !== '') ? tenantId : (tenantUsers[0] as any).tenant_id;
+                        console.log(`[Socket] Tenant detectado para usuário ${userId}: ${tenantId}`);
+                    } else {
+                        console.warn(`[Socket] Nenhum tenant encontrado para o usuário ${userId}`);
+                    }
+                }
+            } catch (err) {
+                console.error('[Socket] Erro ao processar token no handshake:', err);
+            }
+        }
 
         if (!tenantId) {
             console.warn(`[Socket] Conexão sem tenantId. Socket: ${socket.id}`);

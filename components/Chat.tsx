@@ -53,6 +53,7 @@ import {
 import { ChatConversation, ChatMessage } from '../types.ts';
 import { supabase } from '../services/supabaseClient';
 import { io } from 'socket.io-client';
+import { useTenant } from '../services/tenantContext';
 
 interface ChatTag {
   id: string;
@@ -261,6 +262,7 @@ export const Chat: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [syncingTool, setSyncingTool] = useState<string | null>(null);
+  const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
 
   // Quick Replies State
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>(INITIAL_QUICK_REPLIES);
@@ -312,12 +314,17 @@ export const Chat: React.FC = () => {
     localStorage.setItem('lexhub_chat_assignments', JSON.stringify(chatAssignments));
   }, [internalConversations, tags, chatTagRelations, contacts, chatAssignments]);
 
+  const { tenantId } = useTenant();
+
   const loadConversations = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       const res = await fetch(`${apiUrl}/api/messages/conversations`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
       });
       if (res.ok) {
         const data = await res.json();
@@ -332,27 +339,47 @@ export const Chat: React.FC = () => {
     loadConversations();
 
     // Configurar Socket.io para tempo real
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
-    const socket = io(apiUrl);
+    let socketInstance: any = null;
 
-    socket.on('connect', () => console.log('[Chat] Socket conectado.'));
+    const initSocket = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
 
-    socket.on('new-message', (data: any) => {
-      console.log('[Chat] Nova mensagem via WS', data);
-      loadConversations(); // Recarrega rapido
-    });
+      const socket = io(apiUrl, {
+        auth: {
+          token: session?.access_token,
+          tenantId: tenantId
+        }
+      });
+
+      socket.on('connect', () => console.log('[Chat] Socket conectado.'));
+
+      socket.on('new-message', (data: any) => {
+        console.log('[Chat] Nova mensagem via WS', data);
+        loadConversations();
+      });
+
+      socketInstance = socket;
+    };
+
+    if (tenantId) {
+      initSocket();
+    }
 
     return () => {
-      socket.disconnect();
+      if (socketInstance) socketInstance.disconnect();
     };
-  }, []); // eslint-disable-line
+  }, [tenantId]); // eslint-disable-line
 
   const loadChatMessages = async (conversationId: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
       const res = await fetch(`${apiUrl}/api/messages/${conversationId}`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
       });
       if (res.ok) {
         const msgs = await res.json();
@@ -366,6 +393,34 @@ export const Chat: React.FC = () => {
       }
     } catch (err) {
       console.error('Erro ao carregar histórico:', err);
+    }
+  };
+
+  const deleteConversation = async (conversationId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta conversa e todas as mensagens? Esta ação não pode ser desfeita.')) return;
+    setDeletingChatId(conversationId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const res = await fetch(`${apiUrl}/api/messages/${conversationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
+      if (res.ok) {
+        setExternalConversations(prev => prev.filter(c => c.id !== conversationId));
+        if (selectedChat?.id === conversationId) setSelectedChat(null);
+        setShowToast('Conversa excluída com sucesso.');
+      } else {
+        setShowToast('Erro ao excluir conversa.');
+      }
+    } catch (err) {
+      console.error('Erro ao excluir conversa:', err);
+      setShowToast('Erro ao excluir conversa.');
+    } finally {
+      setDeletingChatId(null);
     }
   };
 
@@ -854,38 +909,53 @@ export const Chat: React.FC = () => {
                 .filter(Boolean) as ChatTag[];
 
               return (
-                <button
+                <div
                   key={chat.id}
-                  onClick={() => { setSelectedChat(chat); setIsSidebarOpen(false); }}
-                  className={`w-full p-4 rounded-3xl flex items-center gap-4 transition-all text-left group ${selectedChat?.id === chat.id ? 'bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-black/50 ring-1 ring-slate-100 dark:ring-slate-700' : 'hover:bg-white/40 dark:hover:bg-slate-800/40'}`}
+                  className={`w-full p-4 rounded-3xl flex items-center gap-4 transition-all text-left group relative ${selectedChat?.id === chat.id ? 'bg-white dark:bg-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-black/50 ring-1 ring-slate-100 dark:ring-slate-700' : 'hover:bg-white/40 dark:hover:bg-slate-800/40'}`}
                 >
-                  <div className="relative shrink-0">
-                    <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
-                    {chat.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-800 rounded-full"></div>}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-0.5">
-                      <h4 className={`font-black text-sm truncate ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>{chat.contactName}</h4>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
+                  <button
+                    className="flex-1 flex items-center gap-4 min-w-0"
+                    onClick={() => { setSelectedChat(chat); setIsSidebarOpen(false); }}
+                  >
+                    <div className="relative shrink-0">
+                      <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
+                      {chat.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-800 rounded-full"></div>}
                     </div>
-                    <div className="flex justify-between items-center mb-1">
-                      <p className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate italic flex-1">
-                        {chat.lastMessage}
-                      </p>
-                      {chat.unreadCount > 0 && (
-                        <span className="bg-legal-bronze text-white text-[10px] font-black px-2 py-0.5 rounded-full ml-2">{chat.unreadCount}</span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-0.5">
+                        <h4 className={`font-black text-sm truncate ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>{chat.contactName}</h4>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
+                      </div>
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-xs text-slate-400 dark:text-slate-500 font-medium truncate italic flex-1">
+                          {chat.lastMessage}
+                        </p>
+                        {chat.unreadCount > 0 && (
+                          <span className="bg-legal-bronze text-white text-[10px] font-black px-2 py-0.5 rounded-full ml-2">{chat.unreadCount}</span>
+                        )}
+                      </div>
+                      {chatTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {chatTags.map(t => (
+                            <div key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.label} />
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {chatTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {chatTags.map(t => (
-                          <div key={t.id} className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} title={t.label} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </button>
+                  </button>
+                  {/* Botão de Excluir — aparece no hover */}
+                  {chatTab === 'external' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteConversation(chat.id); }}
+                      disabled={deletingChatId === chat.id}
+                      title="Excluir conversa"
+                      className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                    >
+                      {deletingChatId === chat.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    </button>
+                  )}
+                </div>
               );
             })
           ) : (
@@ -997,6 +1067,20 @@ export const Chat: React.FC = () => {
                       </button>
                       <button className="w-full px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-3">
                         <Archive size={16} className="text-slate-400" /> Arquivar
+                      </button>
+                      <hr className="border-slate-100 dark:border-slate-700 mx-4" />
+                      <button
+                        onClick={() => {
+                          if (selectedChat) deleteConversation(selectedChat.id);
+                        }}
+                        disabled={!!deletingChatId}
+                        className="w-full px-4 py-2.5 text-left text-sm font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-3 transition-colors rounded-b-2xl"
+                      >
+                        {deletingChatId === selectedChat?.id
+                          ? <Loader2 size={16} className="animate-spin" />
+                          : <Trash2 size={16} />
+                        }
+                        Excluir Conversa
                       </button>
                     </div>
                   )}

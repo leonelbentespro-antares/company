@@ -57,8 +57,28 @@ export const Integrations: React.FC = () => {
   const loadData = async () => {
     if (!tenantId) return;
     try {
-      const devices = await getWhatsAppDevices(tenantId);
-      setSessions(devices);
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+
+      // Buscar dispositivos via API do backend (usa supabaseAdmin, bypassa RLS)
+      const devRes = await fetch(`${apiUrl}/api/whatsapp/devices`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId
+        }
+      });
+      if (devRes.ok) {
+        const devData = await devRes.json();
+        // Mapear do formato do banco para o formato da UI
+        const devices = devData.map((d: any) => ({
+          id: d.id, tenantId: d.tenant_id, name: d.name, phone: d.phone,
+          status: d.status, type: d.type, batteryLevel: d.battery_level,
+          lastActive: d.last_active, createdAt: d.created_at
+        }));
+        setSessions(devices);
+      } else {
+        console.error('[Integrations] Erro ao buscar dispositivos:', await devRes.text());
+      }
 
       const integrations = await getIntegrations(tenantId);
 
@@ -173,19 +193,42 @@ export const Integrations: React.FC = () => {
       setShowToast('WhatsApp Conectado com Sucesso! 🎉');
       setQrStep('success');
       try {
-        const newDevice = await createWhatsAppDevice({
-          tenantId,
-          name: sessionName,
-          phone: data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido',
-          status: 'connected',
-          type: 'qr',
-          batteryLevel: 100,
-          lastActive: new Date().toISOString()
+        const { data: { session } } = await supabase.auth.getSession();
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+        const phone = data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido';
+
+        const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`,
+            'x-tenant-id': tenantId || ''
+          },
+          body: JSON.stringify({
+            name: sessionName,
+            phone,
+            status: 'connected',
+            type: 'qr',
+            batteryLevel: 100,
+            lastActive: new Date().toISOString()
+          })
         });
-        setSessions(prev => {
-          if (prev.some(d => d.name === newDevice.name)) return prev;
-          return [newDevice, ...prev];
-        });
+        if (res.ok) {
+          const newDevice = await res.json();
+          const mappedDevice = {
+            id: newDevice.id, tenantId: newDevice.tenant_id, name: newDevice.name,
+            phone: newDevice.phone, status: newDevice.status, type: newDevice.type,
+            batteryLevel: newDevice.battery_level, lastActive: newDevice.last_active, createdAt: newDevice.created_at
+          };
+          setSessions(prev => {
+            if (prev.some(d => d.name === mappedDevice.name)) return prev;
+            return [mappedDevice, ...prev];
+          });
+        } else {
+          console.error('[Integrations] Erro ao criar dispositivo via API:', await res.text());
+          // Recarregar lista para garantir consistência
+          await loadData();
+        }
       } catch (error) {
         console.error('Error saving device:', error);
       }
@@ -224,19 +267,30 @@ export const Integrations: React.FC = () => {
             setShowToast('WhatsApp Conectado! 🎉');
 
             try {
-              const newDevice = await createWhatsAppDevice({
-                tenantId,
-                name: sessionForm.name,
-                phone: sessionForm.phone || data.user?.id?.split(':')[0] || 'Desconhecido',
-                status: 'connected',
-                type: 'qr',
-                batteryLevel: 100,
-                lastActive: new Date().toISOString()
+              const { data: { session } } = await supabase.auth.getSession();
+              const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${session?.access_token}`,
+                  'x-tenant-id': tenantId || ''
+                },
+                body: JSON.stringify({
+                  name: sessionForm.name,
+                  phone: sessionForm.phone || data.user?.id?.split(':')[0] || 'Desconhecido',
+                  status: 'connected', type: 'qr', batteryLevel: 100,
+                  lastActive: new Date().toISOString()
+                })
               });
-              setSessions(prev => {
-                if (prev.some(d => d.name === newDevice.name)) return prev;
-                return [newDevice, ...prev];
-              });
+              if (res.ok) {
+                const newDevice = await res.json();
+                const mapped = {
+                  id: newDevice.id, tenantId: newDevice.tenant_id, name: newDevice.name,
+                  phone: newDevice.phone, status: newDevice.status, type: newDevice.type,
+                  batteryLevel: newDevice.battery_level, lastActive: newDevice.last_active, createdAt: newDevice.created_at
+                };
+                setSessions(prev => prev.some(d => d.name === mapped.name) ? prev : [mapped, ...prev]);
+              }
             } catch (error) {
               console.error('Error saving device via fallback:', error);
             }
@@ -429,25 +483,67 @@ export const Integrations: React.FC = () => {
     }, 2000);
   };
 
+  const syncDevicePhone = async (id: string) => {
+    setAppLoading(`sync-${id}`);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const res = await fetch(`${apiUrl}/api/whatsapp/sync-phone`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.phone) {
+          setSessions(prev => prev.map(s => s.id === id ? { ...s, phone: data.phone } : s));
+          setShowToast(`Número sincronizado: ${data.phone}`);
+        } else {
+          setShowToast('Não foi possível obter o número. Tente novamente em instantes.');
+        }
+      } else {
+        setShowToast('Erro ao sincronizar número.');
+      }
+    } catch (error) {
+      console.error('Erro ao sincronizar número:', error);
+      setShowToast('Erro ao sincronizar número.');
+    } finally {
+      setAppLoading(null);
+    }
+  };
+
   const logoutSession = async (id: string) => {
-    if (!confirm("Deseja realmente desconectar este aparelho?")) return;
+    if (!confirm('Deseja realmente desconectar este aparelho?')) return;
 
     setAppLoading(`logout-${id}`);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+
+      // Desconectar instância UAZAPI
       await fetch(`${apiUrl}/api/whatsapp/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenantId })
       });
 
-      // Atualizar no banco e no estado
-      await updateWhatsAppDevice(id, { status: 'disconnected' });
+      // Atualizar status do dispositivo via API do backend
+      await fetch(`${apiUrl}/api/whatsapp/devices/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        },
+        body: JSON.stringify({ status: 'disconnected' })
+      });
+
       setSessions(prev => prev.map(s => s.id === id ? { ...s, status: 'disconnected' } : s));
-      setShowToast("WhatsApp desconectado com sucesso.");
+      setShowToast('WhatsApp desconectado com sucesso.');
     } catch (error) {
-      console.error("Error logging out session:", error);
-      setShowToast("Erro ao desconectar sessão.");
+      console.error('Error logging out session:', error);
+      setShowToast('Erro ao desconectar sessão.');
     } finally {
       setAppLoading(null);
     }
@@ -455,12 +551,20 @@ export const Integrations: React.FC = () => {
 
   const removeSession = async (id: string) => {
     try {
-      await deleteWhatsAppDevice(id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      await fetch(`${apiUrl}/api/whatsapp/devices/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
       setSessions(sessions.filter(s => s.id !== id));
-      setShowToast("Conexão removida.");
+      setShowToast('Conexão removida.');
     } catch (error) {
-      console.error("Error removing session:", error);
-      setShowToast("Erro ao remover conexão.");
+      console.error('Error removing session:', error);
+      setShowToast('Erro ao remover conexão.');
     }
   };
 
@@ -553,7 +657,21 @@ export const Integrations: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-slate-900 dark:text-white truncate max-w-[150px]">{session.name}</h3>
-                      <p className="text-sm font-bold text-slate-400 dark:text-slate-500">{session.phone}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
+                          {session.phone && session.phone !== 'Desconhecido' && session.phone !== '+55 11 99999-0000' ? session.phone : '— Número não sincronizado'}
+                        </p>
+                        {session.status === 'connected' && (
+                          <button
+                            onClick={() => syncDevicePhone(session.id)}
+                            disabled={appLoading === `sync-${session.id}`}
+                            title="Sincronizar número real"
+                            className="p-1 rounded-lg text-slate-300 hover:text-legal-bronze transition-colors"
+                          >
+                            {appLoading === `sync-${session.id}` ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
