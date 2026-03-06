@@ -248,11 +248,22 @@ export const Chat: React.FC = () => {
 
   const [filterTagId, setFilterTagId] = useState<string | null>(null);
 
+  // IDs de conversas que o usuário já abriu (lidas) — persiste no localStorage
+  const [readChatIds, setReadChatIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('lexhub_read_chat_ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
   const currentConversations = (chatTab === 'external' ? externalConversations : internalConversations)
     .filter(chat => {
-      const isAssigned = !!chatAssignments[chat.id];
-      if (mainTab === 'inbox' && !isAssigned) return false;
-      if (mainTab === 'pending' && isAssigned) return false;
+      // Pendente = tem mensagens nao lidas E nao foi aberta pelo usuario ainda
+      const isRead = readChatIds.has(chat.id);
+      const hasPending = (chat.unreadCount ?? 0) > 0 && !isRead;
+
+      if (mainTab === 'inbox' && hasPending) return false;
+      if (mainTab === 'pending' && !hasPending) return false;
 
       if (!filterTagId) return true;
       return chatTagRelations[chat.id]?.includes(filterTagId);
@@ -430,16 +441,14 @@ export const Chat: React.FC = () => {
     setIsSidebarOpen(false);
     setIsUserMenuOpen(false);
 
-    // Se a conversa está em Pendentes (sem assignment), mover para Caixa de Entrada automaticamente
-    if (!chatAssignments[chat.id]) {
-      const autoAssignment = {
-        departmentId: 'auto',
-        departmentName: 'Geral',
-        agentId: 'auto',
-        agentName: 'Eu',
-        color: '#A67C52'
-      };
-      setChatAssignments(prev => ({ ...prev, [chat.id]: autoAssignment }));
+    // Marcar conversa como lida (move de Pendentes para Caixa de Entrada)
+    if (!readChatIds.has(chat.id)) {
+      setReadChatIds(prev => {
+        const updated = new Set(prev);
+        updated.add(chat.id);
+        localStorage.setItem('lexhub_read_chat_ids', JSON.stringify([...updated]));
+        return updated;
+      });
     }
   };
 
@@ -1043,6 +1052,21 @@ export const Chat: React.FC = () => {
                   </button>
                 </div>
 
+                {/* Botão Excluir Conversa — sempre visível no header */}
+                {chatTab === 'external' && (
+                  <button
+                    onClick={() => selectedChat && deleteConversation(selectedChat.id)}
+                    disabled={!!deletingChatId}
+                    title="Excluir esta conversa"
+                    className="p-2 md:p-3 rounded-2xl transition-all bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-500 hover:text-white"
+                  >
+                    {deletingChatId === selectedChat?.id
+                      ? <Loader2 size={18} className="animate-spin" />
+                      : <Trash2 size={18} />
+                    }
+                  </button>
+                )}
+
                 <div className="relative">
                   <button
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -1280,406 +1304,412 @@ export const Chat: React.FC = () => {
       </div>
 
       {/* MODAL: TRANSFERÊNCIA DE ATENDIMENTO */}
-      {isTransferModalOpen && (
-        <div className="fixed inset-0 z-[260] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsTransferModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 p-6 text-white relative shrink-0">
-              <button onClick={() => setIsTransferModalOpen(false)} className="absolute top-4 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={22} />
-              </button>
-              <div className="flex items-center gap-4 mb-5">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shadow-lg">
-                  <ArrowRightLeft size={26} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Transferir Atendimento</h3>
-                  <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
-                    {selectedChat?.contactName}
-                  </p>
-                </div>
-              </div>
-              {/* Breadcrumb steps */}
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
-                <span className={`px-3 py-1.5 rounded-full transition-all ${transferStep === 'department' ? 'bg-white text-indigo-700 shadow' : 'bg-white/20 text-white/60'
-                  }`}>1. Departamento</span>
-                <ChevronRight size={12} className="text-white/40" />
-                <span className={`px-3 py-1.5 rounded-full transition-all ${transferStep === 'agent' ? 'bg-white text-indigo-700 shadow' : 'bg-white/20 text-white/60'
-                  }`}>2. Responsável</span>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-
-              {/* STEP 1: Selecionar Departamento */}
-              {transferStep === 'department' && (
-                <div className="animate-in slide-in-from-left duration-300 space-y-4">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selecione o departamento de destino:</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {DEPARTMENTS.map(dept => {
-                      const onlineCount = dept.agents.filter(a => a.status === 'online').length;
-                      return (
-                        <button
-                          key={dept.id}
-                          onClick={() => { setTransferSelectedDept(dept); setTransferStep('agent'); }}
-                          className="p-5 rounded-2xl border-2 text-left hover:shadow-lg transition-all group relative overflow-hidden"
-                          style={{ borderColor: `${dept.color}40`, backgroundColor: dept.bgColor }}
-                        >
-                          <div
-                            className="absolute right-0 top-0 w-24 h-24 rounded-full opacity-10 -translate-y-6 translate-x-6 group-hover:opacity-20 transition-opacity"
-                            style={{ backgroundColor: dept.color }}
-                          />
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: dept.color }}>
-                              <Building2 size={20} className="text-white" />
-                            </div>
-                            <div>
-                              <h4 className="font-black text-slate-800 dark:text-white text-sm">{dept.name}</h4>
-                              <p className="text-[10px] font-bold" style={{ color: dept.color }}>
-                                {onlineCount} agente{onlineCount !== 1 ? 's' : ''} online
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex -space-x-2">
-                            {dept.agents.slice(0, 3).map(a => (
-                              <img
-                                key={a.id}
-                                src={a.avatar}
-                                alt={a.name}
-                                title={`${a.name} (${a.status})`}
-                                className="w-7 h-7 rounded-full border-2 border-white"
-                              />
-                            ))}
-                          </div>
-                        </button>
-                      );
-                    })}
+      {
+        isTransferModalOpen && (
+          <div className="fixed inset-0 z-[260] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsTransferModalOpen(false)}></div>
+            <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-indigo-700 to-indigo-500 p-6 text-white relative shrink-0">
+                <button onClick={() => setIsTransferModalOpen(false)} className="absolute top-4 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={22} />
+                </button>
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shadow-lg">
+                    <ArrowRightLeft size={26} />
                   </div>
-                </div>
-              )}
-
-              {/* STEP 2: Selecionar Agente */}
-              {transferStep === 'agent' && transferSelectedDept && (
-                <div className="animate-in slide-in-from-right duration-300 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setTransferStep('department')}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
-                    >
-                      <ArrowLeft size={16} />
-                    </button>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Agentes disponíveis em <span className="font-black" style={{ color: transferSelectedDept.color }}>{transferSelectedDept.name}</span>:
+                  <div>
+                    <h3 className="text-xl font-bold">Transferir Atendimento</h3>
+                    <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                      {selectedChat?.contactName}
                     </p>
                   </div>
+                </div>
+                {/* Breadcrumb steps */}
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                  <span className={`px-3 py-1.5 rounded-full transition-all ${transferStep === 'department' ? 'bg-white text-indigo-700 shadow' : 'bg-white/20 text-white/60'
+                    }`}>1. Departamento</span>
+                  <ChevronRight size={12} className="text-white/40" />
+                  <span className={`px-3 py-1.5 rounded-full transition-all ${transferStep === 'agent' ? 'bg-white text-indigo-700 shadow' : 'bg-white/20 text-white/60'
+                    }`}>2. Responsável</span>
+                </div>
+              </div>
 
-                  <div className="space-y-2">
-                    {transferSelectedDept.agents.map(agent => {
-                      const statusConfig = {
-                        online: { label: 'Online', dot: 'bg-emerald-500', text: 'text-emerald-600' },
-                        busy: { label: 'Ocupado', dot: 'bg-amber-500', text: 'text-amber-600' },
-                        offline: { label: 'Offline', dot: 'bg-slate-300', text: 'text-slate-400' },
-                      }[agent.status];
-                      const isOffline = agent.status === 'offline';
-                      return (
-                        <button
-                          key={agent.id}
-                          onClick={() => !isOffline && handleConfirmTransfer(agent)}
-                          disabled={isOffline}
-                          className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-all text-left ${isOffline
-                            ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'
-                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'
-                            }`}
-                        >
-                          <div className="relative shrink-0">
-                            <img src={agent.avatar} alt={agent.name} className="w-12 h-12 rounded-2xl object-cover" />
-                            <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${statusConfig.dot} border-2 border-white dark:border-slate-800 rounded-full`} />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-black text-sm text-slate-800 dark:text-white">{agent.name}</h4>
-                            <p className={`text-[10px] font-bold uppercase ${statusConfig.text}`}>{statusConfig.label}</p>
-                          </div>
-                          {!isOffline && (
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+
+                {/* STEP 1: Selecionar Departamento */}
+                {transferStep === 'department' && (
+                  <div className="animate-in slide-in-from-left duration-300 space-y-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Selecione o departamento de destino:</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {DEPARTMENTS.map(dept => {
+                        const onlineCount = dept.agents.filter(a => a.status === 'online').length;
+                        return (
+                          <button
+                            key={dept.id}
+                            onClick={() => { setTransferSelectedDept(dept); setTransferStep('agent'); }}
+                            className="p-5 rounded-2xl border-2 text-left hover:shadow-lg transition-all group relative overflow-hidden"
+                            style={{ borderColor: `${dept.color}40`, backgroundColor: dept.bgColor }}
+                          >
                             <div
-                              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-1.5 shrink-0"
-                              style={{ backgroundColor: transferSelectedDept.color }}
-                            >
-                              <ArrowRightLeft size={12} />
-                              Transferir
+                              className="absolute right-0 top-0 w-24 h-24 rounded-full opacity-10 -translate-y-6 translate-x-6 group-hover:opacity-20 transition-opacity"
+                              style={{ backgroundColor: dept.color }}
+                            />
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: dept.color }}>
+                                <Building2 size={20} className="text-white" />
+                              </div>
+                              <div>
+                                <h4 className="font-black text-slate-800 dark:text-white text-sm">{dept.name}</h4>
+                                <p className="text-[10px] font-bold" style={{ color: dept.color }}>
+                                  {onlineCount} agente{onlineCount !== 1 ? 's' : ''} online
+                                </p>
+                              </div>
                             </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Nota opcional */}
-                  <div className="space-y-1 pt-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nota para o responsável (opcional)</label>
-                    <textarea
-                      placeholder="Ex: Cliente aguarda retorno sobre processo de indenização..."
-                      className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 outline-none dark:text-white resize-none h-20"
-                      value={transferNote}
-                      onChange={e => setTransferNote(e.target.value)}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: NOVA AÇÃO (+) - MULTI TAB */}
-      {isNewActionModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsNewActionModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
-            <div className="bg-legal-navy p-6 text-white relative shrink-0">
-              <button onClick={() => setIsNewActionModalOpen(false)} className="absolute top-4 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-              </button>
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-legal-bronze rounded-xl flex items-center justify-center shadow-lg"><Plus size={28} /></div>
-                <div>
-                  <h3 className="text-xl font-bold">Gestão de Contatos & Chat</h3>
-                  <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Inicie interações ou gerencie sua base</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2 p-1 bg-white/10 rounded-2xl">
-                <button
-                  onClick={() => setNewActionTab('chat')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'chat' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
-                >
-                  <MessageSquareText size={14} /> Iniciar Chat
-                </button>
-                <button
-                  onClick={() => setNewActionTab('contact')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'contact' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
-                >
-                  <UserPlus size={14} /> Novo Contato
-                </button>
-                <button
-                  onClick={() => setNewActionTab('import')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'import' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
-                >
-                  <FileSpreadsheet size={14} /> Importar/Exportar
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900 custom-scrollbar">
-              {/* TAB: NOVO CHAT */}
-              {newActionTab === 'chat' && (
-                <form onSubmit={handleCreateNewChat} className="space-y-6 animate-in slide-in-from-left duration-300">
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Canal de Atendimento</label>
-                      <div className="flex p-1 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-                        <button
-                          type="button"
-                          onClick={() => setNewChatForm({ ...newChatForm, type: 'external' })}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${newChatForm.type === 'external' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400'}`}
-                        >
-                          <MessageCircle size={14} /> WhatsApp
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setNewChatForm({ ...newChatForm, type: 'internal' })}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${newChatForm.type === 'internal' ? 'bg-legal-bronze text-white shadow-sm' : 'text-slate-400'}`}
-                        >
-                          <Users size={14} /> Equipe
-                        </button>
-                      </div>
+                            <div className="flex -space-x-2">
+                              {dept.agents.slice(0, 3).map(a => (
+                                <img
+                                  key={a.id}
+                                  src={a.avatar}
+                                  alt={a.name}
+                                  title={`${a.name} (${a.status})`}
+                                  className="w-7 h-7 rounded-full border-2 border-white"
+                                />
+                              ))}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
+                  </div>
+                )}
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Selecionar Contato</label>
-                      <select
-                        required
-                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white"
-                        value={newChatForm.contactId}
-                        onChange={(e) => setNewChatForm({ ...newChatForm, contactId: e.target.value })}
+                {/* STEP 2: Selecionar Agente */}
+                {transferStep === 'agent' && transferSelectedDept && (
+                  <div className="animate-in slide-in-from-right duration-300 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setTransferStep('department')}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all"
                       >
-                        <option value="">Selecione um contato...</option>
-                        {contacts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-                      </select>
+                        <ArrowLeft size={16} />
+                      </button>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Agentes disponíveis em <span className="font-black" style={{ color: transferSelectedDept.color }}>{transferSelectedDept.name}</span>:
+                      </p>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mensagem Inicial</label>
+                    <div className="space-y-2">
+                      {transferSelectedDept.agents.map(agent => {
+                        const statusConfig = {
+                          online: { label: 'Online', dot: 'bg-emerald-500', text: 'text-emerald-600' },
+                          busy: { label: 'Ocupado', dot: 'bg-amber-500', text: 'text-amber-600' },
+                          offline: { label: 'Offline', dot: 'bg-slate-300', text: 'text-slate-400' },
+                        }[agent.status];
+                        const isOffline = agent.status === 'offline';
+                        return (
+                          <button
+                            key={agent.id}
+                            onClick={() => !isOffline && handleConfirmTransfer(agent)}
+                            disabled={isOffline}
+                            className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-all text-left ${isOffline
+                              ? 'opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+                              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-indigo-300 hover:shadow-md hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10'
+                              }`}
+                          >
+                            <div className="relative shrink-0">
+                              <img src={agent.avatar} alt={agent.name} className="w-12 h-12 rounded-2xl object-cover" />
+                              <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${statusConfig.dot} border-2 border-white dark:border-slate-800 rounded-full`} />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-black text-sm text-slate-800 dark:text-white">{agent.name}</h4>
+                              <p className={`text-[10px] font-bold uppercase ${statusConfig.text}`}>{statusConfig.label}</p>
+                            </div>
+                            {!isOffline && (
+                              <div
+                                className="px-4 py-2 rounded-xl text-[10px] font-black uppercase text-white flex items-center gap-1.5 shrink-0"
+                                style={{ backgroundColor: transferSelectedDept.color }}
+                              >
+                                <ArrowRightLeft size={12} />
+                                Transferir
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Nota opcional */}
+                    <div className="space-y-1 pt-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nota para o responsável (opcional)</label>
                       <textarea
-                        placeholder="Olá, como posso ajudar hoje?"
-                        className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white resize-none h-24"
-                        value={newChatForm.initialMessage}
-                        onChange={(e) => setNewChatForm({ ...newChatForm, initialMessage: e.target.value })}
+                        placeholder="Ex: Cliente aguarda retorno sobre processo de indenização..."
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 outline-none dark:text-white resize-none h-20"
+                        value={transferNote}
+                        onChange={e => setTransferNote(e.target.value)}
                       />
                     </div>
                   </div>
-
-                  <button type="submit" className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2">
-                    <MessageSquareText size={18} /> Abrir Conversa
-                  </button>
-                </form>
-              )}
-
-              {/* TAB: NOVO CONTATO */}
-              {newActionTab === 'contact' && (
-                <form onSubmit={handleCreateContact} className="space-y-4 animate-in slide-in-from-right duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
-                      <input required type="text" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.name} onChange={e => setNewContactForm({ ...newContactForm, name: e.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Telefone (WhatsApp)</label>
-                      <input required type="text" placeholder="+55 (11) 9..." className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.phone} onChange={e => setNewContactForm({ ...newContactForm, phone: e.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
-                      <input type="email" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.email} onChange={e => setNewContactForm({ ...newContactForm, email: e.target.value })} />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Empresa / Grupo</label>
-                      <input type="text" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.company} onChange={e => setNewContactForm({ ...newContactForm, company: e.target.value })} />
-                    </div>
-                  </div>
-                  <button type="submit" className="w-full mt-4 py-4 bg-legal-bronze text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2 hover:brightness-110">
-                    <Save size={18} /> Salvar Contato
-                  </button>
-                </form>
-              )}
-
-              {/* TAB: IMPORT/EXPORT */}
-              {newActionTab === 'import' && (
-                <div className="space-y-8 animate-in zoom-in-95 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-navy transition-all group cursor-pointer" onClick={handleImportFile}>
-                      <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform"><UploadCloud size={32} className="text-legal-navy" /></div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 dark:text-white">Importar Lista</h4>
-                        <p className="text-xs text-slate-400">Arraste um CSV ou clique para subir sua base de clientes.</p>
-                      </div>
-                    </div>
-
-                    <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-bronze transition-all group cursor-pointer" onClick={handleExportCSV}>
-                      <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform"><Download size={32} className="text-legal-bronze" /></div>
-                      <div>
-                        <h4 className="font-bold text-slate-900 dark:text-white">Exportar Contatos</h4>
-                        <p className="text-xs text-slate-400">Baixe todos os contatos em formato CSV compatível com Excel.</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-6 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800 flex items-start gap-4">
-                    <AlertCircle className="text-amber-600 shrink-0" size={20} />
-                    <p className="text-[10px] text-amber-700 dark:text-amber-300 font-bold uppercase leading-relaxed">Nota: A importação deve seguir o modelo padrão LexHub. Nomes, telefones com DDI (+55) e e-mails são campos essenciais para o funcionamento dos Agentes de IA.</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      {/* MODAL: NOVA AÇÃO (+) - MULTI TAB */}
+      {
+        isNewActionModalOpen && (
+          <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsNewActionModalOpen(false)}></div>
+            <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
+              <div className="bg-legal-navy p-6 text-white relative shrink-0">
+                <button onClick={() => setIsNewActionModalOpen(false)} className="absolute top-4 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-legal-bronze rounded-xl flex items-center justify-center shadow-lg"><Plus size={28} /></div>
+                  <div>
+                    <h3 className="text-xl font-bold">Gestão de Contatos & Chat</h3>
+                    <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Inicie interações ou gerencie sua base</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 p-1 bg-white/10 rounded-2xl">
+                  <button
+                    onClick={() => setNewActionTab('chat')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'chat' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
+                  >
+                    <MessageSquareText size={14} /> Iniciar Chat
+                  </button>
+                  <button
+                    onClick={() => setNewActionTab('contact')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'contact' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
+                  >
+                    <UserPlus size={14} /> Novo Contato
+                  </button>
+                  <button
+                    onClick={() => setNewActionTab('import')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${newActionTab === 'import' ? 'bg-white text-legal-navy' : 'text-white/60'}`}
+                  >
+                    <FileSpreadsheet size={14} /> Importar/Exportar
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 bg-white dark:bg-slate-900 custom-scrollbar">
+                {/* TAB: NOVO CHAT */}
+                {newActionTab === 'chat' && (
+                  <form onSubmit={handleCreateNewChat} className="space-y-6 animate-in slide-in-from-left duration-300">
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Canal de Atendimento</label>
+                        <div className="flex p-1 bg-slate-50 dark:bg-slate-800 rounded-2xl">
+                          <button
+                            type="button"
+                            onClick={() => setNewChatForm({ ...newChatForm, type: 'external' })}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${newChatForm.type === 'external' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400'}`}
+                          >
+                            <MessageCircle size={14} /> WhatsApp
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewChatForm({ ...newChatForm, type: 'internal' })}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all ${newChatForm.type === 'internal' ? 'bg-legal-bronze text-white shadow-sm' : 'text-slate-400'}`}
+                          >
+                            <Users size={14} /> Equipe
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Selecionar Contato</label>
+                        <select
+                          required
+                          className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white"
+                          value={newChatForm.contactId}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, contactId: e.target.value })}
+                        >
+                          <option value="">Selecione um contato...</option>
+                          {contacts.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Mensagem Inicial</label>
+                        <textarea
+                          placeholder="Olá, como posso ajudar hoje?"
+                          className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white resize-none h-24"
+                          value={newChatForm.initialMessage}
+                          onChange={(e) => setNewChatForm({ ...newChatForm, initialMessage: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2">
+                      <MessageSquareText size={18} /> Abrir Conversa
+                    </button>
+                  </form>
+                )}
+
+                {/* TAB: NOVO CONTATO */}
+                {newActionTab === 'contact' && (
+                  <form onSubmit={handleCreateContact} className="space-y-4 animate-in slide-in-from-right duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                        <input required type="text" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.name} onChange={e => setNewContactForm({ ...newContactForm, name: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Telefone (WhatsApp)</label>
+                        <input required type="text" placeholder="+55 (11) 9..." className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.phone} onChange={e => setNewContactForm({ ...newContactForm, phone: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
+                        <input type="email" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.email} onChange={e => setNewContactForm({ ...newContactForm, email: e.target.value })} />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Empresa / Grupo</label>
+                        <input type="text" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold dark:text-white" value={newContactForm.company} onChange={e => setNewContactForm({ ...newContactForm, company: e.target.value })} />
+                      </div>
+                    </div>
+                    <button type="submit" className="w-full mt-4 py-4 bg-legal-bronze text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2 hover:brightness-110">
+                      <Save size={18} /> Salvar Contato
+                    </button>
+                  </form>
+                )}
+
+                {/* TAB: IMPORT/EXPORT */}
+                {newActionTab === 'import' && (
+                  <div className="space-y-8 animate-in zoom-in-95 duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-navy transition-all group cursor-pointer" onClick={handleImportFile}>
+                        <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform"><UploadCloud size={32} className="text-legal-navy" /></div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white">Importar Lista</h4>
+                          <p className="text-xs text-slate-400">Arraste um CSV ou clique para subir sua base de clientes.</p>
+                        </div>
+                      </div>
+
+                      <div className="p-8 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-center space-y-4 hover:border-legal-bronze transition-all group cursor-pointer" onClick={handleExportCSV}>
+                        <div className="w-16 h-16 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto shadow-sm group-hover:scale-110 transition-transform"><Download size={32} className="text-legal-bronze" /></div>
+                        <div>
+                          <h4 className="font-bold text-slate-900 dark:text-white">Exportar Contatos</h4>
+                          <p className="text-xs text-slate-400">Baixe todos os contatos em formato CSV compatível com Excel.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-6 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800 flex items-start gap-4">
+                      <AlertCircle className="text-amber-600 shrink-0" size={20} />
+                      <p className="text-[10px] text-amber-700 dark:text-amber-300 font-bold uppercase leading-relaxed">Nota: A importação deve seguir o modelo padrão LexHub. Nomes, telefones com DDI (+55) e e-mails são campos essenciais para o funcionamento dos Agentes de IA.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* MODAL: GESTÃO DE ETIQUETAS */}
-      {isTagsModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsTagsModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[85vh]">
-            <div className="bg-legal-navy p-8 text-white relative flex-shrink-0">
-              <button onClick={() => setIsTagsModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-              </button>
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Tag size={32} /></div>
-                <div>
-                  <h3 className="text-2xl font-bold">Gerenciar Etiquetas</h3>
-                  <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Organização por Categorias</p>
+      {
+        isTagsModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsTagsModalOpen(false)}></div>
+            <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[85vh]">
+              <div className="bg-legal-navy p-8 text-white relative flex-shrink-0">
+                <button onClick={() => setIsTagsModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
+                  <X size={24} />
+                </button>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Tag size={32} /></div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Gerenciar Etiquetas</h3>
+                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Organização por Categorias</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar">
-              <form onSubmit={handleCreateTag} className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{editingTagId ? 'Editar Etiqueta' : 'Nova Etiqueta'}</h4>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome da Etiqueta</label>
-                    <input
-                      required
-                      type="text"
-                      placeholder="Ex: Urgente, Documentação..."
-                      className="w-full px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white"
-                      value={newTagForm.label}
-                      onChange={(e) => setNewTagForm({ ...newTagForm, label: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cor de Identificação</label>
-                    <div className="flex flex-wrap gap-2">
-                      {TAG_COLORS.map(color => (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => setNewTagForm({ ...newTagForm, color })}
-                          className={`w-8 h-8 rounded-full border-4 transition-all ${newTagForm.color === color ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+              <div className="p-8 flex-1 overflow-y-auto space-y-8 custom-scrollbar">
+                <form onSubmit={handleCreateTag} className="p-6 bg-slate-50 dark:bg-slate-800 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-4">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">{editingTagId ? 'Editar Etiqueta' : 'Nova Etiqueta'}</h4>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome da Etiqueta</label>
+                      <input
+                        required
+                        type="text"
+                        placeholder="Ex: Urgente, Documentação..."
+                        className="w-full px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none dark:text-white"
+                        value={newTagForm.label}
+                        onChange={(e) => setNewTagForm({ ...newTagForm, label: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cor de Identificação</label>
+                      <div className="flex flex-wrap gap-2">
+                        {TAG_COLORS.map(color => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setNewTagForm({ ...newTagForm, color })}
+                            className={`w-8 h-8 rounded-full border-4 transition-all ${newTagForm.color === color ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button type="submit" className="flex-1 py-3 bg-legal-navy text-white rounded-xl font-bold text-xs shadow-lg hover:brightness-110 transition-all uppercase tracking-widest">
-                    {editingTagId ? 'Salvar Alteração' : 'Criar Etiqueta'}
-                  </button>
-                  {editingTagId && (
-                    <button
-                      type="button"
-                      onClick={() => { setEditingTagId(null); setNewTagForm({ label: '', color: TAG_COLORS[2] }); }}
-                      className="px-4 py-3 bg-white dark:bg-slate-700 text-slate-400 rounded-xl font-bold text-xs border border-slate-200 dark:border-slate-600 transition-all uppercase tracking-widest"
-                    >
-                      Cancelar
+                  <div className="flex gap-2 pt-2">
+                    <button type="submit" className="flex-1 py-3 bg-legal-navy text-white rounded-xl font-bold text-xs shadow-lg hover:brightness-110 transition-all uppercase tracking-widest">
+                      {editingTagId ? 'Salvar Alteração' : 'Criar Etiqueta'}
                     </button>
-                  )}
-                </div>
-              </form>
+                    {editingTagId && (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingTagId(null); setNewTagForm({ label: '', color: TAG_COLORS[2] }); }}
+                        className="px-4 py-3 bg-white dark:bg-slate-700 text-slate-400 rounded-xl font-bold text-xs border border-slate-200 dark:border-slate-600 transition-all uppercase tracking-widest"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
 
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 pb-2">Etiquetas Cadastradas</h4>
-                <div className="grid grid-cols-1 gap-3">
-                  {tags.map(tag => (
-                    <div key={tag.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all">
-                      <div className="flex items-center gap-3">
-                        <div className="w-4 h-4 rounded-full shadow-inner" style={{ backgroundColor: tag.color }} />
-                        <span className="font-bold text-sm text-slate-700 dark:text-slate-300">{tag.label}</span>
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 dark:border-slate-800 pb-2">Etiquetas Cadastradas</h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    {tags.map(tag => (
+                      <div key={tag.id} className="p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl flex items-center justify-between group hover:shadow-md transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-4 h-4 rounded-full shadow-inner" style={{ backgroundColor: tag.color }} />
+                          <span className="font-bold text-sm text-slate-700 dark:text-slate-300">{tag.label}</span>
+                        </div>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => { setEditingTagId(tag.id); setNewTagForm({ label: tag.label, color: tag.color }); }}
+                            className="p-2 text-slate-400 hover:text-legal-navy transition-all"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button
+                            onClick={() => deleteTag(tag.id)}
+                            className="p-2 text-slate-400 hover:text-rose-500 transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => { setEditingTagId(tag.id); setNewTagForm({ label: tag.label, color: tag.color }); }}
-                          className="p-2 text-slate-400 hover:text-legal-navy transition-all"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
-                          onClick={() => deleteTag(tag.id)}
-                          className="p-2 text-slate-400 hover:text-rose-500 transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* MODAL: RESPOSTAS RÁPIDAS */}
       {
@@ -1744,7 +1774,8 @@ export const Chat: React.FC = () => {
               </div>
             </div>
           </div>
-        )}
-    </div>
+        )
+      }
+    </div >
   );
 };
