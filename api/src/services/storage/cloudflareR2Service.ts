@@ -94,3 +94,44 @@ export async function deleteFileFromR2(objectKey: string): Promise<boolean> {
     return false;
   }
 }
+/**
+ * Faz o upload de um arquivo para o Cloudflare R2 e retorna uma Presigned URL de 7 dias.
+ * Utilizada para mídia de chat (imagens, vídeos, áudios) que precisam ser acessíveis pelo frontend.
+ */
+export async function uploadMediaToR2(
+  fileBuffer: Buffer,
+  fileName: string,
+  tenantId: string,
+  mimeType: string
+): Promise<string> {
+  const fileExtension = fileName.includes('.')
+    ? '.' + fileName.split('.').pop()
+    : mimeTypeToExtension(mimeType);
+  const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${fileExtension}`;
+  const objectKey = `tenants/${tenantId}/media/${uniqueName}`;
+
+  const putCmd = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: objectKey,
+    Body: fileBuffer,
+    ContentType: mimeType,
+  });
+  await r2Client.send(putCmd);
+
+  // Gerar presigned URL de 7 dias (máximo do R2: 604800 segundos)
+  const getCmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey });
+  const url = await getSignedUrl(r2Client, getCmd, { expiresIn: 604800 });
+  
+  console.log(`[Storage R2] Mídia salva: ${objectKey}`);
+  return url;
+}
+
+function mimeTypeToExtension(mimeType: string): string {
+  const map: Record<string, string> = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+    'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm',
+    'audio/ogg': '.ogg', 'audio/mpeg': '.mp3', 'audio/opus': '.opus',
+    'application/pdf': '.pdf', 'application/octet-stream': '.bin'
+  };
+  return map[mimeType] || '.bin';
+}

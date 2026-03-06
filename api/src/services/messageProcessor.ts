@@ -2,6 +2,96 @@ import { supabaseAdmin as supabase } from '../config/supabase.js';
 import { emitToTenant } from '../socket/index.js';
 import { getAIResponse } from './aiService.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
+import { uploadMediaToR2 } from './storage/cloudflareR2Service.js';
+
+const UAZAPI_BASE_URL = process.env['UAZAPI_BASE_URL'] || 'https://free.uazapi.com';
+const UAZAPI_TOKEN = process.env['UAZAPI_TOKEN'] || '';
+
+/**
+ * Baixa a mídia de uma mensagem UAZAPI e faz upload para o Cloudflare R2
+ * Usa /message/download com o messageId e o token da instância
+ */
+async function downloadAndStoreMedia(
+    messageId: string,
+    instanceToken: string,
+    mediaType: string,
+    tenantId: string
+): Promise<string> {
+    try {
+        console.log(`[Media] Baixando mídia ${messageId} (tipo: ${mediaType}) da UAZAPI...`);
+
+        // Endpoint UAZAPI V2 para download de mídia
+        const downloadUrl = `${UAZAPI_BASE_URL}/message/download`;
+        const resp = await fetch(downloadUrl, {
+            method: 'POST',
+            headers: {
+                'token': instanceToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ messageId })
+        });
+
+        if (!resp.ok) {
+            console.warn(`[Media] Falha no download: ${resp.status} ${resp.statusText}`);
+            return '';
+        }
+
+        const contentType = resp.headers.get('content-type') || 'application/octet-stream';
+
+        // Verificar se retornou JSON com base64
+        if (contentType.includes('application/json')) {
+            const data = await resp.json();
+            const base64Data = data.base64 || data.data || data.media;
+            if (base64Data) {
+                const clean = base64Data.replace(/^data:[^;]+;base64,/, '');
+                const buffer = Buffer.from(clean, 'base64');
+                const mime = data.mimetype || data.mimeType || `${mediaType}/jpeg`;
+                const ext = mime.split('/')[1] || 'bin';
+                const url = await uploadMediaToR2(buffer, `media_${messageId}.${ext}`, tenantId, mime);
+                console.log(`[Media] ✅ Mídia salva no R2: ${url.substring(0, 60)}...`);
+                return url;
+            }
+        }
+
+        // Retornou binário direto
+        const buffer = Buffer.from(await resp.arrayBuffer());
+        const mime = (contentType.split(';')[0] || 'application/octet-stream').trim();
+        const ext = mime.split('/')[1] || 'bin';
+        const url = await uploadMediaToR2(buffer, `media_${messageId}.${ext}`, tenantId, mime);
+        console.log(`[Media] ✅ Mídia salva no R2: ${url.substring(0, 60)}...`);
+        return url;
+
+    } catch (err) {
+        console.error('[Media] Erro ao baixar/salvar mídia:', err);
+        return '';
+    }
+}
+
+// Cache de tokens por instância para evitar listar todas as instâncias toda vez
+const instanceTokenCache = new Map<string, string>();
+
+async function getInstanceToken(instanceName: string): Promise<string> {
+    if (instanceTokenCache.has(instanceName)) return instanceTokenCache.get(instanceName)!;
+
+    try {
+        const resp = await fetch(`${UAZAPI_BASE_URL}/instance/all`, {
+            headers: { 'admintoken': UAZAPI_TOKEN }
+        });
+        if (!resp.ok) return '';
+        const instances = await resp.json();
+        if (Array.isArray(instances)) {
+            for (const inst of instances) {
+                if (inst.name === instanceName && inst.token) {
+                    instanceTokenCache.set(instanceName, inst.token);
+                    return inst.token;
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Media] Erro ao obter token da instância:', err);
+    }
+    return '';
+}
 
 export async function processIncomingMessage(payload: any, eventSource: 'uazapi' | 'notificame' | 'meta') {
     try {
@@ -11,6 +101,8 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         let senderName = 'Unknown';
         let mediaUrl = '';
         let mediaType = '';
+        let messageId = '';
+        let instanceNameVar = '';
 
         // 1. Extração por Fonte (Uazapi, Notificame, Meta)
         if (eventSource === 'uazapi') {
@@ -49,8 +141,12 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                     mediaType = 'sticker';
                 }
                 
+                // Capturar messageId para download de mídia posterior
+                messageId = msg.key?.id || msg.id || '';
+                instanceNameVar = instanceName || '';
+
                 // Tentar pegar URL se o UAZAPI já enviou processado
-                const messageKeys = Object.keys(msg.message);
+                const messageKeys = Object.keys(msg.message || {});
                 const firstKey = messageKeys[0];
                 mediaUrl = msg.mediaUrl || (firstKey ? (msg.message as any)[firstKey]?.url : '') || '';
             }
@@ -107,6 +203,16 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         if (!textBody || !senderPhone || !tenantId) {
             console.log(`[MessageProcessor] Dados incompletos: Phone=${senderPhone}, Text=${!!textBody}, Tenant=${tenantId}`);
             return;
+        }
+
+        // 2. Se há tipo de mídia mas sem URL, baixar da UAZAPI e salvar no R2
+        if (mediaType && mediaType !== 'sticker' && !mediaUrl && messageId && instanceNameVar && eventSource === 'uazapi') {
+            const instToken = await getInstanceToken(instanceNameVar);
+            if (instToken) {
+                mediaUrl = await downloadAndStoreMedia(messageId, instToken, mediaType, tenantId);
+            } else {
+                console.warn(`[Media] Token da instância '${instanceNameVar}' não encontrado, pulando download.`);
+            }
         }
 
         console.log(`[MessageProcessor] Processando: ${senderPhone} no tenant ${tenantId}.`);
