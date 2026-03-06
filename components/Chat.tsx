@@ -424,6 +424,25 @@ export const Chat: React.FC = () => {
     }
   };
 
+  // Selecionar conversa e mover automaticamente de Pendente para Caixa de Entrada
+  const handleSelectChat = (chat: ChatConversation) => {
+    setSelectedChat(chat);
+    setIsSidebarOpen(false);
+    setIsUserMenuOpen(false);
+
+    // Se a conversa está em Pendentes (sem assignment), mover para Caixa de Entrada automaticamente
+    if (!chatAssignments[chat.id]) {
+      const autoAssignment = {
+        departmentId: 'auto',
+        departmentName: 'Geral',
+        agentId: 'auto',
+        agentName: 'Eu',
+        color: '#A67C52'
+      };
+      setChatAssignments(prev => ({ ...prev, [chat.id]: autoAssignment }));
+    }
+  };
+
   useEffect(() => {
     if (selectedChat) {
       loadChatMessages(selectedChat.id);
@@ -915,7 +934,7 @@ export const Chat: React.FC = () => {
                 >
                   <button
                     className="flex-1 flex items-center gap-4 min-w-0"
-                    onClick={() => { setSelectedChat(chat); setIsSidebarOpen(false); }}
+                    onClick={() => handleSelectChat(chat)}
                   >
                     <div className="relative shrink-0">
                       <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
@@ -1027,7 +1046,8 @@ export const Chat: React.FC = () => {
                 <div className="relative">
                   <button
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className={`p-2 md:p-3 rounded-2xl transition-all ${isUserMenuOpen ? 'bg-legal-navy text-white' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                    title="Opções da conversa"
+                    className={`p-2 md:p-3 rounded-2xl transition-all font-bold flex items-center gap-1.5 text-xs ${isUserMenuOpen ? 'bg-legal-navy text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-legal-navy hover:text-white'}`}
                   >
                     <MoreVertical size={20} />
                   </button>
