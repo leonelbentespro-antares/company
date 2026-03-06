@@ -409,6 +409,27 @@ export const Chat: React.FC = () => {
             return c;
           }));
 
+          setSelectedChat(prev => {
+            if (prev && prev.id === data.conversationId) {
+              return {
+                ...prev,
+                messages: [...(prev.messages || []), newMsg],
+                lastMessage: msg.text || newMsg.text
+              };
+            }
+            return prev;
+          });
+
+          if (msg.from_me) {
+            setReadChatIds(prev => {
+              if (prev.has(data.conversationId)) return prev;
+              const updated = new Set(prev);
+              updated.add(data.conversationId);
+              localStorage.setItem('lexhub_read_chat_ids', JSON.stringify(Array.from(updated)));
+              return updated;
+            });
+          }
+
           // Se não existir a conversa, recarregar lista
           setExternalConversations(prev => {
             const exists = prev.find(c => c.id === data.conversationId);

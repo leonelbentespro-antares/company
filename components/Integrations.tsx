@@ -261,6 +261,11 @@ export const Integrations: React.FC = () => {
           } else if (data.status === 'PAIR_CODE_READY' && data.paircode) {
             setPairCode(data.paircode);
             setIsConnecting(false);
+          } else if (data.status === 'Disconnected' || data.status === 'Failed') {
+            setIsConnecting(false);
+            setQrStep('naming');
+            setQrCodeData(null);
+            setShowToast('Falha na geração: a conexão UAZAPI foi interrompida ou desconectada.');
           } else if (data.status === 'Connected') {
             setIsConnecting(false);
             setQrStep('success');
