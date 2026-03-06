@@ -367,7 +367,39 @@ export const Chat: React.FC = () => {
 
       socket.on('new-message', (data: any) => {
         console.log('[Chat] Nova mensagem via WS', data);
-        loadConversations();
+
+        const msg = data.message;
+        if (msg && data.conversationId) {
+          const newMsg = {
+            id: msg.id,
+            text: msg.text || '',
+            timestamp: new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            fromMe: msg.from_me || false,
+            mediaUrl: msg.media_url || null,
+            mediaType: msg.media_type || null
+          };
+
+          setExternalConversations(prev => prev.map(c => {
+            if (c.id === data.conversationId) {
+              return {
+                ...c,
+                messages: [...(c.messages || []), newMsg],
+                lastMessage: msg.text || newMsg.text,
+                unreadCount: (c.unreadCount || 0) + (msg.from_me ? 0 : 1)
+              };
+            }
+            return c;
+          }));
+
+          // Se não existir a conversa, recarregar lista
+          setExternalConversations(prev => {
+            const exists = prev.find(c => c.id === data.conversationId);
+            if (!exists) { loadConversations(); }
+            return prev;
+          });
+        } else {
+          loadConversations();
+        }
       });
 
       socketInstance = socket;
@@ -1149,14 +1181,60 @@ export const Chat: React.FC = () => {
                 }
                 return (
                   <div key={msg.id} className={`flex ${msg.fromMe ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-2 duration-300`}>
-                    <div className={`max-w-[85%] md:max-w-[75%] px-4 md:px-5 py-3 rounded-2xl md:rounded-3xl shadow-sm ${msg.fromMe
+                    <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl md:rounded-3xl shadow-sm overflow-hidden ${msg.fromMe
                       ? 'bg-legal-navy dark:bg-legal-bronze text-white rounded-tr-none'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-tl-none'
                       }`}>
-                      <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
-                      <div className={`flex items-center justify-end gap-1.5 mt-2 ${msg.fromMe ? 'text-white/40' : 'text-slate-300 dark:text-slate-500'}`}>
-                        <span className="text-[10px] font-bold uppercase">{msg.timestamp}</span>
-                        {msg.fromMe && <CheckCheck size={12} />}
+
+                      {/* Renderização de mídia */}
+                      {msg.mediaType === 'image' && msg.mediaUrl && (
+                        <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer">
+                          <img
+                            src={msg.mediaUrl}
+                            alt="Imagem"
+                            className="w-full max-w-[280px] max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        </a>
+                      )}
+                      {msg.mediaType === 'video' && msg.mediaUrl && (
+                        <video
+                          src={msg.mediaUrl}
+                          controls
+                          className="w-full max-w-[280px] max-h-[300px] rounded"
+                        />
+                      )}
+                      {msg.mediaType === 'audio' && msg.mediaUrl && (
+                        <div className="px-4 pt-3">
+                          <audio controls src={msg.mediaUrl} className="w-full max-w-[260px]" />
+                        </div>
+                      )}
+                      {msg.mediaType === 'document' && msg.mediaUrl && (
+                        <div className="px-4 pt-3">
+                          <a
+                            href={msg.mediaUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-2 text-xs font-bold underline ${msg.fromMe ? 'text-white/80' : 'text-legal-navy'}`}
+                          >
+                            <FileText size={14} /> Abrir documento
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Texto da mensagem */}
+                      <div className="px-4 md:px-5 py-3">
+                        {msg.text && msg.text !== '[Imagem]' && msg.text !== '[Vídeo]' && msg.text !== '[Áudio]' && msg.text !== '[Documento]' && msg.text !== '[Figurinha]' && (
+                          <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                        )}
+                        {/* Fallback se não tiver URL de mídia */}
+                        {(msg.mediaType && !msg.mediaUrl) && (
+                          <p className="text-sm font-medium leading-relaxed opacity-60 italic">{msg.text}</p>
+                        )}
+                        <div className={`flex items-center justify-end gap-1.5 mt-1 ${msg.fromMe ? 'text-white/40' : 'text-slate-300 dark:text-slate-500'}`}>
+                          <span className="text-[10px] font-bold uppercase">{msg.timestamp}</span>
+                          {msg.fromMe && <CheckCheck size={12} />}
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -111,6 +111,8 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   fromMe: boolean;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video' | 'audio' | 'document' | 'sticker';
 }
 
 export interface ChatConversation {

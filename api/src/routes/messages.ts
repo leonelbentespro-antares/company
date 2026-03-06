@@ -162,7 +162,9 @@ messagesRouter.get('/:conversationId', authMiddleware, async (req, res) => {
             id: m.id,
             text: m.text,
             timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            fromMe: m.from_me
+            fromMe: m.from_me,
+            mediaUrl: m.media_url || null,
+            mediaType: m.media_type || null
         })) || [];
 
         res.json(formatted);
