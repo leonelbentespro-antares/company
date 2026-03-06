@@ -117,10 +117,18 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             const msg = payload.message || payload.data || payload;
             if (msg.fromMe === true || msg.fromMe === 'true') return;
 
-            senderPhone = (msg.sender || msg.chatid || '').replace(/@s\.whatsapp\.net$/i, '');
+            senderPhone = (msg.sender || msg.chatid || '')
+                .replace(/@s\.whatsapp\.net$/i, '')
+                .replace(/@c\.us$/i, '')
+                .replace(/@lid$/i, '')
+                .replace(/@g\.us$/i, '');
             
-            // Texto da mensagem
-            textBody = msg.text || msg.message?.conversation || (typeof msg.content === 'object' ? msg.content.text : '');
+            // Texto da mensagem (inclui extendedTextMessage comum em respostas)
+            textBody = msg.text || 
+                       msg.message?.conversation || 
+                       msg.message?.extendedTextMessage?.text || 
+                       (typeof msg.content === 'object' ? msg.content.text : '');
+
             
             // Se for mídia (UAZAPI V2)
             if (!textBody && msg.message) {
