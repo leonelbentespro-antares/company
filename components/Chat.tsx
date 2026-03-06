@@ -217,6 +217,11 @@ const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '�
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];
 
 export const Chat: React.FC = () => {
+  const { currentTenant } = useTenant();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
   const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>('list');
@@ -605,6 +610,95 @@ export const Chat: React.FC = () => {
     setNewMessage('');
     setIsEmojiPickerOpen(false);
     setShowQuickReplyMenu(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedChat || !currentTenant) return;
+
+    setIsUploadingMedia(true);
+
+    const tempId = `temp-${Date.now()}`;
+    const fileType = file.type.startsWith('image/') ? 'image' :
+      file.type.startsWith('video/') ? 'video' :
+        file.type.startsWith('audio/') ? 'audio' : 'document';
+
+    const mediaMessage: ChatMessage = {
+      id: tempId,
+      text: `Carregando arquivo...`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      fromMe: true,
+      mediaType: fileType,
+      mediaUrl: URL.createObjectURL(file) // preview temporario da imagem, se for
+    };
+
+    setExternalConversations(prev => prev.map(c => {
+      if (c.id === selectedChat.id) {
+        return {
+          ...c,
+          messages: [...c.messages, mediaMessage],
+          lastMessage: `[Arquivo] ${file.name}`,
+          timestamp: mediaMessage.timestamp
+        };
+      }
+      return c;
+    }));
+
+    if (selectedChat) {
+      setSelectedChat(prev => prev ? { ...prev, messages: [...prev.messages, mediaMessage] } : null);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('to', selectedChat.contactName);
+      formData.append('caption', '');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+
+      const response = await fetch(`${apiUrl}/api/messages/send-media`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': currentTenant.id
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Falha no upload do arquivo.');
+
+      const { mediaUrl } = await response.json();
+
+      setExternalConversations(prev => prev.map(c => {
+        if (c.id === selectedChat.id) {
+          return {
+            ...c,
+            messages: c.messages.map(m => m.id === tempId ? { ...m, text: file.name, mediaUrl } : m)
+          };
+        }
+        return c;
+      }));
+
+      if (selectedChat) {
+        setSelectedChat(prev => prev ? {
+          ...prev,
+          messages: prev.messages.map(m => m.id === tempId ? { ...m, text: file.name, mediaUrl } : m)
+        } : null);
+      }
+
+    } catch (err) {
+      console.error('Erro no envio de arquivo:', err);
+      // Remove a mensagem fake se quebrar o upload
+      setExternalConversations(prev => prev.map(c => {
+        if (c.id === selectedChat.id) return { ...c, messages: c.messages.filter(m => m.id !== tempId) };
+        return c;
+      }));
+      if (selectedChat) setSelectedChat(prev => prev ? { ...prev, messages: prev.messages.filter(m => m.id !== tempId) } : null);
+    } finally {
+      setIsUploadingMedia(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   // --- NEW CHAT HANDLER ---
@@ -1295,6 +1389,22 @@ export const Chat: React.FC = () => {
               )}
 
               <form onSubmit={handleSendMessage} className="flex items-center gap-2 md:gap-4">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  accept="image/*,video/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingMedia}
+                  className="p-2 md:p-3 text-slate-400 hover:text-legal-navy hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl disabled:opacity-50"
+                  title="Anexar Arquivo"
+                >
+                  {isUploadingMedia ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                </button>
                 <button type="button" onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)} className="p-2 md:p-3 text-slate-400 hover:text-legal-navy hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl">
                   <Smile size={20} />
                 </button>
@@ -1305,8 +1415,9 @@ export const Chat: React.FC = () => {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Envie uma mensagem (use '/' para atalhos)..."
                   className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] px-4 md:px-6 py-3 md:py-4 text-sm font-medium outline-none focus:ring-4 focus:ring-legal-navy/5 dark:text-white"
+                  disabled={isUploadingMedia}
                 />
-                <button type="submit" disabled={!newMessage.trim()} className="p-3 md:p-4 bg-legal-navy text-white rounded-[2rem] shadow-xl disabled:opacity-50">
+                <button type="submit" disabled={!newMessage.trim() || isUploadingMedia} className="p-3 md:p-4 bg-legal-navy text-white rounded-[2rem] shadow-xl disabled:opacity-50">
                   <Send size={20} fill="currentColor" />
                 </button>
               </form>

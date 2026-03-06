@@ -2,8 +2,11 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
-import { sendTextMessage, sessions } from '../services/whatsappService.js';
+import { sendTextMessage, sendMediaMessage, sessions } from '../services/whatsappService.js';
+import { uploadMediaToR2 } from '../services/storage/cloudflareR2Service.js';
+import multer from 'multer';
 
+const upload = multer();
 export const messagesRouter = Router();
 
 /**
@@ -82,6 +85,88 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
             error: 'Erro no servidor', 
             details: err.message 
         });
+    }
+});
+
+/**
+ * POST /api/messages/send-media
+ * Recebe o arquivo em Base64 ou Form-Data, e faz o upload e disparo 
+ */
+messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async (req, res) => {
+    try {
+        const { to, caption } = req.body;
+        const file = req.file;
+        const tenantId = req.tenantId!;
+
+        if (!to || !file) {
+            return res.status(400).json({ error: 'Campos "to" e "file" são obrigatórios.' });
+        }
+
+        const session = sessions.get(tenantId);
+        if (!session) {
+             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant.' });
+        }
+
+        const number = to.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
+        
+        // 1. Upload R2 e gera URL Pública (URL Presigned 7dias)
+        const mimeType = file.mimetype;
+        const mediaUrl = await uploadMediaToR2(file.buffer, file.originalname, tenantId, mimeType);
+
+        // Acha qual o tipo de mídia
+        let uazapiMediaType = 'document';
+        if (mimeType.startsWith('image/')) uazapiMediaType = 'image';
+        else if (mimeType.startsWith('video/')) uazapiMediaType = 'video';
+        else if (mimeType.startsWith('audio/')) uazapiMediaType = 'audio';
+
+        // 2. Dispara pra uazapi
+        await sendMediaMessage(session.token, number, mediaUrl, caption || '', uazapiMediaType);
+        console.log(`[Messages] Mídia enviada para ${number} (Tenant: ${tenantId})`);
+
+        // 3. Salva no banco de dados local da conversa
+        let conversationId = '';
+        const { data: convs } = await supabase
+            .from('chat_conversations')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('contact_phone', number)
+            .limit(1);
+            
+        if (convs && convs.length > 0) {
+            conversationId = convs[0]?.id;
+            await supabase.from('chat_conversations').update({ 
+                last_message: caption ? `[Mídia] ${caption}` : `[${uazapiMediaType.toUpperCase()}]`, 
+                updated_at: new Date().toISOString() 
+            }).eq('id', conversationId);
+        } else {
+            const { data: newConvo } = await supabase.from('chat_conversations')
+               .insert([{ 
+                   tenant_id: tenantId, 
+                   contact_name: number, 
+                   contact_phone: number,
+                   last_message: caption ? `[Mídia] ${caption}` : `[${uazapiMediaType.toUpperCase()}]`, 
+                   unread_count: 0, 
+                   online: true 
+               }])
+               .select('id').single();
+            if (newConvo) conversationId = newConvo.id;
+        }
+
+        // Salva a mensagem (usando extended text / mediaType)
+        if (conversationId) {
+            await supabase.from('chat_messages').insert([{
+                conversation_id: conversationId,
+                text: caption || `[${uazapiMediaType.toUpperCase()}]`,
+                media_url: mediaUrl,
+                media_type: uazapiMediaType,
+                from_me: true
+            }]);
+        }
+
+        res.json({ success: true, mediaUrl });
+    } catch (err: any) {
+        console.error('[Messages] Erro upload mídia:', err);
+        res.status(500).json({ error: 'Erro ao enviar servidor', details: err.message });
     }
 });
 
