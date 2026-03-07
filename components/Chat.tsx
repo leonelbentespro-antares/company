@@ -633,6 +633,13 @@ export const Chat: React.FC = () => {
     setShowQuickReplyMenu(false);
   };
 
+  const handleEmojiClick = (emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedChat || !currentTenant) return;
@@ -1398,6 +1405,21 @@ export const Chat: React.FC = () => {
             </div>
 
             <div className="p-4 md:p-6 bg-white dark:bg-slate-900 border-t border-slate-50 dark:border-slate-800 relative">
+              {isEmojiPickerOpen && (
+                <div className="absolute bottom-full left-10 mb-4 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-100 dark:border-slate-700 shadow-2xl p-4 z-40 animate-in slide-in-from-bottom-4 flex flex-wrap gap-2 max-w-[280px]">
+                  {EMOJIS.map(emoji => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleEmojiClick(emoji)}
+                      className="text-xl hover:scale-125 transition-transform p-1 w-10 h-10 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {showQuickReplyMenu && filteredQuickReplies.length > 0 && (
                 <div className="absolute bottom-full left-6 right-6 mb-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-2xl overflow-hidden z-40 animate-in slide-in-from-bottom-4">
                   {filteredQuickReplies.map(qr => (
