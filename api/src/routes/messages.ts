@@ -6,7 +6,11 @@ import { sendTextMessage, sendMediaMessage, sessions } from '../services/whatsap
 import { uploadMediaToSupabase } from '../services/storage/supabaseStorageService.js';
 import multer from 'multer';
 
-const upload = multer();
+const upload = multer({
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB
+    }
+});
 export const messagesRouter = Router();
 
 /**

@@ -683,7 +683,11 @@ export const Chat: React.FC = () => {
       formData.append('caption', '');
 
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
+      // Remover barra final se existir para evitar // na URL
+      const apiUrl = rawApiUrl.replace(/\/$/, '');
+
+      console.log(`[DEBUG_UPLOAD] Enviando para: ${apiUrl}/api/messages/send-media`);
 
       const response = await fetch(`${apiUrl}/api/messages/send-media`, {
         method: 'POST',
@@ -694,7 +698,11 @@ export const Chat: React.FC = () => {
         body: formData
       });
 
-      if (!response.ok) throw new Error('Falha no upload do arquivo.');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[DEBUG_UPLOAD] Falha crítica:', response.status, errorData);
+        throw new Error(errorData.error || `Erro ${response.status}: Falha no upload.`);
+      }
 
       const { mediaUrl } = await response.json();
 
@@ -715,8 +723,9 @@ export const Chat: React.FC = () => {
         } : null);
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro no envio de arquivo:', err);
+      alert(`Erro no envio: ${err.message}`);
       // Remove a mensagem fake se quebrar o upload
       setExternalConversations(prev => prev.map(c => {
         if (c.id === selectedChat.id) return { ...c, messages: c.messages.filter(m => m.id !== tempId) };
