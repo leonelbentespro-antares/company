@@ -15,12 +15,16 @@ export const qrCodes = new Map<string, string>(); // tenantId -> current QR or P
  * IMPORTANTE: Esta conta UAZAPI usa AdminToken em TODOS os endpoints.
  * O token de instância individual não funciona neste plano.
  */
-export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, _instanceToken?: string) {
+export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, instanceToken?: string) {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'AdminToken': UAZAPI_ADMIN_TOKEN,
     };
+
+    if (instanceToken) {
+        headers['token'] = instanceToken;
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout

@@ -24,9 +24,10 @@ scp api/.env.production root@$VPS_IP:$VPS_PATH/api/.env
 echo "🚀 Reiniciando serviços na VPS..."
 ssh root@$VPS_IP << 'EOF'
     cd /var/www/lexhub/api
-    npm install --omit=dev
+    npm install
+    npm run build
     pm2 delete lexhub-api || true
-    pm2 start src/index.ts --name lexhub-api --interpreter node --node-args="--loader ts-node/esm"
+    pm2 start dist/index.js --name lexhub-api
     pm2 save
 EOF
 
