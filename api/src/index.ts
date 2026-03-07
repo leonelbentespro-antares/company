@@ -52,8 +52,8 @@ app.use(configureCors());
 // app.use(configureRateLimit());
 
 // 1e. Parse do body (necessário antes dos honeypots capturarem o body)
-app.use(express.json({ limit: '1mb' })); // Limitar tamanho do payload
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 1f. Detector de anomalias (monitora códigos de resposta)
 // app.use(anomalyDetector);

@@ -98,6 +98,8 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
         const file = req.file;
         const tenantId = req.tenantId!;
 
+        console.log(`[DEBUG_MEDIA] Recebendo arquivo: ${file?.originalname} (${file?.size} bytes) para ${to} no tenant ${tenantId}`);
+
         if (!to || !file) {
             return res.status(400).json({ error: 'Campos "to" e "file" são obrigatórios.' });
         }
