@@ -12,21 +12,18 @@ export const qrCodes = new Map<string, string>(); // tenantId -> current QR or P
 
 /**
  * Faz requisições HTTP para a uazapiGO V2.
+ * IMPORTANTE: Esta conta UAZAPI usa AdminToken em TODOS os endpoints.
+ * O token de instância individual não funciona neste plano.
  */
-export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, token?: string) {
+export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, _instanceToken?: string) {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'AdminToken': UAZAPI_ADMIN_TOKEN,
     };
 
-    if (token) {
-        headers['token'] = token;
-    } else if (UAZAPI_ADMIN_TOKEN) {
-        headers['admintoken'] = UAZAPI_ADMIN_TOKEN;
-    }
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
     try {
         const options: RequestInit = {
@@ -51,12 +48,12 @@ export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, 
             } catch {
                 err = await res.text();
             }
-            console.error(`[UAZAPI V2 ERROR] ${method} ${endpoint} - Status: ${res.status}, Headers:`, Object.fromEntries(res.headers.entries()), `Error:`, err);
+            console.error(`[UAZAPI V2 ERROR] ${method} ${endpoint} - Status: ${res.status}, Error:`, err);
             throw new Error(typeof err === 'string' ? err : (err.error || err.message || JSON.stringify(err)));
         }
         
         const data = await res.json();
-        console.log(`[UAZAPI V2 Debug] ${method} ${endpoint} - Response Payload:`, JSON.stringify(data).substring(0, 200));
+        console.log(`[UAZAPI V2 Debug] ${method} ${endpoint} - Response Payload:`, JSON.stringify(data).substring(0, 300));
         return data;
     } catch (e: any) {
         clearTimeout(timeout);
@@ -67,6 +64,7 @@ export async function uazapiFetch(endpoint: string, method = 'GET', body?: any, 
         throw e;
     }
 }
+
 
 /**
  * Inicia ou retoma uma sessão WhatsApp para o tenant.
@@ -107,35 +105,16 @@ export async function startWhatsAppSession(tenantId: string, phone?: string) {
     } catch (e) {
         console.warn(`[WhatsApp] Falha ao configurar webhook para ${tenantId}`);
     }
-
     // 3. Conectar (QR ou Pair Code)
     try {
+        console.log(`[WhatsApp] Chamando /instance/connect para ${tenantId}...`);
         const connectBody = phone ? { phone } : {};
         const connectResponse = await uazapiFetch('/instance/connect', 'POST', connectBody, instanceToken);
+        console.log(`[WhatsApp] Resposta /instance/connect:`, JSON.stringify(connectResponse).substring(0, 200));
+
         
         let qrcode = connectResponse.instance?.qrcode || connectResponse.qrcode;
         let paircode = connectResponse.instance?.paircode || connectResponse.paircode;
-
-        // uazapiGO V2 logic: If QR is not ready immediately, wait and poll status for a few seconds
-        if (!qrcode && !paircode && connectResponse.instance?.status !== 'connected') {
-            console.log(`[WhatsApp] QR não veio no connect. Iniciando polling de status para ${tenantId}...`);
-            for (let i = 0; i < 5; i++) { // Tenta 5 vezes (10 segundos total)
-                await new Promise(r => setTimeout(r, 2000));
-                const statusData = await getInstanceStatus(instanceToken);
-                qrcode = statusData.instance?.qrcode || statusData.qrcode;
-                paircode = statusData.instance?.paircode || statusData.paircode;
-                
-                if (qrcode || paircode) {
-                    console.log(`[WhatsApp] QR/PairCode obtido via polling após ${i+1} tentativas.`);
-                    break;
-                }
-                
-                if (statusData.instance?.status === 'connected') {
-                    console.log(`[WhatsApp] Instância ${tenantId} conectou durante o polling.`);
-                    break;
-                }
-            }
-        }
 
         if (qrcode) {
             qrCodes.set(tenantId, qrcode);
@@ -149,11 +128,49 @@ export async function startWhatsAppSession(tenantId: string, phone?: string) {
             sessionData.status = 'Connected';
             emitToTenant(tenantId, 'whatsapp:connected', { status: 'Connected' });
         } else {
-            console.warn(`[WhatsApp] Timeout ou falha ao gerar QR para ${tenantId}.`);
-            emitToTenant(tenantId, 'qr:error', { message: 'Timeout ao gerar QR Code' });
+            // Se não veio de primeira, fazemos o polling em BACKGROUND para não travar a requisição POST
+            console.log(`[WhatsApp] QR não veio no connect. Iniciando polling em background para ${tenantId}...`);
+            (async () => {
+                try {
+                    for (let i = 0; i < 6; i++) { // Tenta por ~12 segundos
+                        await new Promise(r => setTimeout(r, 2000));
+                        const statusData = await getInstanceStatus(instanceToken!);
+                        const bQr = statusData.instance?.qrcode || statusData.qrcode;
+                        const bPair = statusData.instance?.paircode || statusData.paircode;
+                        
+                        if (bQr) {
+                            console.log(`[WhatsApp] Polling background encontrou QR para ${tenantId}. Emitindo para frontend...`);
+                            qrCodes.set(tenantId, bQr);
+                            sessionData.status = 'QR_READY';
+                            emitToTenant(tenantId, 'qr:update', { qr: bQr, status: 'QR_READY' });
+                            return;
+                        }
+                        if (bPair) {
+                            qrCodes.set(tenantId, bPair);
+                            sessionData.status = 'PAIR_CODE_READY';
+                            emitToTenant(tenantId, 'qr:update', { paircode: bPair, status: 'PAIR_CODE_READY' });
+                            return;
+                        }
+                        if (statusData.instance?.status === 'connected') {
+                            sessionData.status = 'Connected';
+                            emitToTenant(tenantId, 'whatsapp:connected', { status: 'Connected' });
+                            return;
+                        }
+                    }
+                    // Se chegou aqui, deu timeout
+                    sessionData.status = 'Failed';
+                    console.warn(`[WhatsApp] Timeout ao gerar QR para ${tenantId}.`);
+                    emitToTenant(tenantId, 'qr:error', { message: 'Timeout ao gerar QR Code. Tente novamente.' });
+                } catch (err) {
+                    sessionData.status = 'Failed';
+                    console.error(`[WhatsApp] Erro no polling background para ${tenantId}:`, err);
+                }
+            })();
         }
     } catch (e) {
+        sessionData.status = 'Failed';
         console.error(`[WhatsApp] Erro ao conectar instância ${tenantId}:`, e);
+        throw e;
     }
 
     return sessionData;
@@ -268,8 +285,18 @@ export async function handleConnectionEvent(tenantId: string, status: string, ph
             console.error('[WhatsAppService] Erro ao persistir conexão no banco via webhook:', e);
         }
     } else if (status === 'disconnected' || status === 'close') {
-         sessions.delete(tenantId);
+         const session = sessions.get(tenantId);
          
+         // A UAZAPI V2 às vezes envia um webhook de "disconnected" imediatamente após /instance/connect
+         // Se a sessão está no meio do processo de gerar QR/Pair, ignoramos esse evento para não cancelar a conexão
+         if (session && (session.status === 'QR_READY' || session.status === 'PAIR_CODE_READY' || session.status === 'Connecting')) {
+             console.log(`[WhatsAppService] Ignorando evento de desconexão para o tenant ${tenantId} pois está em processo de ${session.status}.`);
+             return; // Interrompe para não apagar as variáveis em memória
+         }
+
+         sessions.delete(tenantId);
+         qrCodes.delete(tenantId);
+
          try {
              await supabaseAdmin.from('whatsapp_devices')
                 .update({ status: 'disconnected' })

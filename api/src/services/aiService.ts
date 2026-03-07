@@ -104,7 +104,7 @@ export async function getAIResponse(userMessage: string, tenantContext: any) {
         
     } catch (error) {
         console.error('[AI Service] Erro ao chamar GenAI SDK:', error);
-        throw error;
+        return "Desculpe, nosso assistente jurídico está indisponível no momento. Por favor aguarde um instante e nossa equipe humana o atenderá.";
     }
 }
 

@@ -97,7 +97,17 @@ export function emitToTenant(tenantId: string, event: string, data: unknown): vo
         console.warn('[Socket] emitToTenant chamado antes de initSocketIO.');
         return;
     }
-    io.to(`tenant:${tenantId}`).emit(event, data);
+    const room = `tenant:${tenantId}`;
+    const sockets = io.sockets.adapter.rooms.get(room);
+    const count = sockets ? sockets.size : 0;
+    
+    console.log(`[Socket] Emitindo "${event}" para tenant ${tenantId} (Sala: ${room}, Sockets ativos: ${count})`);
+    
+    if (count === 0) {
+        console.warn(`[Socket] AVISO: Nenhum socket ativo na sala ${room} para receber o evento "${event}"`);
+    }
+
+    io.to(room).emit(event, data);
 }
 
 export function getIO(): SocketIOServer | null {

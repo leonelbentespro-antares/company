@@ -194,7 +194,7 @@ export const Integrations: React.FC = () => {
       setQrStep('success');
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const phone = data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido';
 
         const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
@@ -250,7 +250,7 @@ export const Integrations: React.FC = () => {
     if (isConnecting && isQRModalOpen) {
       pollTimer = setInterval(async () => {
         console.log('[Fallback] Consultando status via HTTP...');
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         try {
           const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`);
           const data = await res.json();
@@ -323,7 +323,7 @@ export const Integrations: React.FC = () => {
       connectSocket(name);
 
       // 2. Disparar início da sessão no backend
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
       await fetch(`${apiUrl}/api/whatsapp/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
