@@ -3,7 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
 import { sendTextMessage, sendMediaMessage, sessions } from '../services/whatsappService.js';
-import { uploadMediaToR2 } from '../services/storage/cloudflareR2Service.js';
+import { uploadMediaToSupabase } from '../services/storage/supabaseStorageService.js';
 import multer from 'multer';
 
 const upload = multer();
@@ -109,9 +109,9 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
 
         const number = to.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
         
-        // 1. Upload R2 e gera URL Pública (URL Presigned 7dias)
+        // 1. Upload Supabase Storage e gera URL Pública
         const mimeType = file.mimetype;
-        const mediaUrl = await uploadMediaToR2(file.buffer, file.originalname, tenantId, mimeType);
+        const mediaUrl = await uploadMediaToSupabase(file.buffer, file.originalname, tenantId, mimeType);
 
         // Acha qual o tipo de mídia
         let uazapiMediaType = 'document';
