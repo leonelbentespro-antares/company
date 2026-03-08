@@ -317,11 +317,6 @@ export const Chat: React.FC = () => {
 
   // Transfer State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-
-  // Debug para confirmar versão no console do navegador
-  useEffect(() => {
-    console.log("🚀 LexHub Chat v1.1.0 - Voz Habilitada");
-  }, []);
   const [transferStep, setTransferStep] = useState<'department' | 'agent'>('department');
   const [transferSelectedDept, setTransferSelectedDept] = useState<Department | null>(null);
   const [transferNote, setTransferNote] = useState('');
