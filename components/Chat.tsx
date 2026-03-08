@@ -317,6 +317,11 @@ export const Chat: React.FC = () => {
 
   // Transfer State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
+  // Debug para confirmar versão no console do navegador
+  useEffect(() => {
+    console.log("🚀 LexHub Chat v1.1.0 - Voz Habilitada");
+  }, []);
   const [transferStep, setTransferStep] = useState<'department' | 'agent'>('department');
   const [transferSelectedDept, setTransferSelectedDept] = useState<Department | null>(null);
   const [transferNote, setTransferNote] = useState('');
@@ -1407,10 +1412,10 @@ export const Chat: React.FC = () => {
                   </button>
                   <button
                     onClick={startRecording}
-                    className="p-2 text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all flex items-center gap-1.5 font-black text-[10px] uppercase border border-rose-100 dark:border-rose-900/30"
+                    className="p-2 text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all flex items-center gap-1.5 font-black text-[10px] uppercase border-2 border-rose-500 animate-pulse"
                     title="Gravar Mensagem de Voz"
                   >
-                    <Mic size={16} /> Áudio
+                    <Mic size={16} /> <span className="text-[8px]">CLIQUE AQUI PARA TESTAR ÁUDIO</span>
                   </button>
                 </div>
 
