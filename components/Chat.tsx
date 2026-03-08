@@ -1410,38 +1410,21 @@ export const Chat: React.FC = () => {
                   <button onClick={() => handleSyncTool('Trello')} className="p-2 text-indigo-600 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all">
                     {syncingTool === 'Trello' ? <Loader2 size={18} className="animate-spin" /> : <Layout size={18} />}
                   </button>
-                  <button
-                    onClick={startRecording}
-                    className="p-2 text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all flex items-center gap-1.5 font-black text-[10px] uppercase border-2 border-rose-500 animate-pulse"
-                    title="Gravar Mensagem de Voz"
-                  >
-                    <Mic size={16} /> <span className="text-[8px]">CLIQUE AQUI PARA TESTAR ÁUDIO</span>
-                  </button>
                 </div>
 
                 {/* Botão Excluir Conversa — sempre visível no header */}
                 {chatTab === 'external' && (
-                  <>
-                    <button
-                      onClick={startRecording}
-                      className="p-2 md:p-3 rounded-2xl transition-all bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center gap-2"
-                      title="Gravar Mensagem de Voz"
-                    >
-                      <Mic size={18} />
-                      <span className="hidden sm:inline text-[10px] font-black uppercase">Voz</span>
-                    </button>
-                    <button
-                      onClick={() => selectedChat && deleteConversation(selectedChat.id)}
-                      disabled={!!deletingChatId}
-                      title="Excluir esta conversa"
-                      className="p-2 md:p-3 rounded-2xl transition-all bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500 hover:text-white"
-                    >
-                      {deletingChatId === selectedChat?.id
-                        ? <Loader2 size={18} className="animate-spin" />
-                        : <Trash2 size={18} />
-                      }
-                    </button>
-                  </>
+                  <button
+                    onClick={() => selectedChat && deleteConversation(selectedChat.id)}
+                    disabled={!!deletingChatId}
+                    title="Excluir esta conversa"
+                    className="p-2 md:p-3 rounded-2xl transition-all bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500 hover:text-white"
+                  >
+                    {deletingChatId === selectedChat?.id
+                      ? <Loader2 size={18} className="animate-spin" />
+                      : <Trash2 size={18} />
+                    }
+                  </button>
                 )}
 
                 <div className="relative">
