@@ -2,9 +2,13 @@ import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
-import { sendTextMessage, sendMediaMessage, sessions } from '../services/whatsappService.js';
+import { sendTextMessage, sendMediaMessage, sendMediaMessageBase64, sessions, getOrRestoreSession } from '../services/whatsappService.js';
 import { uploadMediaToSupabase } from '../services/storage/supabaseStorageService.js';
+import { normalizePhone, formatTimestampManaus } from '../utils/phoneUtils.js';
 import multer from 'multer';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+
+const UUID_NAMESPACE = '6b86b273-ed4c-4a31-9ead-ce403b544b35';
 
 const upload = multer({
     limits: {
@@ -30,16 +34,19 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
         
-        const session = sessions.get(tenantId);
+        const session = await getOrRestoreSession(tenantId);
         if (!session) {
-             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant.' });
+             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant. Reconecte o dispositivo na aba Dispositivos.' });
         }
 
-        const number = to.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
+        // Normalização automática: remove JID suffixes e garante formato correto
+        const number = normalizePhone(to);
+        console.log(`[Messages] Enviando texto para: "${number}" (original: "${to}", tenant: ${tenantId})`);
         
         // 1. Enviar via UAZAPI
-        await sendTextMessage(session.token, number, text);
-        console.log(`[Messages Router] Mensagem enviada para ${number} (Tenant: ${tenantId})`);
+        const waRes = await sendTextMessage(session.token, number, text);
+        const waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid;
+        console.log(`[Messages Router] ✅ Mensagem enviada para ${number}. ID UAZAPI: ${waMessageId}`);
 
         // 2. Gravar no Banco de Dados
         let conversationId = '';
@@ -71,11 +78,13 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
         }
 
         if (conversationId) {
-            await supabase.from('chat_messages').insert([{
+            const safeId = waMessageId ? uuidv5(waMessageId, UUID_NAMESPACE) : uuidv4();
+            await supabase.from('chat_messages').upsert([{
+                id: safeId,
                 conversation_id: conversationId,
                 text: text,
                 from_me: true
-            }]);
+            }], { onConflict: 'id' });
         }
 
         res.json({
@@ -85,9 +94,13 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
         });
     } catch (err: any) {
         console.error('[Messages Router] Erro ao processar envio:', err);
+        const msg = (err as any)?.message || String(err);
         res.status(500).json({ 
-            error: 'Erro no servidor', 
-            details: err.message 
+            error: msg.includes('not on WhatsApp') 
+                ? `Número ${(err as any)?.message?.match(/\d+/)?.[0] || ''} não possui WhatsApp. Verifique o número do contato.`
+                : msg.includes('disconnected')
+                ? 'WhatsApp desconectado. Reconecte na aba Dispositivos.'
+                : 'Erro ao enviar mensagem.' 
         });
     }
 });
@@ -98,36 +111,42 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
  */
 messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async (req, res) => {
     try {
-        const { to, caption } = req.body;
+        const { to, caption, isPtt } = req.body;
         const file = req.file;
         const tenantId = req.tenantId!;
+        const ptt = isPtt === 'true' || isPtt === true;
 
-        console.log(`[DEBUG_MEDIA] Recebendo arquivo: ${file?.originalname} (${file?.size} bytes) para ${to} no tenant ${tenantId}`);
+        console.log(`[DEBUG_MEDIA] Recebendo arquivo: ${file?.originalname} (${file?.size} bytes) para ${to} no tenant ${tenantId} | PTT: ${ptt}`);
 
         if (!to || !file) {
             return res.status(400).json({ error: 'Campos "to" e "file" são obrigatórios.' });
         }
 
-        const session = sessions.get(tenantId);
+        const session = await getOrRestoreSession(tenantId);
         if (!session) {
-             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant.' });
+             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant. Reconecte o dispositivo na aba Dispositivos.' });
         }
 
-        const number = to.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
+        // Normalização automática de telefone
+        const number = normalizePhone(to);
+        console.log(`[Messages] Enviando mídia para: "${number}" (original: "${to}", tenant: ${tenantId})`);
         
-        // 1. Upload Supabase Storage e gera URL Pública
+        // 1. Upload Supabase Storage (para armazenamento permanente)
         const mimeType = file.mimetype;
         const mediaUrl = await uploadMediaToSupabase(file.buffer, file.originalname, tenantId, mimeType);
 
         // Acha qual o tipo de mídia
         let uazapiMediaType = 'document';
-        if (mimeType.startsWith('image/')) uazapiMediaType = 'image';
+        if (ptt) uazapiMediaType = 'audio';
+        else if (mimeType.startsWith('image/')) uazapiMediaType = 'image';
         else if (mimeType.startsWith('video/')) uazapiMediaType = 'video';
         else if (mimeType.startsWith('audio/')) uazapiMediaType = 'audio';
 
-        // 2. Dispara pra uazapi
-        await sendMediaMessage(session.token, number, mediaUrl, caption || '', uazapiMediaType);
-        console.log(`[Messages] Mídia enviada para ${number} (Tenant: ${tenantId})`);
+        // 2. Envia para UAZAPI como Base64 (evita timeout de download externo de URL)
+        const base64Data = file.buffer.toString('base64');
+        const waRes = await sendMediaMessageBase64(session.token, number, base64Data, mimeType, file.originalname, caption || '', uazapiMediaType, ptt);
+        const waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid;
+        console.log(`[Messages] ✅ Mídia enviada para ${number}. ID UAZAPI: ${waMessageId}`);
 
         // 3. Salva no banco de dados local da conversa
         let conversationId = '';
@@ -160,19 +179,28 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
 
         // Salva a mensagem (usando extended text / mediaType)
         if (conversationId) {
-            await supabase.from('chat_messages').insert([{
+            const safeId = waMessageId ? uuidv5(waMessageId, UUID_NAMESPACE) : uuidv4();
+            await supabase.from('chat_messages').upsert([{
+                id: safeId,
                 conversation_id: conversationId,
                 text: caption || `[${uazapiMediaType.toUpperCase()}]`,
                 media_url: mediaUrl,
                 media_type: uazapiMediaType,
                 from_me: true
-            }]);
+            }], { onConflict: 'id' });
         }
 
         res.json({ success: true, mediaUrl });
     } catch (err: any) {
         console.error('[Messages] Erro upload mídia:', err);
-        res.status(500).json({ error: 'Erro ao enviar servidor', details: err.message });
+        const msg = err?.message || String(err);
+        res.status(500).json({ 
+            error: msg.includes('not on WhatsApp')
+                ? `Número não possui WhatsApp. Verifique o contato.`
+                : msg.includes('disconnected')
+                ? 'WhatsApp desconectado. Reconecte na aba Dispositivos.'
+                : 'Erro ao enviar arquivo. Tente novamente.'
+        });
     }
 });
 
@@ -188,6 +216,7 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
             .select(`
                 id,
                 contact_name,
+                contact_phone,
                 last_message,
                 unread_count,
                 online,
@@ -205,8 +234,9 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
         const formatted = conversations?.map(c => ({
             id: c.id,
             contactName: c.contact_name,
+            contactPhone: c.contact_phone,
             lastMessage: c.last_message,
-            timestamp: new Date(c.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: formatTimestampManaus(c.updated_at),
             unreadCount: c.unread_count,
             online: c.online,
             avatar: c.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.contact_name)}&background=002B49&color=fff`,
@@ -252,7 +282,7 @@ messagesRouter.get('/:conversationId', authMiddleware, async (req, res) => {
         const formatted = messages?.map(m => ({
             id: m.id,
             text: m.text,
-            timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: formatTimestampManaus(m.created_at),
             fromMe: m.from_me,
             mediaUrl: m.media_url || null,
             mediaType: m.media_type || null

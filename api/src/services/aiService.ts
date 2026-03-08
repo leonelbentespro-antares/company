@@ -63,9 +63,9 @@ export async function getAIResponse(userMessage: string, tenantContext: any) {
         const systemPrompt = `Você é um advogado assistente virtual do escritório Jurídico LexHub. 
         Responda de forma educada, precisa e cordial usando o tool manage_conversation para disparar respostas.`;
 
-        // Chamamos a API Gemini 2.5
+        // Chamamos a API Gemini 2.0 (ou 1.5 se preferir)
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.0-flash',
             contents: [
                 { role: 'user', parts: [{ text: userMessage }] }
             ],
@@ -123,7 +123,7 @@ export async function generateDocumentComGenAI(documentType: string, context: Re
 
         // Aqui poderíamos usar um modelo ainda mais "lento/potente" se necessário (gemini-1.5-pro)
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.0-flash',
             contents: [
                 { role: 'user', parts: [{ text: `Por favor, elabore o documento ${documentType} com base no contexto informado.` }] }
             ],

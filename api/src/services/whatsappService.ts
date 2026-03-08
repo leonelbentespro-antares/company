@@ -11,6 +11,48 @@ export const sessions = new Map<string, { tenantId: string; token: string; statu
 export const qrCodes = new Map<string, string>(); // tenantId -> current QR or PairCode
 
 /**
+ * Tenta restaurar o token da instância consultando a UAZAPI pelo nome (tenantId)
+ * SOLUÇÃO PARA O MAP VOLÁTIL: Sessions se perdem ao reiniciar o PM2.
+ * Essa função garante continuidade sem precisar reconectar o WhatsApp.
+ */
+export async function getOrRestoreSession(tenantId: string): Promise<{ tenantId: string; token: string; status: string } | undefined> {
+    // 1. Tenta memória primeiro (caso ainda esteja em cache e conectado)
+    const cached = sessions.get(tenantId);
+    if (cached && cached.status !== 'disconnected') return cached;
+
+    // 2. Busca na UAZAPI todas as instâncias e procura pelo nome = tenantId
+    // IMPORTANTE: Pode haver múltiplas instâncias com o mesmo nome (duplicatas de testes)
+    // Priorizamos a que está com status 'connected'
+    try {
+        console.log(`[WhatsApp] Restaurando sessão da UAZAPI para tenant ${tenantId}...`);
+        const resp = await fetch(`${UAZAPI_BASE_URL}/instance/all`, {
+            headers: { 'AdminToken': UAZAPI_ADMIN_TOKEN }
+        });
+        if (!resp.ok) return undefined;
+        const instances = await resp.json();
+        if (!Array.isArray(instances)) return undefined;
+
+        // Filtra apenas as instâncias deste tenant
+        const matching = instances.filter((i: any) => i.name === tenantId && i.token);
+        if (matching.length === 0) return undefined;
+
+        // Prioriza connected > qualquer outro status
+        const connected = matching.find((i: any) => i.status === 'connected' || i.status === 'open');
+        const found = connected || matching[matching.length - 1]; // fallback: última instância
+
+        if (found && found.token) {
+            const restoredSession = { tenantId, token: found.token, status: found.status || 'Connected' };
+            sessions.set(tenantId, restoredSession);
+            console.log(`[WhatsApp] ✅ Sessão restaurada (${matching.length} instâncias encontradas, usando status: ${restoredSession.status}) para tenant ${tenantId}`);
+            return restoredSession;
+        }
+    } catch (e) {
+        console.error(`[WhatsApp] Falha ao restaurar sessão da UAZAPI:`, e);
+    }
+    return undefined;
+}
+
+/**
  * Faz requisições HTTP para a uazapiGO V2.
  * IMPORTANTE: Esta conta UAZAPI usa AdminToken em TODOS os endpoints.
  * O token de instância individual não funciona neste plano.
@@ -204,16 +246,128 @@ export async function sendMediaMessage(
     caption?: string,
     mediaType: string = 'image'
 ) {
-    return uazapiFetch('/send/media', 'POST', {
+    // Timeout maior (120s) pois a UAZAPI precisa baixar a imagem da URL antes de enviar
+    const MEDIA_TIMEOUT = 120000;
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'AdminToken': UAZAPI_ADMIN_TOKEN,
+    };
+    if (instanceToken) headers['token'] = instanceToken;
+
+    const body = JSON.stringify({
         number,
-        mediaUrl,
+        url: mediaUrl,       // UAZAPI V2 usa 'url'
+        mediaUrl: mediaUrl,  // fallback para versoes antigas
         caption: caption || '',
-        mediaType
-    }, instanceToken);
+        mediaType,
+        type: mediaType      // campo alternativo
+    });
+
+    console.log(`[WhatsApp] Enviando mídia para ${number}: type=${mediaType}, url=${mediaUrl.substring(0, 60)}...`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), MEDIA_TIMEOUT);
+    try {
+        const res = await fetch(`${UAZAPI_BASE_URL}/send/media`, {
+            method: 'POST',
+            headers,
+            body,
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        console.log(`[WhatsApp] send/media status: ${res.status}`);
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error(`[WhatsApp] send/media erro:`, err);
+            throw new Error(typeof err === 'object' ? (err as any).error || (err as any).message || JSON.stringify(err) : String(err));
+        }
+        return await res.json();
+    } catch (e: any) {
+        clearTimeout(timeout);
+        if (e.name === 'AbortError') throw new Error('Timeout: a UAZAPI demorou mais de 2 minutos para enviar a mídia.');
+        throw e;
+    }
 }
 
 export function getSession(tenantId: string) {
     return sessions.get(tenantId);
+}
+
+/**
+ * Envia mídia via JSON com Base64 puro (sem depender de URL pública ou multipart).
+ * Validado: a UAZAPI V2 espera os campos 'file' (base64 puro) e 'type'.
+ */
+export async function sendMediaMessageBase64(
+    instanceToken: string,
+    number: string,
+    base64Data: string,
+    mimeType: string,
+    fileName: string,
+    caption: string = '',
+    mediaType: string = 'image',
+    isPtt: boolean = false
+): Promise<any> {
+    const MEDIA_TIMEOUT = 120000; // 2 minutos
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'AdminToken': UAZAPI_ADMIN_TOKEN,
+    };
+    if (instanceToken) headers['token'] = instanceToken;
+
+    try {
+        // Limpa o prefixo do base64 se houver (ex: data:image/png;base64,)
+        const pureBase64: string = (base64Data || '').includes(';base64,') 
+            ? base64Data.split(';base64,')[1] || ''
+            : (base64Data || '');
+
+        const body = {
+            number: number,
+            to: number,         // Redundância caso o endpoint mude
+            file: pureBase64,
+            type: isPtt ? 'ptt' : mediaType,    // A UAZAPI V2 espera 'type' ou 'mediaType' conforme o parser
+            caption: caption || '',
+            fileName: fileName  // Útil para documentos
+        };
+
+        console.log(`[WhatsApp] 📤 Enviando mídia p/ ${number} (JSON Base64) | Tamanho: ${pureBase64.length} chars | Tipo: ${mediaType}`);
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), MEDIA_TIMEOUT);
+
+        const res = await fetch(`${UAZAPI_BASE_URL}/send/media`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+        const resText = await res.text();
+        console.log(`[WhatsApp] Status send/media: ${res.status} | Resposta: ${resText.substring(0, 200)}...`);
+
+        if (!res.ok) {
+            let errorMsg = resText;
+            try {
+                const parsed = JSON.parse(resText);
+                errorMsg = parsed.error || parsed.message || resText;
+            } catch (e) {}
+            throw new Error(errorMsg);
+        }
+
+        try {
+            return JSON.parse(resText);
+        } catch (e) {
+            return { success: true, text: resText };
+        }
+    } catch (e: any) {
+        if (e.name === 'AbortError') {
+            console.error(`[WhatsApp] 🛑 TIMEOUT no envio de mídia para ${number}`);
+            throw new Error('Tempo esgotado (2min) ao enviar o arquivo.');
+        }
+        console.error(`[WhatsApp] ❌ Erro ao enviar mídia para ${number}:`, e.message);
+        throw e;
+    }
 }
 
 export function getQR(tenantId: string) {

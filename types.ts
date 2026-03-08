@@ -118,6 +118,7 @@ export interface ChatMessage {
 export interface ChatConversation {
   id: string;
   contactName: string;
+  contactPhone?: string;
   lastMessage: string;
   timestamp: string;
   unreadCount: number;

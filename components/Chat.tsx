@@ -48,6 +48,9 @@ import {
   ArrowRightLeft,
   Building2,
   KanbanSquare,
+  Mic,
+  Square,
+  Circle,
   List
 } from 'lucide-react';
 import { ChatConversation, ChatMessage } from '../types.ts';
@@ -217,7 +220,7 @@ const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '�
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];
 
 export const Chat: React.FC = () => {
-  const { currentTenant } = useTenant();
+  const { tenantId, user, tenant } = useTenant();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
@@ -303,7 +306,14 @@ export const Chat: React.FC = () => {
   const [isNewActionModalOpen, setIsNewActionModalOpen] = useState(false);
   const [newActionTab, setNewActionTab] = useState<'chat' | 'contact' | 'import'>('chat');
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const lastSentRef = useRef<{ text: string, time: number }>({ text: '', time: 0 });
 
   // Transfer State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -343,7 +353,6 @@ export const Chat: React.FC = () => {
     localStorage.setItem('lexhub_chat_assignments', JSON.stringify(chatAssignments));
   }, [internalConversations, tags, chatTagRelations, contacts, chatAssignments]);
 
-  const { tenantId } = useTenant();
 
   const loadConversations = async () => {
     try {
@@ -378,10 +387,18 @@ export const Chat: React.FC = () => {
         auth: {
           token: session?.access_token,
           tenantId: tenantId
-        }
+        },
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 10000,
+        timeout: 20000,
+        transports: ['websocket', 'polling']
       });
 
-      socket.on('connect', () => console.log('[Chat] Socket conectado.'));
+      socket.on('connect', () => console.log('[Chat] ✅ Socket conectado. ID:', socket.id));
+      socket.on('disconnect', (reason) => console.warn('[Chat] ⚠️ Socket desconectado:', reason));
+      socket.on('connect_error', (err) => console.error('[Chat] ❌ Erro de conexão socket:', err.message));
 
       socket.on('new-message', (data: any) => {
         console.log('[Chat] Nova mensagem via WS', data);
@@ -391,49 +408,58 @@ export const Chat: React.FC = () => {
           const newMsg = {
             id: msg.id,
             text: msg.text || '',
-            timestamp: new Date(msg.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(msg.created_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
             fromMe: msg.from_me || false,
             mediaUrl: msg.media_url || null,
             mediaType: msg.media_type || null
           };
 
-          setExternalConversations(prev => prev.map(c => {
-            if (c.id === data.conversationId) {
-              return {
-                ...c,
-                messages: [...(c.messages || []), newMsg],
-                lastMessage: msg.text || newMsg.text,
-                unreadCount: (c.unreadCount || 0) + (msg.from_me ? 0 : 1)
-              };
+          setExternalConversations(prev => {
+            const conversation = prev.find(c => c.id === data.conversationId);
+            if (!conversation) {
+              loadConversations();
+              return prev;
             }
-            return c;
-          }));
+
+            const messageExists = conversation.messages?.some(m => m.id === newMsg.id);
+            // Tenta encontrar uma mensagem temporária equivalente (mesmo texto e enviada por mim)
+            const tempMessage = !messageExists && newMsg.fromMe
+              ? conversation.messages?.find(m => m.fromMe && m.text?.trim() === newMsg.text?.trim() && (String(m.id).startsWith('temp-') || m.id === newMsg.id))
+              : null;
+
+            const messages = messageExists
+              ? conversation.messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m)
+              : tempMessage
+                ? conversation.messages.map(m => (m.id === tempMessage.id || m.id === newMsg.id) ? { ...m, ...newMsg, id: newMsg.id } : m)
+                : [...(conversation.messages || []), newMsg];
+
+            return prev.map(c => c.id === data.conversationId ? {
+              ...c,
+              messages,
+              lastMessage: msg.text || newMsg.text,
+              unreadCount: (c.unreadCount || 0) + (msg.from_me ? 0 : 1)
+            } : c);
+          });
 
           setSelectedChat(prev => {
             if (prev && prev.id === data.conversationId) {
+              const messageExists = prev.messages?.some(m => m.id === newMsg.id);
+              const tempMessage = !messageExists && newMsg.fromMe
+                ? prev.messages?.find(m => m.fromMe && m.text?.trim() === newMsg.text?.trim() && String(m.id).startsWith('temp-'))
+                : null;
+
+              const messages = messageExists
+                ? prev.messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m)
+                : tempMessage
+                  ? prev.messages.map(m => m.id === tempMessage.id ? { ...m, ...newMsg, id: newMsg.id } : m)
+                  : [...(prev.messages || []), newMsg];
+
               return {
                 ...prev,
-                messages: [...(prev.messages || []), newMsg],
+                messages,
                 lastMessage: msg.text || newMsg.text
               };
             }
-            return prev;
-          });
-
-          if (msg.from_me) {
-            setReadChatIds(prev => {
-              if (prev.has(data.conversationId)) return prev;
-              const updated = new Set(prev);
-              updated.add(data.conversationId);
-              localStorage.setItem('lexhub_read_chat_ids', JSON.stringify(Array.from(updated)));
-              return updated;
-            });
-          }
-
-          // Se não existir a conversa, recarregar lista
-          setExternalConversations(prev => {
-            const exists = prev.find(c => c.id === data.conversationId);
-            if (!exists) { loadConversations(); }
             return prev;
           });
         } else {
@@ -579,27 +605,36 @@ export const Chat: React.FC = () => {
 
   const handleSendMessage = async (e?: React.FormEvent, textOverride?: string) => {
     if (e) e.preventDefault();
-    const textToSend = textOverride || newMessage;
-    if (!textToSend.trim() || !selectedChat) return;
+    const textToSend = (textOverride || newMessage).trim();
+    if (!textToSend || !selectedChat || isSending) return;
+
+    // Prevenção de duplicidade por tempo (mesmo texto em < 2s)
+    const now = Date.now();
+    if (textToSend === lastSentRef.current.text && (now - lastSentRef.current.time) < 2000) {
+      console.warn('[Chat] Bloqueando envio duplicado por tempo');
+      return;
+    }
+    lastSentRef.current = { text: textToSend, time: now };
+
+    setIsSending(true);
 
     const msg: ChatMessage = {
-      id: Date.now().toString(),
+      id: `temp-${Date.now()}`,
       text: textToSend,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
       fromMe: true
     };
 
     const updateFn = (prev: ChatConversation[]) => prev.map(c => {
-      if (c.id === selectedChat.id) {
-        const updated = {
-          ...c,
-          messages: [...(c.messages || []), msg],
-          lastMessage: textToSend,
-          timestamp: 'Agora'
-        };
-        if (selectedChat.id === c.id) setSelectedChat(updated);
-        return updated;
-      }
+      const updated = {
+        ...c,
+        messages: c.messages.some(m => m.id === msg.id)
+          ? c.messages.map(m => m.id === msg.id ? msg : m)
+          : [...(c.messages || []), msg],
+        lastMessage: textToSend,
+        timestamp: 'Agora'
+      };
+      if (selectedChat.id === c.id) setSelectedChat(updated);
       return c;
     });
 
@@ -608,18 +643,25 @@ export const Chat: React.FC = () => {
       // Realiza disparo para o Backend via POST
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+        const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
+        const apiUrl = rawApiUrl.replace(/\/$/, '');
 
-        const phone = selectedChat.contactName;
+        const phone = selectedChat.contactPhone || selectedChat.contactName;
 
-        await fetch(`${apiUrl}/api/messages/send`, {
+        const resp = await fetch(`${apiUrl}/api/messages/send`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`
+            'Authorization': `Bearer ${session?.access_token}`,
+            'x-tenant-id': tenantId || ''
           },
           body: JSON.stringify({ to: phone, text: textToSend })
         });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          console.error('[Chat] Falha no envio:', err);
+          setShowToast(err.error || 'Erro ao enviar mensagem. Verifique se o WhatsApp está conectado.');
+        }
       } catch (err) {
         console.error('Falha ao enviar mensagem', err);
         setShowToast('Erro ao enviar mensagem.');
@@ -631,6 +673,7 @@ export const Chat: React.FC = () => {
     setNewMessage('');
     setIsEmojiPickerOpen(false);
     setShowQuickReplyMenu(false);
+    setTimeout(() => setIsSending(false), 1000);
   };
 
   const handleEmojiClick = (emoji: string) => {
@@ -642,7 +685,7 @@ export const Chat: React.FC = () => {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedChat || !currentTenant) return;
+    if (!file || !selectedChat || !tenant) return;
 
     setIsUploadingMedia(true);
 
@@ -654,7 +697,7 @@ export const Chat: React.FC = () => {
     const mediaMessage: ChatMessage = {
       id: tempId,
       text: `Carregando arquivo...`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
       fromMe: true,
       mediaType: fileType,
       mediaUrl: URL.createObjectURL(file) // preview temporario da imagem, se for
@@ -679,7 +722,7 @@ export const Chat: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('to', selectedChat.contactName);
+      formData.append('to', selectedChat.contactPhone || selectedChat.contactName);
       formData.append('caption', '');
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -693,7 +736,7 @@ export const Chat: React.FC = () => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': currentTenant.id
+          'x-tenant-id': tenant.id
         },
         body: formData
       });
@@ -738,7 +781,118 @@ export const Chat: React.FC = () => {
     }
   };
 
-  // --- NEW CHAT HANDLER ---
+  const isCancelledRecording = useRef(false);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size > 0 && !isCancelledRecording.current) {
+          const file = new File([audioBlob], `recording-${Date.now()}.webm`, { type: 'audio/webm' });
+          await uploadAndSendAudio(file);
+        }
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      isCancelledRecording.current = false;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Erro ao acessar microfone:', err);
+      alert('Não foi possível acessar o microfone. Verifique as permissões.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    isCancelledRecording.current = true;
+    stopRecording();
+  };
+
+  const uploadAndSendAudio = async (file: File) => {
+    if (!selectedChat || !tenant) return;
+    setIsUploadingMedia(true);
+
+    const tempId = `temp-${Date.now()}`;
+    const mediaMessage: ChatMessage = {
+      id: tempId,
+      text: `Gravando áudio...`,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
+      fromMe: true,
+      mediaType: 'audio',
+      mediaUrl: URL.createObjectURL(file)
+    };
+
+    setExternalConversations(prev => prev.map(c => {
+      if (c.id === selectedChat.id) {
+        return { ...c, messages: [...(c.messages || []), mediaMessage], lastMessage: '[Áudio]' };
+      }
+      return c;
+    }));
+    setSelectedChat(prev => prev ? { ...prev, messages: [...(prev.messages || []), mediaMessage] } : null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('to', selectedChat.contactPhone || selectedChat.contactName);
+      formData.append('caption', '');
+      formData.append('isPtt', 'true');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
+      const apiUrl = rawApiUrl.replace(/\/$/, '');
+
+      const response = await fetch(`${apiUrl}/api/messages/send-media`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenant.id
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error('Falha ao enviar áudio');
+      const { mediaUrl } = await response.json();
+
+      const updateMsg = (m: ChatMessage) => m.id === tempId ? { ...m, text: '[Áudio]', mediaUrl } : m;
+      setExternalConversations(prev => prev.map(c => c.id === selectedChat.id ? { ...c, messages: c.messages.map(updateMsg) } : c));
+      setSelectedChat(prev => prev && prev.id === selectedChat.id ? { ...prev, messages: prev.messages.map(updateMsg) } : prev);
+
+    } catch (err) {
+      console.error('Erro no upload de áudio:', err);
+      setExternalConversations(prev => prev.map(c => c.id === selectedChat.id ? { ...c, messages: c.messages.filter(m => m.id !== tempId) } : c));
+      setSelectedChat(prev => prev && prev.id === selectedChat.id ? { ...prev, messages: prev.messages.filter(m => m.id !== tempId) } : prev);
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handleCreateNewChat = (e: React.FormEvent) => {
     e.preventDefault();
     const selectedContact = contacts.find(c => c.id === newChatForm.contactId);
@@ -763,7 +917,7 @@ export const Chat: React.FC = () => {
       initialMsgs.push({
         id: `m_init_${Date.now()}`,
         text: newChatForm.initialMessage,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
         fromMe: true
       });
     }
@@ -948,7 +1102,7 @@ export const Chat: React.FC = () => {
     const systemMsg: ChatMessage = {
       id: `sys_${Date.now()}`,
       text: `__SYSTEM__ Atendimento transferido para ${agent.name} (${transferSelectedDept.name})${transferNote ? ` - "${transferNote}"` : ''}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
       fromMe: false,
     };
     const updateFn = (prev: ChatConversation[]) => prev.map(c => {
@@ -1251,21 +1405,38 @@ export const Chat: React.FC = () => {
                   <button onClick={() => handleSyncTool('Trello')} className="p-2 text-indigo-600 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all">
                     {syncingTool === 'Trello' ? <Loader2 size={18} className="animate-spin" /> : <Layout size={18} />}
                   </button>
+                  <button
+                    onClick={startRecording}
+                    className="p-2 text-rose-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all flex items-center gap-1.5 font-black text-[10px] uppercase border border-rose-100 dark:border-rose-900/30"
+                    title="Gravar Mensagem de Voz"
+                  >
+                    <Mic size={16} /> Áudio
+                  </button>
                 </div>
 
                 {/* Botão Excluir Conversa — sempre visível no header */}
                 {chatTab === 'external' && (
-                  <button
-                    onClick={() => selectedChat && deleteConversation(selectedChat.id)}
-                    disabled={!!deletingChatId}
-                    title="Excluir esta conversa"
-                    className="p-2 md:p-3 rounded-2xl transition-all bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-500 hover:text-white"
-                  >
-                    {deletingChatId === selectedChat?.id
-                      ? <Loader2 size={18} className="animate-spin" />
-                      : <Trash2 size={18} />
-                    }
-                  </button>
+                  <>
+                    <button
+                      onClick={startRecording}
+                      className="p-2 md:p-3 rounded-2xl transition-all bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/20 flex items-center gap-2"
+                      title="Gravar Mensagem de Voz"
+                    >
+                      <Mic size={18} />
+                      <span className="hidden sm:inline text-[10px] font-black uppercase">Voz</span>
+                    </button>
+                    <button
+                      onClick={() => selectedChat && deleteConversation(selectedChat.id)}
+                      disabled={!!deletingChatId}
+                      title="Excluir esta conversa"
+                      className="p-2 md:p-3 rounded-2xl transition-all bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-rose-500 hover:text-white"
+                    >
+                      {deletingChatId === selectedChat?.id
+                        ? <Loader2 size={18} className="animate-spin" />
+                        : <Trash2 size={18} />
+                      }
+                    </button>
+                  </>
                 )}
 
                 <div className="relative">
@@ -1375,8 +1546,13 @@ export const Chat: React.FC = () => {
                         />
                       )}
                       {msg.mediaType === 'audio' && msg.mediaUrl && (
-                        <div className="px-4 pt-3">
-                          <audio controls src={msg.mediaUrl} className="w-full max-w-[260px]" />
+                        <div className="p-1 pr-3">
+                          <audio
+                            controls
+                            src={msg.mediaUrl}
+                            className="w-full min-w-[240px] h-11"
+                            controlsList="nodownload noplaybackrate"
+                          />
                         </div>
                       )}
                       {msg.mediaType === 'document' && msg.mediaUrl && (
@@ -1394,12 +1570,12 @@ export const Chat: React.FC = () => {
 
                       {/* Texto da mensagem */}
                       <div className="px-4 md:px-5 py-3">
-                        {msg.text && msg.text !== '[Imagem]' && msg.text !== '[Vídeo]' && msg.text !== '[Áudio]' && msg.text !== '[Documento]' && msg.text !== '[Figurinha]' && (
+                        {msg.text && (
                           <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
                         )}
-                        {/* Fallback se não tiver URL de mídia */}
-                        {(msg.mediaType && !msg.mediaUrl) && (
-                          <p className="text-sm font-medium leading-relaxed opacity-60 italic">{msg.text}</p>
+                        {/* Fallback apenas se mediaUrl falhar/não existir */}
+                        {(msg.mediaType && !msg.mediaUrl && !msg.text) && (
+                          <p className="text-sm font-medium leading-relaxed opacity-60 italic">[Mídia indisponível]</p>
                         )}
                         <div className={`flex items-center justify-end gap-1.5 mt-1 ${msg.fromMe ? 'text-white/40' : 'text-slate-300 dark:text-slate-500'}`}>
                           <span className="text-[10px] font-bold uppercase">{msg.timestamp}</span>
@@ -1441,6 +1617,15 @@ export const Chat: React.FC = () => {
               )}
 
               <form onSubmit={handleSendMessage} className="flex items-center gap-2 md:gap-4">
+                <button
+                  type="button"
+                  onClick={startRecording}
+                  className="p-3 bg-rose-500 text-white rounded-2xl hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/20 flex items-center gap-2 flex-shrink-0"
+                  title="Gravar Áudio"
+                >
+                  <Mic size={20} />
+                  <span className="hidden lg:inline text-[10px] font-black uppercase tracking-wider">Áudio</span>
+                </button>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -1460,18 +1645,56 @@ export const Chat: React.FC = () => {
                 <button type="button" onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)} className="p-2 md:p-3 text-slate-400 hover:text-legal-navy hover:bg-slate-50 dark:hover:bg-slate-800 rounded-2xl">
                   <Smile size={20} />
                 </button>
-                <input
-                  type="text"
-                  ref={inputRef}
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Envie uma mensagem (use '/' para atalhos)..."
-                  className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[2rem] px-4 md:px-6 py-3 md:py-4 text-sm font-medium outline-none focus:ring-4 focus:ring-legal-navy/5 dark:text-white"
-                  disabled={isUploadingMedia}
-                />
-                <button type="submit" disabled={!newMessage.trim() || isUploadingMedia} className="p-3 md:p-4 bg-legal-navy text-white rounded-[2rem] shadow-xl disabled:opacity-50">
-                  <Send size={20} fill="currentColor" />
-                </button>
+                {!isRecording ? (
+                  <>
+                    <input
+                      type="text"
+                      ref={inputRef}
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage(e);
+                        }
+                      }}
+                      placeholder="Digite uma mensagem..."
+                      className="flex-1 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl px-4 md:px-6 py-3 md:py-4 text-sm md:text-base focus:ring-2 focus:ring-legal-navy/20 transition-all outline-none"
+                    />
+                    {newMessage.trim() && (
+                      <button
+                        type="submit"
+                        className="flex-shrink-0 p-3 md:p-4 bg-legal-navy text-white rounded-2xl hover:bg-legal-navy/90 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-legal-navy/20"
+                      >
+                        <Send size={20} />
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center gap-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-2xl px-4 py-2 animate-pulse">
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-medium">
+                      <Circle size={12} className="fill-current" />
+                      <span>Gravando {formatDuration(recordingDuration)}</span>
+                    </div>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={cancelRecording}
+                      className="p-2 text-slate-500 hover:text-red-600 transition-colors"
+                      title="Cancelar"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      className="p-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-600/20"
+                      title="Enviar Áudio"
+                    >
+                      <Send size={20} />
+                    </button>
+                  </div>
+                )}
               </form>
             </div>
           </>
