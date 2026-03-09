@@ -24,11 +24,11 @@ export const emailService = {
       }
 
       const { data, error } = await resend.emails.send({
-        from: options.from || 'LexHub <onboarding@resend.dev>',
+        from: options.from || 'LexHub <noreply@lexhub.company>',
         to: options.to,
         subject: options.subject,
         html: options.html,
-        text: options.text
+        ...(options.text ? { text: options.text } : {})
       });
 
       if (error) {
