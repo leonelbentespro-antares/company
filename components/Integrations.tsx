@@ -58,7 +58,7 @@ export const Integrations: React.FC = () => {
     if (!tenantId) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
 
       // Buscar dispositivos via API do backend (usa supabaseAdmin, bypassa RLS)
       const devRes = await fetch(`${apiUrl}/api/whatsapp/devices`, {
@@ -194,7 +194,7 @@ export const Integrations: React.FC = () => {
       setQrStep('success');
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const apiUrl = import.meta.env.VITE_API_URL || '';
         const phone = data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido';
 
         const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
@@ -250,9 +250,15 @@ export const Integrations: React.FC = () => {
     if (isConnecting && isQRModalOpen) {
       pollTimer = setInterval(async () => {
         console.log('[Fallback] Consultando status via HTTP...');
-        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        const apiUrl = import.meta.env.VITE_API_URL || '';
         try {
-          const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`);
+          const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`, {
+            headers: {
+              'Authorization': `Bearer ${authSession?.access_token}`,
+              'x-tenant-id': tenantId || ''
+            }
+          });
           const data = await res.json();
 
           if (data.status === 'QR_READY' && data.qr) {
@@ -323,10 +329,14 @@ export const Integrations: React.FC = () => {
       connectSocket(name);
 
       // 2. Disparar início da sessão no backend
-      const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       await fetch(`${apiUrl}/api/whatsapp/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authSession?.access_token}`
+        },
         body: JSON.stringify({ tenantId, phone })
       });
     } catch (err) {
@@ -428,7 +438,7 @@ export const Integrations: React.FC = () => {
       setShowToast("NotificaMe Hub conectado com sucesso!");
 
       // Registrar webhook automaticamente (opcional, pode ser feito no backend ao salvar)
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const webhookUrl = `${apiUrl}/api/webhooks/notificame`;
 
       // Chamada para o backend registrar o webhook no NotificaMe
@@ -474,7 +484,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading(appId);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       console.log('[OAuth-Debug] Buscando URL de:', apiUrl);
       const res = await fetch(`${apiUrl}/api/integrations/google/auth?tenantId=${tenantId}`);
       if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
@@ -534,7 +544,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading('outlook');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/integrations/microsoft/auth?tenantId=${tenantId}`);
       if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
 
@@ -585,7 +595,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading('dropbox');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/integrations/dropbox/auth?tenantId=${tenantId}`);
       if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
 
@@ -637,7 +647,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading('meta');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/integrations/meta/auth?tenantId=${tenantId}`);
       if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
 
@@ -685,7 +695,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading('slack');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/integrations/slack/auth?tenantId=${tenantId}`);
       const { url } = await res.json();
       authWindow.location.href = url;
@@ -722,7 +732,7 @@ export const Integrations: React.FC = () => {
 
     setAppLoading('trello');
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/integrations/trello/auth?tenantId=${tenantId}`);
       const { url } = await res.json();
       authWindow.location.href = url;
@@ -847,7 +857,7 @@ export const Integrations: React.FC = () => {
     setAppLoading(`sync-${id}`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${apiUrl}/api/whatsapp/sync-phone`, {
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
@@ -879,7 +889,7 @@ export const Integrations: React.FC = () => {
     setAppLoading(`logout-${id}`);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
 
       // Desconectar instância UAZAPI
       await fetch(`${apiUrl}/api/whatsapp/logout`, {
@@ -912,7 +922,7 @@ export const Integrations: React.FC = () => {
   const removeSession = async (id: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       await fetch(`${apiUrl}/api/whatsapp/devices/${id}`, {
         method: 'DELETE',
         headers: {
