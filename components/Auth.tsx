@@ -23,6 +23,7 @@ interface AuthProps {
 export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [isSignUpSuccess, setIsSignUpSuccess] = useState(false);
   const [authType, setAuthType] = useState<'professional' | 'client'>('professional');
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -81,6 +82,12 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
       // Envia os dados provisórios para o front end exibir enquanto o Tenant carrega em background
       if (authUser) {
+        if (!isLogin) {
+          // Se for um novo cadastro, mostramos a tela de sucesso para confirmação de e-mail
+          setIsSignUpSuccess(true);
+          return;
+        }
+
         onLogin({
           id: authUser.id,
           registrationId: registrationId,
@@ -108,10 +115,10 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-inter text-slate-900">
-      <div className="max-w-5xl w-full bg-white rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[700px]">
+      <div className="max-w-5xl w-full bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row">
 
-        {/* Lado Esquerdo - Branding & Info */}
-        <div className="md:w-1/2 bg-legal-navy p-12 text-white flex flex-col justify-between relative overflow-hidden">
+        {/* Lado Esquerdo - Branding & Info (Oculto no Mobile para priorizar login) */}
+        <div className="hidden md:flex md:w-1/2 bg-legal-navy p-12 text-white flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-legal-bronze/20 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-legal-bronze/10 rounded-full blur-3xl"></div>
 
@@ -148,7 +155,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         </div>
 
         {/* Lado Direito - Form de Auth */}
-        <div className="md:w-1/2 p-12 flex flex-col justify-center bg-white relative">
+        <div className="w-full md:w-1/2 p-6 md:p-12 flex flex-col justify-center bg-white relative">
 
           {/* Auth Type Selector */}
           <div className="flex p-1 bg-slate-100 rounded-2xl mb-10 w-full max-w-sm mx-auto">
@@ -268,6 +275,32 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                   {isLogin ? 'Cadastre sua banca' : 'Faça login'}
                 </button>
               </p>
+            </div>
+          )}
+
+          {/* Popup de Confirmação de E-mail */}
+          {isSignUpSuccess && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setIsSignUpSuccess(false); setIsLogin(true); }}></div>
+              <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 duration-300 transition-colors border border-white/10">
+                <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-xl shadow-emerald-500/10">
+                  <Mail size={48} className="animate-bounce" />
+                </div>
+
+                <h2 className="text-3xl font-black text-legal-navy dark:text-white mb-4">Termine seu cadastro!</h2>
+                <p className="text-slate-500 dark:text-slate-400 font-medium mb-8 leading-relaxed">
+                  Enviamos um link de confirmação para:<br />
+                  <span className="text-legal-navy dark:text-legal-bronze font-bold break-all">{formData.email}</span><br /><br />
+                  Por favor, confirme no seu e-mail para ativar sua conta.
+                </p>
+
+                <button
+                  onClick={() => { setIsSignUpSuccess(false); setIsLogin(true); }}
+                  className="w-full py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  Entendi, vou verificar!
+                </button>
+              </div>
             </div>
           )}
         </div>

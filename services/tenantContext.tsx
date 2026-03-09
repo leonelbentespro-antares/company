@@ -77,14 +77,97 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Tentar provisionar tenant manualmente (fallback para usuários novos/antigos)
+    const attemptTenantProvision = useCallback(async (authUser: any) => {
+        try {
+            const userName = authUser.user_metadata?.full_name ?? authUser.email.split('@')[0];
+            const domain = authUser.email.split('@')[1];
+
+            // 1. Garantir que o Perfil existe (pode ter falhado no trigger)
+            const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('auth_user_id', authUser.id)
+                .single();
+
+            if (!existingProfile) {
+                console.log('[TenantContext] Criando perfil ausente...');
+                await supabase.from('profiles').insert({
+                    auth_user_id: authUser.id,
+                    name: userName,
+                    email: authUser.email,
+                    role: UserRole.Admin,
+                    registration_id: `LH-${authUser.id.slice(0, 8).toUpperCase()}`
+                });
+            }
+
+            // 2. Criar tenant
+            const { data: newTenant, error: tenantError } = await supabase
+                .from('tenants')
+                .insert({
+                    name: `${userName}'s Office`,
+                    domain: `${domain}_${authUser.id.slice(0, 8)}`,
+                    plan: 'Starter',
+                    status: 'Active',
+                    crm_stage: 'c4901030-f28e-4d59-9802-3a887057d723'
+                })
+                .select()
+                .single();
+
+            if (tenantError || !newTenant) {
+                console.error('[TenantContext] Falha ao criar Tenant:', tenantError);
+                return;
+            }
+
+            // 3. Vincular usuário ao tenant
+            await supabase.from('tenant_users').insert({
+                user_id: authUser.id,
+                tenant_id: newTenant.id,
+                role: 'admin',
+            });
+
+            // 4. Criar assinatura trial
+            await supabase.from('tenant_subscriptions').insert({
+                tenant_id: newTenant.id,
+                plan: 'Starter',
+                status: 'trialing',
+                trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+                current_period_end: new Date(Date.now() + 14 * 86400000).toISOString(),
+            });
+
+            setTenantId(newTenant.id);
+            setTenant({
+                id: newTenant.id,
+                name: newTenant.name,
+                domain: newTenant.domain,
+                plan: newTenant.plan,
+                status: newTenant.status,
+            });
+
+            // Forçar atualização do usuário local com o que acabamos de criar/garantir
+            setUser({
+                id: authUser.id,
+                registrationId: `LH-${authUser.id.slice(0, 8).toUpperCase()}`,
+                name: userName,
+                email: authUser.email,
+                role: UserRole.Admin
+            });
+            setIsAuthenticated(true);
+
+        } catch (err) {
+            console.error('[TenantContext] Erro fatal no provisionamento:', err);
+        }
+    }, []);
+
     const loadTenant = useCallback(async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            const authUser = session?.user;
 
-            if (authError || !authUser) {
+            if (sessionError || !authUser) {
                 setTenantId(null);
                 setTenant(null);
                 setSubscription(null);
@@ -94,8 +177,11 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 return;
             }
 
+            // Garante que o estado de autenticação seja verdadeiro se temos um usuário
+            setIsAuthenticated(true);
+
             // 1. Buscar Perfil do Usuário
-            const { data: profileData, error: profileError } = await supabase
+            const { data: profileData } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('auth_user_id', authUser.id)
@@ -113,19 +199,25 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     oab: profileData.oab,
                     phone: profileData.phone
                 });
-                setIsAuthenticated(true);
+            } else {
+                // Caso o perfil ainda não exista
+                setUser({
+                    id: authUser.id,
+                    registrationId: `LH-NEW-${authUser.id.slice(0, 4)}`,
+                    name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Novo Usuário',
+                    email: authUser.email || '',
+                    role: UserRole.Admin
+                });
             }
 
             // 2. Buscar o tenant_id do usuário autenticado
-            const { data: tuData, error: tuError } = await supabase
+            const { data: tuData } = await supabase
                 .from('tenant_users')
                 .select('tenant_id, role')
                 .eq('user_id', authUser.id)
                 .limit(1);
 
-            if (tuError || !tuData || tuData.length === 0) {
-                // Usuário sem tenant (pode ter sido criado antes do trigger)
-                // Tentar criar automaticamente
+            if (!tuData || tuData.length === 0) {
                 await attemptTenantProvision(authUser);
                 setLoading(false);
                 return;
@@ -134,103 +226,50 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const tid = tuData[0].tenant_id;
             setTenantId(tid);
 
-            // Buscar dados completos do tenant em paralelo
-            const [tenantResult, subscriptionResult] = await Promise.all([
-                supabase.from('tenants').select('*').eq('id', tid).single(),
-                supabase.from('tenant_subscriptions').select('*').eq('tenant_id', tid).single(),
-            ]);
+            try {
+                const [tenantResult, subscriptionResult] = await Promise.all([
+                    supabase.from('tenants').select('*').eq('id', tid).single(),
+                    supabase.from('tenant_subscriptions').select('*').eq('tenant_id', tid).single(),
+                ]);
 
-            if (tenantResult.data) {
-                setTenant({
-                    id: tenantResult.data.id,
-                    name: tenantResult.data.name,
-                    domain: tenantResult.data.domain,
-                    plan: tenantResult.data.plan,
-                    status: tenantResult.data.status,
-                });
-            }
+                if (tenantResult.data) {
+                    setTenant({
+                        id: tenantResult.data.id,
+                        name: tenantResult.data.name,
+                        domain: tenantResult.data.domain,
+                        plan: tenantResult.data.plan,
+                        status: tenantResult.data.status,
+                    });
+                }
 
-            if (subscriptionResult.data) {
-                setSubscription({
-                    id: subscriptionResult.data.id,
-                    plan: subscriptionResult.data.plan,
-                    status: subscriptionResult.data.status,
-                    trialEndsAt: subscriptionResult.data.trial_ends_at,
-                    currentPeriodEnd: subscriptionResult.data.current_period_end,
-                });
+                if (subscriptionResult.data) {
+                    setSubscription({
+                        id: subscriptionResult.data.id,
+                        plan: subscriptionResult.data.plan,
+                        status: subscriptionResult.data.status,
+                        trialEndsAt: subscriptionResult.data.trial_ends_at,
+                        currentPeriodEnd: subscriptionResult.data.current_period_end,
+                    });
+                }
+            } catch (parallelErr) {
+                console.warn('[TenantContext] Erro ao carregar dados secundários:', parallelErr);
             }
         } catch (err) {
-            setError('Erro ao carregar dados do escritório.');
-            console.error('[TenantContext] loadTenant error:', err);
+            console.error('[TenantContext] loadTenant catastrophic error:', err);
         } finally {
             setLoading(false);
         }
-    }, []);
-
-    // Tentar provisionar tenant manualmente (fallback para usuários antigos)
-    const attemptTenantProvision = async (user: any) => {
-        try {
-            const userName = user.user_metadata?.full_name ?? user.email.split('@')[0];
-            const domain = user.email.split('@')[1];
-
-            // Criar tenant
-            const { data: newTenant, error: tenantError } = await supabase
-                .from('tenants')
-                .insert({
-                    name: `${userName}'s Office`,
-                    domain: `${domain}_${user.id.slice(0, 8)}`,
-                    plan: 'Starter',
-                    status: 'Active',
-                    crm_stage: 'c4901030-f28e-4d59-9802-3a887057d723'
-                })
-                .select()
-                .single();
-
-            if (tenantError || !newTenant) {
-                console.error('[TenantContext] Falha ao criar Tenant (Auto-Provision):', tenantError);
-                setError(`Erro Supabase Auto-Provision (tenants): ${tenantError?.message || tenantError?.details || JSON.stringify(tenantError)}`);
-                return;
-            }
-
-            // Vincular usuário ao tenant
-            const { error: linkError } = await supabase.from('tenant_users').insert({
-                user_id: user.id,
-                tenant_id: newTenant.id,
-                role: 'admin',
-            });
-            if (linkError) {
-                setError(`Erro Supabase Auto-Provision (tenant_users): ${linkError.message || JSON.stringify(linkError)}`);
-                return;
-            }
-
-            // Criar assinatura trial
-            await supabase.from('tenant_subscriptions').insert({
-                tenant_id: newTenant.id,
-                plan: 'Starter',
-                status: 'trialing',
-                trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
-                current_period_end: new Date(Date.now() + 14 * 86400000).toISOString(),
-            });
-
-            setTenantId(newTenant.id);
-            setTenant({
-                id: newTenant.id,
-                name: newTenant.name,
-                domain: newTenant.domain,
-                plan: newTenant.plan,
-                status: newTenant.status,
-            });
-        } catch (err) {
-            console.error('[TenantContext] attemptTenantProvision error:', err);
-        }
-    };
+    }, [attemptTenantProvision]);
 
     useEffect(() => {
         loadTenant();
 
         // Recarregar ao fazer login/logout
-        const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
+        const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                    setIsAuthenticated(true); // Marca como logado INSTANTANEAMENTE
+                }
                 loadTenant();
             } else if (event === 'SIGNED_OUT') {
                 setTenantId(null);

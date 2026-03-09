@@ -109,10 +109,11 @@ const App: React.FC = () => {
   useEffect(() => {
     if (contextUser) {
       setCurrentUser(contextUser);
-    } else {
+    } else if (!tenantContextLoading) {
+      // Só limpa se o contexto terminou de carregar e confirmou que não há usuário
       setCurrentUser(null);
     }
-  }, [contextUser]);
+  }, [contextUser, tenantContextLoading]);
 
   // State de Modo Escuro
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -285,17 +286,24 @@ const App: React.FC = () => {
     }
   };
 
-  if (!contextAuth && !tenantContextLoading) {
+  // Bloqueio de tela: Se não está autenticado no contexto e não temos um usuário local preventivo, mostra login
+  if (!contextAuth && !tenantContextLoading && !currentUser) {
     return <Auth onLogin={handleLogin} />;
   }
 
   // Trava a tela enquanto o Tenant não acorda no Contexto
   if (tenantContextLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-legal-bronze border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-legal-navy dark:text-white font-bold animate-pulse">{t.loading.workspace}</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+        <div className="flex flex-col items-center gap-6 text-center">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-legal-bronze/20 rounded-full"></div>
+            <div className="w-16 h-16 border-4 border-legal-bronze border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-legal-navy dark:text-white font-black text-xl tracking-tight animate-pulse">{t.loading.workspace}</p>
+            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Preparando seu ambiente jurídico seguro...</p>
+          </div>
         </div>
       </div>
     );
@@ -325,9 +333,9 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
         <header className="h-20 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-50 transition-colors">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-legal-bronze rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-legal-bronze/20">L</div>
-            <span className="text-xl font-bold text-legal-navy dark:text-white tracking-tight uppercase">LexHub Client</span>
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="w-8 h-8 md:w-10 md:h-10 bg-legal-bronze rounded-lg md:rounded-xl flex items-center justify-center text-white font-bold text-lg md:text-xl shadow-lg shadow-legal-bronze/20">L</div>
+            <span className="text-lg md:text-xl font-bold text-legal-navy dark:text-white tracking-tight uppercase">LexHub Client</span>
           </div>
           <div className="flex items-center gap-4">
             <LanguageSelector variant="minimal" />

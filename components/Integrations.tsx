@@ -446,9 +446,364 @@ export const Integrations: React.FC = () => {
     }
   };
 
+  const handleConnectGoogle = async (appId: string = 'gmail') => {
+    console.log('[OAuth-Debug] Iniciando handleConnectGoogle para:', appId);
+    if (!tenantId) {
+      console.log('[OAuth-Debug] Erro: tenantId ausente');
+      return;
+    }
+
+    // Abrir popup IMEDIATAMENTE para evitar bloqueio pelo navegador
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    console.log('[OAuth-Debug] Abrindo popup window.open...');
+    const authWindow = window.open(
+      'about:blank',
+      'google-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!authWindow) {
+      console.error('[OAuth-Debug] Popup BLOQUEADO');
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador. Por favor, autorize popups para este site.");
+      return;
+    }
+
+    setAppLoading(appId);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      console.log('[OAuth-Debug] Buscando URL de:', apiUrl);
+      const res = await fetch(`${apiUrl}/api/integrations/google/auth?tenantId=${tenantId}`);
+      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
+
+      const { url } = await res.json();
+      console.log('[OAuth-Debug] URL recebida, redirecionando popup...');
+      authWindow.location.href = url;
+
+      const handleMessage = (event: MessageEvent) => {
+        console.log('[OAuth-Debug] Mensagem recebida no window:', event.data);
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+          console.log('[OAuth-Debug] Sucesso detectado! Atualizando estado...');
+          setConnectedApps(prev => [...new Set([...prev, 'gmail', 'drive'])]);
+          setShowToast("Google Cloud conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      const checkClosed = setInterval(() => {
+        if (authWindow.closed) {
+          console.log('[OAuth-Debug] Popup fechado pelo usuário');
+          clearInterval(checkClosed);
+          setAppLoading(null);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('[OAuth-Debug] Erro no fluxo:', error);
+      authWindow.close();
+      setShowToast("Erro ao iniciar conexão com Google.");
+      setAppLoading(null);
+    }
+  };
+
+  const handleConnectMicrosoft = async () => {
+    if (!tenantId) return;
+
+    // Abrir popup IMEDIATAMENTE
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const authWindow = window.open(
+      'about:blank',
+      'microsoft-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!authWindow) {
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      return;
+    }
+
+    setAppLoading('outlook');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/integrations/microsoft/auth?tenantId=${tenantId}`);
+      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
+
+      const { url } = await res.json();
+      authWindow.location.href = url;
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'MICROSOFT_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...prev, 'outlook']);
+          setShowToast("Outlook conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      const checkClosed = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkClosed);
+          setAppLoading(null);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error starting Microsoft OAuth:', error);
+      authWindow.close();
+      setShowToast("Erro ao iniciar conexão com Microsoft.");
+      setAppLoading(null);
+    }
+  };
+  const handleConnectDropbox = async () => {
+    if (!tenantId) return;
+
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const authWindow = window.open(
+      'about:blank',
+      'dropbox-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!authWindow) {
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      return;
+    }
+
+    setAppLoading('dropbox');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/integrations/dropbox/auth?tenantId=${tenantId}`);
+      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
+
+      const { url } = await res.json();
+      authWindow.location.href = url;
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'DROPBOX_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...new Set([...prev, 'dropbox'])]);
+          setShowToast("Dropbox conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      const checkClosed = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkClosed);
+          setAppLoading(null);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Dropbox OAuth error:', error);
+      authWindow.close();
+      setShowToast("Erro ao iniciar conexão com Dropbox.");
+      setAppLoading(null);
+    }
+  };
+
+  const handleConnectMeta = async () => {
+    if (!tenantId) return;
+
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const authWindow = window.open(
+      'about:blank',
+      'meta-auth',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!authWindow) {
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      return;
+    }
+
+    setAppLoading('meta');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/integrations/meta/auth?tenantId=${tenantId}`);
+      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
+
+      const { url } = await res.json();
+      authWindow.location.href = url;
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'META_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...new Set([...prev, 'facebook', 'instagram', 'meta'])]);
+          setIsOfficialConnected(true);
+          setShowToast("Meta conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+
+      const checkClosed = setInterval(() => {
+        if (authWindow.closed) {
+          clearInterval(checkClosed);
+          setAppLoading(null);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Meta OAuth error:', error);
+      authWindow.close();
+      setShowToast("Erro ao iniciar conexão com Meta.");
+      setAppLoading(null);
+    }
+  };
+
+  const handleConnectSlack = async () => {
+    if (!tenantId) return;
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const authWindow = window.open('about:blank', 'slack-auth', `width=${width},height=${height},left=${left},top=${top}`);
+
+    if (!authWindow) {
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      return;
+    }
+
+    setAppLoading('slack');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/integrations/slack/auth?tenantId=${tenantId}`);
+      const { url } = await res.json();
+      authWindow.location.href = url;
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'SLACK_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...new Set([...prev, 'slack'])]);
+          setShowToast("Slack conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+    } catch (error) {
+      console.error('Slack OAuth error:', error);
+      authWindow.close();
+      setShowToast("Erro ao conectar Slack.");
+      setAppLoading(null);
+    }
+  };
+
+  const handleConnectTrello = async () => {
+    if (!tenantId) return;
+    const width = 600;
+    const height = 700;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    const authWindow = window.open('about:blank', 'trello-auth', `width=${width},height=${height},left=${left},top=${top}`);
+
+    if (!authWindow) {
+      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      return;
+    }
+
+    setAppLoading('trello');
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+      const res = await fetch(`${apiUrl}/api/integrations/trello/auth?tenantId=${tenantId}`);
+      const { url } = await res.json();
+      authWindow.location.href = url;
+
+      const checkInterval = setInterval(() => {
+        try {
+          if (authWindow.location.href.includes('callback') || authWindow.location.href.includes(window.location.origin)) {
+            const hash = authWindow.location.hash;
+            if (hash && hash.includes('token=')) {
+              const token = hash.split('token=')[1].split('&')[0];
+              fetch(`${apiUrl}/api/integrations/trello/callback?token=${token}&state=${tenantId}`)
+                .then(() => {
+                  setConnectedApps(prev => [...new Set([...prev, 'trello'])]);
+                  setShowToast("Trello conectado com sucesso! 🚀");
+                  authWindow.close();
+                  clearInterval(checkInterval);
+                  setAppLoading(null);
+                });
+            }
+          }
+        } catch (e) { }
+        if (authWindow.closed) {
+          clearInterval(checkInterval);
+          setAppLoading(null);
+        }
+      }, 1000);
+
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'TRELLO_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...new Set([...prev, 'trello'])]);
+          setShowToast("Trello conectado com sucesso! 🚀");
+          window.removeEventListener('message', handleMessage);
+          setAppLoading(null);
+        }
+      };
+      window.addEventListener('message', handleMessage);
+    } catch (error) {
+      console.error('Trello OAuth error:', error);
+      authWindow.close();
+      setShowToast("Erro ao conectar Trello.");
+      setAppLoading(null);
+    }
+  };
+
   const toggleAppConnection = async (appId: string) => {
+    console.log('[OAuth-Debug] Clique detectado para:', appId);
+    console.log('[OAuth-Debug] Apps conectados no momento:', connectedApps);
+
+    if ((appId === 'gmail' || appId === 'drive') && !connectedApps.includes(appId)) {
+      console.log('[OAuth-Debug] Interceptando para fluxo Google...');
+      handleConnectGoogle(appId);
+      return;
+    }
+
+    if (appId === 'dropbox' && !connectedApps.includes('dropbox')) {
+      handleConnectDropbox();
+      return;
+    }
+
+    if (appId === 'outlook' && !connectedApps.includes('outlook')) {
+      handleConnectMicrosoft();
+      return;
+    }
+
+    if ((appId === 'facebook' || appId === 'instagram' || appId === 'meta') && !connectedApps.includes(appId)) {
+      handleConnectMeta();
+      return;
+    }
+
     if (appId === 'notificame' && !connectedApps.includes('notificame')) {
       setIsNotificaMeModalOpen(true);
+      return;
+    }
+
+    if (appId === 'slack' && !connectedApps.includes('slack')) {
+      handleConnectSlack();
+      return;
+    }
+
+    if (appId === 'trello' && !connectedApps.includes('trello')) {
+      handleConnectTrello();
       return;
     }
 
@@ -588,7 +943,7 @@ export const Integrations: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Canais & <span className="text-legal-bronze">Apps Cloud</span></h1>
+          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Canais & <span className="text-legal-bronze">Apps Cloud</span> <span className="text-xs font-normal text-slate-400">v1.2</span></h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Configure seus aparelhos de recepção e conecte ferramentas de produtividade.</p>
         </div>
 
