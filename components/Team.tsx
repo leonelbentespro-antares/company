@@ -24,41 +24,7 @@ interface TeamMember {
     location: string;
 }
 
-const INITIAL_MEMBERS: TeamMember[] = [
-    {
-        id: '1',
-        name: 'Ana Silva',
-        role: 'Advogada Sênior',
-        email: 'ana.silva@lexhub.com',
-        phone: '(11) 99999-1111',
-        startDate: '2020-03-15',
-        status: 'active',
-        department: 'Contencioso Cível',
-        location: 'São Paulo, SP'
-    },
-    {
-        id: '2',
-        name: 'Carlos Oliveira',
-        role: 'Paralegal',
-        email: 'carlos.o@lexhub.com',
-        phone: '(11) 98888-2222',
-        startDate: '2022-08-10',
-        status: 'active',
-        department: 'Administrativo',
-        location: 'Remoto'
-    },
-    {
-        id: '3',
-        name: 'Mariana Souza',
-        role: 'Estagiária de Direito',
-        email: 'mari.s@lexhub.com',
-        phone: '(11) 97777-3333',
-        startDate: '2024-01-20',
-        status: 'active',
-        department: 'Trabalhista',
-        location: 'São Paulo, SP'
-    }
-];
+const INITIAL_MEMBERS: TeamMember[] = [];
 
 export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
     const [currentPlan, setCurrentPlan] = useState<PlanName>(() => {
@@ -258,8 +224,8 @@ export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
 
                         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${member.status === 'active'
-                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
-                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
+                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                                 }`}>
                                 <span className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                                 {member.status === 'active' ? 'Ativo' : 'Inativo'}
