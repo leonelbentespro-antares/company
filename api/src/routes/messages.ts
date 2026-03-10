@@ -211,6 +211,14 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
 messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
+
+        // Validação: Só retorna conversas se o WhatsApp estiver conectado
+        const session = await getOrRestoreSession(tenantId);
+        if (!session || session.status.toLowerCase() !== 'connected') {
+            console.log(`[Messages Router] Tenant ${tenantId} desconectado. Retornando lista vazia.`);
+            return res.json([]);
+        }
+
         const { data: conversations, error } = await supabase
             .from('chat_conversations')
             .select(`
