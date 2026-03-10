@@ -1133,7 +1133,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
       )}
 
       {/* Sidebar - Lista de Conversas */}
-      <div className={`w-full md:w-80 lg:w-96 border-r border-slate-100 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${(!isSidebarOpen || chatViewMode === 'kanban') ? 'hidden md:hidden' : 'hidden md:flex'}`}>
+      <div className={`w-full md:w-80 lg:w-96 border-r border-slate-100 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${!isSidebarOpen && 'hidden md:flex'}`}>
         <div className="p-6 space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">Mensagens</h2>
@@ -1649,7 +1649,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                 <p className="text-slate-500 text-sm font-medium mt-1">Organize conversas processuais arrastando entre as etapas.</p>
               </div>
             </div>
-            <div className="flex-1 min-w-0 overflow-x-auto p-6 pb-12 flex items-start gap-6 custom-scrollbar">
+            <div className="flex-1 overflow-x-auto p-6 flex items-start gap-6 custom-scrollbar">
               {/* Coluna Sem Tag (Caixa de Entrada) */}
               <div
                 className="w-80 shrink-0 flex flex-col max-h-full"
