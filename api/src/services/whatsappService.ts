@@ -454,6 +454,7 @@ export async function handleConnectionEvent(tenantId: string, status: string, ph
 
          sessions.delete(tenantId);
          qrCodes.delete(tenantId);
+         emitToTenant(tenantId, 'whatsapp:disconnected', { status: 'Disconnected' });
 
          try {
              await supabaseAdmin.from('whatsapp_devices')
