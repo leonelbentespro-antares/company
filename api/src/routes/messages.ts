@@ -212,13 +212,14 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
 
-        // Validação: Só retorna conversas se o WhatsApp estiver conectado
+        // Validação: Só retorna conversas se o WhatsApp estiver conectado ou aberto
         const session = await getOrRestoreSession(tenantId);
-        if (!session || session.status.toLowerCase() !== 'connected') {
-            console.log(`[Messages Router] Tenant ${tenantId} desconectado. Retornando lista vazia.`);
+        const status = session?.status?.toLowerCase();
+        if (!session || (status !== 'connected' && status !== 'open')) {
+            console.log(`[Messages Router] Tenant ${tenantId} desconectado (status: ${status}). Retornando lista vazia.`);
             return res.json([]);
         }
-
+ drum
         const { data: conversations, error } = await supabase
             .from('chat_conversations')
             .select(`
