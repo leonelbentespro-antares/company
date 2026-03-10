@@ -396,6 +396,7 @@ const App: React.FC = () => {
       case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} />;
       case 'integrations': return <Integrations />;
       case 'chat': return <Chat />;
+      case 'kanban': return <Chat initialViewMode="kanban" />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'settings': return <Settings />;

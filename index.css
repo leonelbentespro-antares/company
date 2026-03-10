@@ -107,35 +107,34 @@
 
 /* Custom scrollbar class usado nos componentes */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 8px;
-  /* Aumentado para melhor visibilidade horizontal */
+  width: 8px;
+  height: 12px; /* Aumentado significativamente para ser fácil de pegar */
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.08); /* Mais visível */
   border-radius: 99px;
+  margin: 4px; /* Afasta das bordas */
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #A67C52; /* Cor bronze para destaque */
   border-radius: 99px;
-  border: 2px solid transparent;
-  /* Dá um espaçamento interno */
+  border: 3px solid transparent;
   background-clip: content-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #8B6543;
   background-clip: content-box;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #A67C52;
 }
 
 /* Transição suave para modo dark */
