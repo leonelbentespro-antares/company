@@ -406,7 +406,8 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                 .from('chat_conversations')
                 .update({ 
                     last_message: textBody,
-                    contact_name: senderName !== senderPhone ? senderName : undefined,
+                    // Só atualiza o nome do contato se a mensagem NÃO for do próprio usuário/empresa
+                    contact_name: (!isFromMe && senderName !== senderPhone) ? senderName : undefined,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', conversationId);

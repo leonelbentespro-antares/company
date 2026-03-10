@@ -617,6 +617,7 @@ export const Chat: React.FC = () => {
     lastSentRef.current = { text: textToSend, time: now };
 
     setIsSending(true);
+    setNewMessage(''); // Limpa o campo instantaneamente no frontend
 
     const msg: ChatMessage = {
       id: `temp-${Date.now()}`,
@@ -670,7 +671,6 @@ export const Chat: React.FC = () => {
       setInternalConversations(updateFn);
     }
 
-    setNewMessage('');
     setIsEmojiPickerOpen(false);
     setShowQuickReplyMenu(false);
     setTimeout(() => setIsSending(false), 1000);
