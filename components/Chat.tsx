@@ -161,7 +161,11 @@ const MOCK_INTERNAL_CONVERSATIONS: ChatConversation[] = [];
 const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '👍', '😊', '📎'];
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];
 
-export const Chat: React.FC = () => {
+interface ChatProps {
+  initialViewMode?: 'list' | 'kanban';
+}
+
+export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   const { tenantId, user, tenant } = useTenant();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
@@ -169,7 +173,11 @@ export const Chat: React.FC = () => {
 
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
-  const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>('list');
+  const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>(initialViewMode);
+
+  useEffect(() => {
+    setChatViewMode(initialViewMode);
+  }, [initialViewMode]);
   const [externalConversations, setExternalConversations] = useState<ChatConversation[]>([]);
   const [internalConversations, setInternalConversations] = useState<ChatConversation[]>(MOCK_INTERNAL_CONVERSATIONS);
 

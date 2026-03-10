@@ -41,7 +41,8 @@ import {
   Sun,
   Clock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  KanbanSquare
 } from 'lucide-react';
 import { Dashboard } from './components/Dashboard.tsx';
 import { Auth } from './components/Auth.tsx';
@@ -394,6 +395,7 @@ const App: React.FC = () => {
       case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} />;
       case 'integrations': return <Integrations />;
       case 'chat': return <Chat />;
+      case 'kanban': return <Chat initialViewMode="kanban" />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'settings': return <Settings />;
@@ -675,6 +677,12 @@ const App: React.FC = () => {
           active={activeTab === 'chat'}
           onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
           badge={3}
+        />
+        <SidebarItem
+          icon={<KanbanSquare size={20} />}
+          label={t.nav.kanban}
+          active={activeTab === 'kanban'}
+          onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Users size={20} />}

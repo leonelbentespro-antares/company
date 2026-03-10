@@ -13,6 +13,7 @@ export interface Translations {
     automation: string;
     integrations: string;
     aiAgents: string;
+    kanban: string;
     billing: string;
     plans: string;
     administration: string;
@@ -132,6 +133,7 @@ export const ptBR: Translations = {
     automation: 'Automação',
     integrations: 'Integrações',
     aiAgents: 'Agentes de IA',
+    kanban: 'Kanban de Atendimentos',
     billing: 'Faturamento',
     plans: 'Planos & Upgrade',
     administration: 'Administração',
