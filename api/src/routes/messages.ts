@@ -219,7 +219,7 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
             console.log(`[Messages Router] Tenant ${tenantId} desconectado (status: ${status}). Retornando lista vazia.`);
             return res.json([]);
         }
- drum
+
         const { data: conversations, error } = await supabase
             .from('chat_conversations')
             .select(`
