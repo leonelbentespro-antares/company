@@ -324,6 +324,7 @@ export async function getAIAgents(tenantId: string | null): Promise<AIAgent[]> {
 
     return (data || []).map(row => ({
         id: row.id, name: row.name, personality: row.personality,
+        skills: row.skills,
         status: row.status as 'Active' | 'Disconnected' | 'Connecting',
         whatsappNumber: row.whatsapp_number, totalInteractions: row.total_interactions,
         createdAt: row.created_at,
@@ -339,13 +340,16 @@ export async function createAIAgent(
         .from('ai_agents')
         .insert({
             tenant_id: tid,
-            name: agent.name, personality: agent.personality, status: agent.status,
+            name: agent.name, personality: agent.personality, 
+            skills: agent.skills,
+            status: agent.status,
             whatsapp_number: agent.whatsappNumber, total_interactions: agent.totalInteractions,
         })
         .select().single();
     if (error) throw error;
     return {
         id: data.id, name: data.name, personality: data.personality,
+        skills: data.skills,
         status: data.status as 'Active' | 'Disconnected' | 'Connecting',
         whatsappNumber: data.whatsapp_number, totalInteractions: data.total_interactions,
         createdAt: data.created_at,
@@ -357,7 +361,9 @@ export async function updateAIAgent(id: string, tenantId: string | null, updates
     const { error } = await supabase
         .from('ai_agents')
         .update({
-            name: updates.name, personality: updates.personality, status: updates.status,
+            name: updates.name, personality: updates.personality, 
+            skills: updates.skills,
+            status: updates.status,
             whatsapp_number: updates.whatsappNumber, total_interactions: updates.totalInteractions,
         })
         .eq('id', id).eq('tenant_id', tid);

@@ -100,6 +100,7 @@ export interface AIAgent {
   id: string;
   name: string;
   personality: string;
+  skills?: string;
   status: 'Active' | 'Disconnected' | 'Connecting';
   whatsappNumber?: string;
   totalInteractions: number;

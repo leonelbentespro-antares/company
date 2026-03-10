@@ -30,7 +30,8 @@ export const AIAgents: React.FC = () => {
   const [editingAgent, setEditingAgent] = useState<AIAgent | null>(null);
   const [loading, setLoading] = useState(false);
   const [showFeedback, setShowFeedback] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', personality: '' });
+  const [formData, setFormData] = useState({ name: '', personality: '', skills: '' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (showFeedback) {
@@ -41,24 +42,46 @@ export const AIAgents: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingAgent(null);
-    setFormData({ name: '', personality: '' });
+    setFormData({ name: '', personality: '', skills: '' });
     setModalStep('config');
     setIsModalOpen(true);
   };
 
   const handleOpenEdit = (agent: AIAgent) => {
     setEditingAgent(agent);
-    setFormData({ name: agent.name, personality: agent.personality });
+    setFormData({ name: agent.name, personality: agent.personality, skills: agent.skills || '' });
     setModalStep('config');
     setIsModalOpen(true);
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setFormData(prev => ({ ...prev, skills: content }));
+      setShowFeedback('Skills importadas com sucesso!');
+    };
+    reader.readAsText(file);
   };
 
   const handleSaveAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingAgent) {
       try {
-        await updateAIAgent(editingAgent.id, tenantId, { name: formData.name, personality: formData.personality });
-        setAgents(prev => prev.map(a => a.id === editingAgent.id ? { ...a, name: formData.name, personality: formData.personality } : a));
+        await updateAIAgent(editingAgent.id, tenantId, {
+          name: formData.name,
+          personality: formData.personality,
+          skills: formData.skills
+        });
+        setAgents(prev => prev.map(a => a.id === editingAgent.id ? {
+          ...a,
+          name: formData.name,
+          personality: formData.personality,
+          skills: formData.skills
+        } : a));
         setIsModalOpen(false);
         setShowFeedback('Agente atualizado com segurança!');
       } catch (err) {
@@ -124,6 +147,7 @@ export const AIAgents: React.FC = () => {
           const newAgent = await createAIAgent(tenantId, {
             name: formData.name || 'Assistente WhatsApp',
             personality: formData.personality || 'Atendimento',
+            skills: formData.skills,
             status: 'Active',
             whatsappNumber: data.user?.id?.split(':')[0] || 'Desconhecido',
             totalInteractions: 0
@@ -298,6 +322,12 @@ export const AIAgents: React.FC = () => {
               <div className="space-y-4 mb-8">
                 <div className={`p-4 rounded-2xl border min-h-[100px] transition-colors ${agent.status === 'Active' ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800' : 'bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-60'}`}>
                   <p className="text-sm text-slate-600 dark:text-slate-400 font-medium italic">"{agent.personality}"</p>
+                  {agent.skills && (
+                    <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Skills & Instruções</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-3 font-mono leading-relaxed">{agent.skills}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -379,16 +409,43 @@ export const AIAgents: React.FC = () => {
                     <h3 className="text-2xl font-bold">Configurar Agente</h3>
                   </div>
                 </div>
-                <form onSubmit={handleSaveAgent} className="p-8 space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome</label>
-                    <input required type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                <form onSubmit={handleSaveAgent} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome</label>
+                      <input required type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-legal-navy/10" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personalidade</label>
+                      <textarea required placeholder="Descreva como o agente deve se comportar..." className="w-full h-24 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium dark:text-white outline-none resize-none focus:ring-2 focus:ring-legal-navy/10" value={formData.personality} onChange={(e) => setFormData({ ...formData, personality: e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Habilidades & Conhecimento (Skills)</label>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-[10px] font-bold text-legal-bronze hover:underline flex items-center gap-1"
+                        >
+                          <Plus size={12} /> Importar Arquivo (.txt)
+                        </button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="hidden"
+                          accept=".txt,.json,.csv"
+                          onChange={handleFileImport}
+                        />
+                      </div>
+                      <textarea
+                        className="w-full h-32 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-mono dark:text-teal-400 outline-none resize-none focus:ring-2 focus:ring-legal-navy/10"
+                        placeholder="Cole aqui ou importe as instruções e habilidades do agente..."
+                        value={formData.skills}
+                        onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personalidade</label>
-                    <textarea required className="w-full h-40 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium dark:text-white outline-none resize-none" value={formData.personality} onChange={(e) => setFormData({ ...formData, personality: e.target.value })} />
-                  </div>
-                  <div className="pt-4 flex gap-4">
+                  <div className="pt-4 flex gap-4 bg-white dark:bg-slate-900 sticky bottom-0">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">Cancelar</button>
                     <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl">{editingAgent ? 'Salvar Alterações' : 'Próximo Passo'}</button>
                   </div>
