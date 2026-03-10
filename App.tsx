@@ -80,19 +80,20 @@ const SidebarItem: React.FC<{
   label: string,
   active?: boolean,
   onClick: () => void,
-  badge?: string | number
-}> = ({ icon, label, active, onClick, badge }) => (
+  badge?: string | number,
+  isSubItem?: boolean
+}> = ({ icon, label, active, onClick, badge, isSubItem }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
-      ? 'bg-legal-bronze text-white shadow-lg shadow-legal-bronze/20'
+    className={`w-full flex items-center gap-3 ${isSubItem ? 'pl-12 pr-4 py-2 opacity-80' : 'px-4 py-3'} rounded-xl transition-all ${active
+      ? (isSubItem ? 'text-legal-bronze font-black' : 'bg-legal-bronze text-white shadow-lg shadow-legal-bronze/20')
       : 'text-slate-400 hover:text-white hover:bg-white/10 dark:text-slate-500 dark:hover:text-slate-200'
       }`}
   >
-    {icon}
-    <span className="font-medium text-sm lg:text-base">{label}</span>
+    {icon && <span className={isSubItem ? 'scale-75' : ''}>{icon}</span>}
+    <span className={`font-medium ${isSubItem ? 'text-xs uppercase tracking-widest' : 'text-sm lg:text-base'}`}>{label}</span>
     {badge && <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
-    {active && !badge && <ChevronRight size={16} className="ml-auto" />}
+    {active && !badge && !isSubItem && <ChevronRight size={16} className="ml-auto" />}
   </button>
 );
 
@@ -395,7 +396,6 @@ const App: React.FC = () => {
       case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} />;
       case 'integrations': return <Integrations />;
       case 'chat': return <Chat />;
-      case 'kanban': return <Chat initialViewMode="kanban" />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'settings': return <Settings />;
@@ -672,18 +672,29 @@ const App: React.FC = () => {
           onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<MessageCircle size={20} />}
+          icon={<MessageSquare size={20} />}
           label={t.nav.chat}
-          active={activeTab === 'chat'}
+          active={activeTab === 'chat' || activeTab === 'kanban'}
           onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
-          badge={3}
         />
-        <SidebarItem
-          icon={<KanbanSquare size={20} />}
-          label={t.nav.kanban}
-          active={activeTab === 'kanban'}
-          onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
-        />
+        {(activeTab === 'chat' || activeTab === 'kanban') && (
+          <div className="mb-2 space-y-1 animate-in slide-in-from-top-2 duration-300">
+            <SidebarItem
+              icon={<MessageCircle size={16} />}
+              label="Conversas"
+              active={activeTab === 'chat'}
+              onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
+              isSubItem
+            />
+            <SidebarItem
+              icon={<KanbanSquare size={16} />}
+              label="Kanban"
+              active={activeTab === 'kanban'}
+              onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
+              isSubItem
+            />
+          </div>
+        )}
         <SidebarItem
           icon={<Users size={20} />}
           label={t.nav.tenants}
