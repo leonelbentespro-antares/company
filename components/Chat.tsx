@@ -1641,7 +1641,7 @@ export const Chat: React.FC = () => {
                 <p className="text-slate-500 text-sm font-medium mt-1">Organize conversas processuais arrastando entre as etapas.</p>
               </div>
             </div>
-            <div className="flex-1 overflow-x-auto overflow-y-hidden p-6 flex items-start gap-6 custom-scrollbar">
+            <div className="flex-1 overflow-x-auto p-6 flex items-start gap-6 custom-scrollbar">
               {/* Coluna Sem Tag (Caixa de Entrada) */}
               <div
                 className="w-80 shrink-0 flex flex-col max-h-full"

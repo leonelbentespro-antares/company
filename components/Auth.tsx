@@ -75,7 +75,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
       }
 
       const role = authType === 'client' ? UserRole.Client : UserRole.Admin;
-      const name = authType === 'client' ? 'Carlos Eduardo Oliveira' : (formData.name || authUser?.user_metadata?.full_name || 'Admin LexHub');
+      const name = authType === 'client' ? (authUser?.user_metadata?.full_name || 'Cliente') : (formData.name || authUser?.user_metadata?.full_name || 'Usuário');
 
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const registrationId = `LH-2024-${randomSuffix}`;

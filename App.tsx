@@ -166,8 +166,8 @@ const App: React.FC = () => {
       setProfileForm({
         name: currentUser.name,
         email: currentUser.email,
-        oab: currentUser.oab || 'OAB/SP 123.456',
-        phone: currentUser.phone || '(11) 98877-6655',
+        oab: currentUser.oab || '',
+        phone: currentUser.phone || '',
         avatar: currentUser.avatar,
         registrationId: currentUser.registrationId
       });

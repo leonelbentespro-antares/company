@@ -108,6 +108,7 @@
 /* Custom scrollbar class usado nos componentes */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
+  height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
