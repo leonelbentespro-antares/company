@@ -467,6 +467,13 @@ export const Chat: React.FC = () => {
         }
       });
 
+      socket.on('whatsapp:disconnected', () => {
+        console.log('[Chat] 🛑 WhatsApp desconectado via Socket');
+        setExternalConversations([]);
+        setSelectedChat(null);
+        setShowToast('WhatsApp desconectado. Conecte novamente para ver as conversas.');
+      });
+
       socketInstance = socket;
     };
 
