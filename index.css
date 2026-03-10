@@ -107,33 +107,33 @@
 
 /* Custom scrollbar class usado nos componentes */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 8px;
+  width: 10px;
+  height: 14px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 99px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #475569; /* Slate 600 - Bem visível */
   border-radius: 99px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background-clip: content-box;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #1e293b; /* Slate 800 no hover */
   background-clip: content-box;
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #94a3b8;
 }
 
 /* Transição suave para modo dark */

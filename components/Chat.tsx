@@ -1639,100 +1639,122 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
             </div>
           </>
         ) : chatViewMode === 'kanban' ? (
-          <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900/50 overflow-hidden">
-            <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900">
-              <div>
-                <h3 className="text-2xl font-black text-legal-navy dark:text-white flex items-center gap-3">
-                  <KanbanSquare size={24} className="text-legal-bronze" />
-                  Kanban de Atendimentos
-                </h3>
-                <p className="text-slate-500 text-sm font-medium mt-1">Organize conversas processuais arrastando entre as etapas.</p>
+          <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900/50 min-w-0 overflow-hidden">
+            <div className="p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsSidebarOpen(true)}
+                  className="md:hidden p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl"
+                >
+                  <ArrowLeft size={20} />
+                </button>
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-legal-navy dark:text-white flex items-center gap-3">
+                    <KanbanSquare size={24} className="text-legal-bronze" />
+                    Kanban de Atendimentos
+                  </h3>
+                  <p className="text-slate-500 text-[10px] md:text-xs font-medium mt-1">Organize atendimentos arrastando entre as colunas.</p>
+                </div>
+              </div>
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setChatViewMode('list')}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 transition-all"
+                  title="Voltar para Lista"
+                >
+                  <List size={16} />
+                </button>
+                <div className="p-1.5 bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white rounded-lg">
+                  <KanbanSquare size={16} />
+                </div>
               </div>
             </div>
-            <div className="flex-1 overflow-x-auto p-6 flex items-start gap-6 custom-scrollbar">
-              {/* Coluna Sem Tag (Caixa de Entrada) */}
-              <div
-                className="w-80 shrink-0 flex flex-col max-h-full"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, null)}
-              >
-                <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-slate-300"></span>
-                    <h4 className="font-bold text-sm text-slate-800 dark:text-white">Sem Etiqueta</h4>
-                  </div>
-                  <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
-                    {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).length}
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
-                  {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).map(chat => (
-                    <div
-                      key={chat.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, chat.id)}
-                      onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
-                      className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
-                    >
-                      <div className="flex items-center gap-3 mb-3">
-                        <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
-                        <div className="flex-1 min-w-0">
-                          <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
-                          <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-2 italic">"{chat.lastMessage}"</p>
+            <div className="flex-1 relative min-h-0 bg-slate-50 dark:bg-slate-900/50">
+              <div className="absolute inset-0 overflow-x-auto pb-12 p-6 custom-scrollbar snap-x snap-proximity flex gap-6 items-start">
+                {/* Coluna Sem Tag (Caixa de Entrada) */}
+                <div
+                  className="min-w-[320px] w-80 shrink-0 flex flex-col h-full snap-center"
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, null)}
+                >
+                  <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-slate-300"></span>
+                      <h4 className="font-bold text-sm text-slate-800 dark:text-white">Sem Etiqueta</h4>
                     </div>
-                  ))}
+                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
+                      {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).length}
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
+                    {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).map(chat => (
+                      <div
+                        key={chat.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, chat.id)}
+                        onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
+                        className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
+                          <div className="flex-1 min-w-0">
+                            <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
+                            <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 line-clamp-2 italic">"{chat.lastMessage}"</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Colunas por Tag */}
-              {tags.map(tag => {
-                const chatsInTag = currentConversations.filter(c => chatTagRelations[c.id]?.includes(tag.id));
-                return (
-                  <div
-                    key={tag.id}
-                    className="w-80 shrink-0 flex flex-col max-h-full"
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, tag.id)}
-                  >
-                    <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm" style={{ borderTop: `4px solid ${tag.color}` }}>
-                      <div className="flex items-center gap-2">
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }}></span>
-                        <h4 className="font-bold text-sm text-slate-800 dark:text-white">{tag.label}</h4>
-                      </div>
-                      <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
-                        {chatsInTag.length}
-                      </span>
-                    </div>
-                    <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
-                      {chatsInTag.map(chat => (
-                        <div
-                          key={chat.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, chat.id)}
-                          onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
-                          className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
-                        >
-                          <div className="flex items-center gap-3 mb-3">
-                            <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
-                            <div className="flex-1 min-w-0">
-                              <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
-                              <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
-                            </div>
-                            {chat.unreadCount > 0 && <span className="bg-legal-bronze text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{chat.unreadCount}</span>}
-                          </div>
-                          <p className="text-xs text-slate-500 line-clamp-2 italic mb-3">"{chat.lastMessage}"</p>
-                          <div className="flex justify-end gap-1">
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded text-white" style={{ backgroundColor: tag.color }}>{tag.label}</span>
-                          </div>
+                {/* Colunas por Tag */}
+                {tags.map(tag => {
+                  const chatsInTag = currentConversations.filter(c => chatTagRelations[c.id]?.includes(tag.id));
+                  return (
+                    <div
+                      key={tag.id}
+                      className="min-w-[320px] w-80 shrink-0 flex flex-col h-full snap-center"
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, tag.id)}
+                    >
+                      <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm" style={{ borderTop: `4px solid ${tag.color}` }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }}></span>
+                          <h4 className="font-bold text-sm text-slate-800 dark:text-white">{tag.label}</h4>
                         </div>
-                      ))}
+                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
+                          {chatsInTag.length}
+                        </span>
+                      </div>
+                      <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
+                        {chatsInTag.map(chat => (
+                          <div
+                            key={chat.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, chat.id)}
+                            onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
+                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
+                          >
+                            <div className="flex items-center gap-3 mb-3">
+                              <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
+                              <div className="flex-1 min-w-0">
+                                <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
+                                <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
+                              </div>
+                              {chat.unreadCount > 0 && <span className="bg-legal-bronze text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{chat.unreadCount}</span>}
+                            </div>
+                            <p className="text-xs text-slate-500 line-clamp-2 italic mb-3">"{chat.lastMessage}"</p>
+                            <div className="flex justify-end gap-1">
+                              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded text-white" style={{ backgroundColor: tag.color }}>{tag.label}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : (

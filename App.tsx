@@ -60,6 +60,7 @@ import { Automation } from './components/Automation.tsx';
 import { Chat } from './components/Chat.tsx';
 import { Integrations } from './components/Integrations.tsx';
 import { Team } from './components/Team.tsx';
+import SubscriptionShield from './components/SubscriptionShield.tsx';
 import { User, UserRole } from './types.ts';
 import { useTenant } from './services/tenantContext.tsx';
 import { useLanguage } from './services/languageContext.tsx';
@@ -80,20 +81,19 @@ const SidebarItem: React.FC<{
   label: string,
   active?: boolean,
   onClick: () => void,
-  badge?: string | number,
-  isSubItem?: boolean
-}> = ({ icon, label, active, onClick, badge, isSubItem }) => (
+  badge?: string | number
+}> = ({ icon, label, active, onClick, badge }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 ${isSubItem ? 'pl-12 pr-4 py-2 opacity-80' : 'px-4 py-3'} rounded-xl transition-all ${active
-      ? (isSubItem ? 'text-legal-bronze font-black' : 'bg-legal-bronze text-white shadow-lg shadow-legal-bronze/20')
+    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${active
+      ? 'bg-legal-bronze text-white shadow-lg shadow-legal-bronze/20'
       : 'text-slate-400 hover:text-white hover:bg-white/10 dark:text-slate-500 dark:hover:text-slate-200'
       }`}
   >
-    {icon && <span className={isSubItem ? 'scale-75' : ''}>{icon}</span>}
-    <span className={`font-medium ${isSubItem ? 'text-xs uppercase tracking-widest' : 'text-sm lg:text-base'}`}>{label}</span>
+    {icon}
+    <span className="font-medium text-sm lg:text-base">{label}</span>
     {badge && <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
-    {active && !badge && !isSubItem && <ChevronRight size={16} className="ml-auto" />}
+    {active && !badge && <ChevronRight size={16} className="ml-auto" />}
   </button>
 );
 
@@ -375,7 +375,9 @@ const App: React.FC = () => {
         </header>
         <main className="p-4 lg:p-8">
           <React.Suspense fallback={<div className="flex h-[50vh] items-center justify-center p-12 text-slate-400 font-bold tracking-widest uppercase text-xs">Carregando painel do cliente...</div>}>
-            <ClientPortal user={currentUser} />
+            <SubscriptionShield>
+              <ClientPortal user={currentUser} />
+            </SubscriptionShield>
           </React.Suspense>
         </main>
 
@@ -675,27 +677,9 @@ const App: React.FC = () => {
         <SidebarItem
           icon={<MessageSquare size={20} />}
           label={t.nav.chat}
-          active={activeTab === 'chat' || activeTab === 'kanban'}
-          onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
+          active={activeTab === 'kanban' || activeTab === 'chat'}
+          onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
         />
-        {(activeTab === 'chat' || activeTab === 'kanban') && (
-          <div className="mb-2 space-y-1 animate-in slide-in-from-top-2 duration-300">
-            <SidebarItem
-              icon={<MessageCircle size={16} />}
-              label="Conversas"
-              active={activeTab === 'chat'}
-              onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
-              isSubItem
-            />
-            <SidebarItem
-              icon={<KanbanSquare size={16} />}
-              label="Kanban"
-              active={activeTab === 'kanban'}
-              onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
-              isSubItem
-            />
-          </div>
-        )}
         <SidebarItem
           icon={<Users size={20} />}
           label={t.nav.tenants}
@@ -925,9 +909,11 @@ const App: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto w-full transition-colors">
+        <div className={`p-4 lg:p-8 w-full transition-colors ${(['chat', 'processes', 'kanban'].includes(activeTab)) ? '' : 'max-w-7xl mx-auto'}`}>
           <React.Suspense fallback={<div className="flex h-[50vh] items-center justify-center p-12 text-slate-400 font-bold tracking-widest uppercase text-xs">Carregando painel...</div>}>
-            {renderContent()}
+            <SubscriptionShield>
+                {renderContent()}
+            </SubscriptionShield>
           </React.Suspense>
         </div>
       </main>

@@ -29,9 +29,10 @@ export interface TenantInfo {
 export interface TenantSubscription {
     id: string;
     plan: string;
-    status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'paused';
+    status: 'active' | 'trialing' | 'past_due' | 'canceled' | 'paused' | 'unpaid' | 'incomplete';
     trialEndsAt: string | null;
     currentPeriodEnd: string | null;
+    pastDueSince: string | null;
 }
 
 interface TenantContextValue {
@@ -45,6 +46,8 @@ interface TenantContextValue {
     refresh: () => Promise<void>;
     isTrialing: boolean;
     trialDaysLeft: number;
+    isBlocked: boolean;
+    blockReason: 'PAST_DUE' | 'SUBSCRIPTION_INVALID' | null;
 }
 
 // ============================================================
@@ -62,6 +65,8 @@ const TenantContext = createContext<TenantContextValue>({
     refresh: async () => { },
     isTrialing: false,
     trialDaysLeft: 0,
+    isBlocked: false,
+    blockReason: null,
 });
 
 // ============================================================
@@ -249,6 +254,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                         status: subscriptionResult.data.status,
                         trialEndsAt: subscriptionResult.data.trial_ends_at,
                         currentPeriodEnd: subscriptionResult.data.current_period_end,
+                        pastDueSince: subscriptionResult.data.past_due_since,
                     });
                 }
             } catch (parallelErr) {
@@ -289,6 +295,32 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         ? Math.max(0, Math.ceil((new Date(subscription.trialEndsAt).getTime() - Date.now()) / 86400000))
         : 0;
 
+    // Calcular bloqueio de assinatura
+    let isBlocked = false;
+    let blockReason: 'PAST_DUE' | 'SUBSCRIPTION_INVALID' | null = null;
+
+    if (subscription) {
+        const { status, pastDueSince } = subscription;
+        
+        if (status === 'past_due' && pastDueSince) {
+            const pastDueDate = new Date(pastDueSince);
+            const now = new Date();
+            const diffInDays = (now.getTime() - pastDueDate.getTime()) / (1000 * 3600 * 24);
+            
+            if (diffInDays > 3) {
+                isBlocked = true;
+                blockReason = 'PAST_DUE';
+            }
+        } else if (status !== 'active' && status !== 'trialing' && status !== 'past_due') {
+            isBlocked = true;
+            blockReason = 'SUBSCRIPTION_INVALID';
+        }
+    } else if (!loading && isAuthenticated) {
+        // Se já carregou, está logado mas não tem assinatura
+        // isBlocked = true;
+        // blockReason = 'SUBSCRIPTION_INVALID';
+    }
+
     return (
         <TenantContext.Provider value={{
             tenantId,
@@ -301,6 +333,8 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             refresh: loadTenant,
             isTrialing,
             trialDaysLeft,
+            isBlocked,
+            blockReason,
         }}>
             {children}
         </TenantContext.Provider>

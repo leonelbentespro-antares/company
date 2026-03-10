@@ -94,11 +94,73 @@ Deno.serve(async (req) => {
         .single();
         
       if (tenant) {
-          await supabaseAdmin.from('tenant_subscriptions').update({
+          const updates: any = {
               plan: planName,
               status: subscription.status,
               current_period_end: new Date(subscription.current_period_end * 1000).toISOString()
-          }).eq('tenant_id', tenant.id);
+          };
+
+          // Se a assinatura entrar em atraso e não tivermos a data, registramos agora
+          if (subscription.status === 'past_due') {
+              const { data: currentSub } = await supabaseAdmin
+                .from('tenant_subscriptions')
+                .select('past_due_since')
+                .eq('tenant_id', tenant.id)
+                .single();
+              
+              if (!currentSub?.past_due_since) {
+                updates.past_due_since = new Date().toISOString();
+              }
+          } else if (subscription.status === 'active') {
+              // Se reativou/pagou, limpamos o marco de atraso
+              updates.past_due_since = null;
+          }
+
+          await supabaseAdmin.from('tenant_subscriptions').update(updates).eq('tenant_id', tenant.id);
+      }
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      
+      const { data: tenant } = await supabaseAdmin
+        .from('tenants')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single();
+
+      if (tenant) {
+        // Marcamos o início do atraso se for o primeiro falhanço deste ciclo
+        const { data: currentSub } = await supabaseAdmin
+          .from('tenant_subscriptions')
+          .select('past_due_since, status')
+          .eq('tenant_id', tenant.id)
+          .single();
+
+        if (!currentSub?.past_due_since && currentSub?.status === 'past_due') {
+           await supabaseAdmin.from('tenant_subscriptions')
+            .update({ past_due_since: new Date().toISOString() })
+            .eq('tenant_id', tenant.id);
+        }
+      }
+      break;
+    }
+    case 'invoice.paid': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+
+      const { data: tenant } = await supabaseAdmin
+        .from('tenants')
+        .select('id')
+        .eq('stripe_customer_id', customerId)
+        .single();
+
+      if (tenant) {
+        // Pagamento confirmado, limpa past_due_since
+        await supabaseAdmin.from('tenant_subscriptions')
+          .update({ past_due_since: null, status: 'active' })
+          .eq('tenant_id', tenant.id);
       }
       break;
     }

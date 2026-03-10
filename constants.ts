@@ -29,7 +29,7 @@ export const PLANS: Plan[] = [
   },
   {
     name: PlanName.Professional,
-    price: 697,
+    price: 450,
     currency: 'BRL',
     setupFee: 1997,
     stripePriceId: 'price_1T3jHvJ9ZEZzMZTmLmeSeRpP',
@@ -47,7 +47,7 @@ export const PLANS: Plan[] = [
   },
   {
     name: PlanName.Enterprise,
-    price: 1497,
+    price: 997,
     currency: 'BRL',
     setupFee: 4997,
     stripePriceId: 'price_1T3jHwJ9ZEZzMZTmoobBAcbc',

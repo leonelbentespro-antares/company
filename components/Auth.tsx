@@ -11,7 +11,9 @@ import {
   Briefcase,
   Users,
   AlertCircle,
-  Hash
+  Hash,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { UserRole } from '../types.ts';
 import { supabase } from '../services/supabaseClient.ts';
@@ -26,6 +28,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
   const [isSignUpSuccess, setIsSignUpSuccess] = useState(false);
   const [authType, setAuthType] = useState<'professional' | 'client'>('professional');
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -117,8 +121,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-inter text-slate-900">
       <div className="max-w-5xl w-full bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row">
 
-        {/* Lado Esquerdo - Branding & Info (Oculto no Mobile para priorizar login) */}
-        <div className="hidden md:flex md:w-1/2 bg-legal-navy p-12 text-white flex-col justify-between relative overflow-hidden">
+        {/* Lado Esquerdo - Branding & Info */}
+        <div className="flex md:w-1/2 bg-legal-navy p-8 md:p-12 text-white flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-legal-bronze/20 rounded-full blur-3xl"></div>
           <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-legal-bronze/10 rounded-full blur-3xl"></div>
 
@@ -130,25 +134,25 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <span className="text-2xl font-bold tracking-tight uppercase">LexHub</span>
             </div>
 
-            <h1 className="text-4xl font-bold leading-tight mb-6">
+            <h1 className="text-2xl md:text-4xl font-bold leading-tight mb-4 md:mb-6">
               Transparência e <span className="text-legal-bronze">agilidade</span> jurídica.
             </h1>
-            <p className="text-slate-300 text-lg mb-8">
+            <p className="text-slate-300 text-sm md:text-lg mb-6 md:mb-8">
               Conectando advogados e clientes em um ambiente digital seguro e intuitivo.
             </p>
           </div>
 
-          <div className="space-y-4 relative z-10">
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <CheckCircle2 size={18} className="text-legal-bronze" />
+          <div className="space-y-3 md:space-y-4 relative z-10 mt-6 md:mt-0">
+            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+              <CheckCircle2 size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
               <span>Conformidade total com a LGPD</span>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <ShieldCheck size={18} className="text-legal-bronze" />
+            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+              <ShieldCheck size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
               <span>Segurança nível bancário (AES-256)</span>
             </div>
-            <div className="flex items-center gap-3 text-sm text-slate-300">
-              <Scale size={18} className="text-legal-bronze" />
+            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+              <Scale size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
               <span>Acompanhamento processual em tempo real</span>
             </div>
           </div>
@@ -228,10 +232,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input
-                  type="password" name="password" required placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
+                  type={showPassword ? "text" : "password"} name="password" required placeholder="••••••••"
+                  className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                   value={formData.password} onChange={handleChange}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -241,10 +252,17 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
-                    type="password" name="confirmPassword" required placeholder="••••••••"
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
+                    type={showConfirmPassword ? "text" : "password"} name="confirmPassword" required placeholder="••••••••"
+                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
                     value={formData.confirmPassword} onChange={handleChange}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
             )}
