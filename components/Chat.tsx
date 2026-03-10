@@ -152,69 +152,11 @@ const INITIAL_QUICK_REPLIES: QuickReply[] = [
   { id: '4', command: 'acordo', text: 'A parte contrária enviou uma proposta de acordo. Gostaria de agendar uma breve reunião para discutirmos?' },
 ];
 
-const MOCK_CONTACTS: Contact[] = [
-  { id: 'c1', name: 'Carlos Eduardo Oliveira', phone: '+55 (11) 98877-6655', email: 'carlos@email.com', company: 'Pessoa Física' },
-  { id: 'c2', name: 'Dra. Aline Silva', phone: '+55 (11) 97766-5544', email: 'aline@juridico.com', company: 'Silva Advocacia' },
-  { id: 'c3', name: 'Roberto J. Pereira', phone: '+55 (21) 90000-1111', email: 'roberto@email.com', company: 'Pessoa Física' },
-];
+const MOCK_CONTACTS: Contact[] = [];
 
-const MOCK_EXTERNAL_CONVERSATIONS: ChatConversation[] = [
-  {
-    id: '1',
-    contactName: 'Carlos Eduardo Oliveira',
-    lastMessage: 'Doutor, você viu a última movimentação do processo?',
-    timestamp: '10:45',
-    unreadCount: 2,
-    online: true,
-    avatar: 'https://ui-avatars.com/api/?name=Carlos+Eduardo&background=002B49&color=fff',
-    messages: [
-      { id: 'm1', text: 'Bom dia, Carlos!', timestamp: '09:00', fromMe: true },
-      { id: 'm2', text: 'Bom dia, Doutor. Gostaria de saber sobre o processo de indenização.', timestamp: '09:05', fromMe: false },
-      { id: 'm3', text: 'Já estamos verificando. Houve uma sentença favorável ontem.', timestamp: '10:00', fromMe: true },
-      { id: 'm4', text: 'Doutor, você viu a última movimentação do processo?', timestamp: '10:45', fromMe: false },
-    ]
-  },
-  {
-    id: '2',
-    contactName: 'Dra. Aline Silva (Testemunha)',
-    lastMessage: 'Os documentos já foram anexados no drive.',
-    timestamp: '08:20',
-    unreadCount: 0,
-    online: false,
-    avatar: 'https://ui-avatars.com/api/?name=Aline+Silva&background=A67C52&color=fff',
-    messages: [
-      { id: 'a1', text: 'Olá Aline, pode enviar os arquivos?', timestamp: '08:00', fromMe: true },
-      { id: 'a2', text: 'Os documentos já foram anexados no drive.', timestamp: '08:20', fromMe: false },
-    ]
-  }
-];
+const MOCK_EXTERNAL_CONVERSATIONS: ChatConversation[] = [];
 
-const MOCK_INTERNAL_CONVERSATIONS: ChatConversation[] = [
-  {
-    id: 'team1',
-    contactName: 'Dr. Marcos (Financeiro)',
-    lastMessage: 'Marcos, o repasse do processo #452 foi feito?',
-    timestamp: 'Ontem',
-    unreadCount: 0,
-    online: true,
-    avatar: 'https://ui-avatars.com/api/?name=Marcos+Silva&background=A67C52&color=fff',
-    messages: [
-      { id: 't1', text: 'Marcos, o repasse do processo #452 foi feito?', timestamp: '16:00', fromMe: true },
-    ]
-  },
-  {
-    id: 'team2',
-    contactName: 'Beatriz - Controladoria',
-    lastMessage: 'Prazos da semana revisados. Tudo em dia.',
-    timestamp: '09:15',
-    unreadCount: 1,
-    online: true,
-    avatar: 'https://ui-avatars.com/api/?name=Beatriz+Luz&background=002B49&color=fff',
-    messages: [
-      { id: 'b1', text: 'Prazos da semana revisados. Tudo em dia.', timestamp: '09:15', fromMe: false },
-    ]
-  }
-];
+const MOCK_INTERNAL_CONVERSATIONS: ChatConversation[] = [];
 
 const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '👍', '😊', '📎'];
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];

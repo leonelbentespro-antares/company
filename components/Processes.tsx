@@ -41,15 +41,7 @@ import { getProcesses, createProcess, updateProcess, deleteProcess } from '../se
 import { useTenant } from '../services/tenantContext.tsx';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
-const INITIAL_CLIENTS = [
-    "Carlos Eduardo Oliveira",
-    "Maria Helena Souza",
-    "TecnoLogic LTDA",
-    "Roberto J. Pereira",
-    "Bancos S.A.",
-    "Condomínio Solar das Palmeiras"
-];
-
+const INITIAL_CLIENTS: string[] = [];
 interface KanbanStage {
     id: string;
     label: string;

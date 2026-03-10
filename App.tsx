@@ -122,11 +122,7 @@ const App: React.FC = () => {
   });
 
   // Notifications State
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: '1', title: 'Movimentação Processual', description: 'Nova sentença publicada no processo 5001234...', time: '10 min atrás', type: 'update', read: false },
-    { id: '2', title: 'Tenant Provisionado', description: 'Almeida Advocacia ativou o plano Enterprise.', time: '2 horas atrás', type: 'success', read: false },
-    { id: '3', title: 'Alerta de Segurança', description: 'Novo login detectado de um IP desconhecido.', time: 'Ontem', type: 'alert', read: true },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // States para edição de perfil e senha
   const [profileForm, setProfileForm] = useState<Partial<User>>({});

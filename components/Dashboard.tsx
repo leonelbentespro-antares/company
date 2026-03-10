@@ -45,14 +45,7 @@ import { User, UserRole, Tenant, Process } from '../types.ts';
 import { getTenants, getProcesses, getMyTenant } from '../services/supabaseService.ts';
 import { useTenant } from '../services/tenantContext.tsx';
 
-const dataPerformance = [
-  { name: 'Jan', mrr: 65000, processes: 120 },
-  { name: 'Fev', mrr: 68000, processes: 145 },
-  { name: 'Mar', mrr: 72000, processes: 160 },
-  { name: 'Abr', mrr: 78000, processes: 190 },
-  { name: 'Mai', mrr: 84000, processes: 210 },
-  { name: 'Jun', mrr: 84520, processes: 235 },
-];
+const dataPerformance: any[] = [];
 
 interface DashboardProps {
   onNavigate?: (tab: string) => void;
@@ -273,8 +266,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
             case 'arr': return <MetricCard key={widget.id} label="ARR Projetado" value={`R$ ${(totalMRR * 12).toLocaleString('pt-BR')}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
             case 'tenants_count': return <MetricCard key={widget.id} label="Tenants Ativos" value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
             case 'processes_count': return <MetricCard key={widget.id} label="Processos no CRM" value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
-            case 'churn': return <MetricCard key={widget.id} label="Churn Rate" value="1.4%" percentage={0.2} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
-            case 'ltv': return <MetricCard key={widget.id} label="Lifetime Value" value="R$ 18.200" percentage={3.1} trend="up" icon={<TrendingUp size={20} />} />;
+            case 'churn': return <MetricCard key={widget.id} label="Churn Rate" value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
+            case 'ltv': return <MetricCard key={widget.id} label="Lifetime Value" value="R$ 0" percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
             default: return null;
           }
         })}
