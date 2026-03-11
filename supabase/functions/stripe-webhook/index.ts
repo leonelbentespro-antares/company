@@ -50,9 +50,9 @@ Deno.serve(async (req) => {
         
         // Mapeamento Price ID → Nome do Plano (sincronizado com constants.ts)
         const PRICE_TO_PLAN: Record<string, string> = {
-          'price_1T3jHtJ9ZEZzMZTmJ5KkKRJ0': 'Starter',
-          'price_1T3jHvJ9ZEZzMZTmLmeSeRpP': 'Professional',
-          'price_1T3jHwJ9ZEZzMZTmoobBAcbc': 'Enterprise',
+          'price_1T9ZSsJkjv97hpBsEsiZuldR': 'Starter',
+          'price_1T9ZSsJkjv97hpBso0cmGwto': 'Professional',
+          'price_1T9ZT6Jkjv97hpBs9uwLpDS1': 'Enterprise',
         };
         const priceId = subscription.items.data[0]?.price.id ?? '';
         const planName = PRICE_TO_PLAN[priceId] ?? 'Starter';
@@ -80,9 +80,9 @@ Deno.serve(async (req) => {
 
       // Mapeamento Price ID → Nome do Plano
       const PRICE_TO_PLAN: Record<string, string> = {
-        'price_1T3jHtJ9ZEZzMZTmJ5KkKRJ0': 'Starter',
-        'price_1T3jHvJ9ZEZzMZTmLmeSeRpP': 'Professional',
-        'price_1T3jHwJ9ZEZzMZTmoobBAcbc': 'Enterprise',
+        'price_1T9ZSsJkjv97hpBsEsiZuldR': 'Starter',
+        'price_1T9ZSsJkjv97hpBso0cmGwto': 'Professional',
+        'price_1T9ZT6Jkjv97hpBs9uwLpDS1': 'Enterprise',
       };
       const priceId = subscription.items.data[0]?.price.id ?? '';
       const planName = PRICE_TO_PLAN[priceId] ?? 'Starter';

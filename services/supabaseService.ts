@@ -12,7 +12,7 @@ import { supabase } from './supabaseClient';
 import {
     Tenant, Process, AIAgent, ChatConversation, User, PlanName,
     CRMStage, ProcessStage, UserRole, Integration, WhatsAppDevice,
-    MetaConnection, UnifiedConversation
+    MetaConnection, UnifiedConversation, ProcessDocument
 } from '../types';
 
 // ============================================================
@@ -302,9 +302,138 @@ export async function updateProcess(id: string, tenantId: string | null, updates
 
 export async function deleteProcess(id: string, tenantId: string | null): Promise<void> {
     const tid = requireTenantId(tenantId);
-    const { error } = await supabase.from('processes').delete()
-        .eq('id', id).eq('tenant_id', tid);
+    const { error } = await supabase.from('processes').delete().eq('id', id).eq('tenant_id', tid);
     if (error) throw error;
+}
+
+// ============================================================
+// PROCESS DOCUMENTS — arquivos de cada processo
+// ============================================================
+
+export async function getProcessDocuments(tenantId: string | null, processId: string): Promise<ProcessDocument[]> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('process_documents')
+        .select('*')
+        .eq('process_id', processId)
+        .eq('tenant_id', tid)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(row => ({
+        id: row.id,
+        process_id: row.process_id,
+        name: row.name,
+        status: row.status as any,
+        file_url: row.file_url,
+        file_size: row.file_size,
+        file_type: row.file_type,
+        storage_path: row.storage_path,
+        created_at: row.created_at
+    }));
+}
+
+export async function uploadProcessDocument(
+    tenantId: string | null, 
+    processId: string, 
+    file: File
+): Promise<ProcessDocument> {
+    const tid = requireTenantId(tenantId);
+    
+    // 1. Upload para o Storage
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${tid}/${processId}/${fileName}`;
+    
+    const { data: storageData, error: storageError } = await supabase.storage
+        .from('process-documents')
+        .upload(filePath, file);
+        
+    if (storageError) throw storageError;
+
+    // 2. Obter URL pública (ou assinada, mas aqui usaremos o helper da base)
+    const { data: { publicUrl } } = supabase.storage
+        .from('process-documents')
+        .getPublicUrl(filePath);
+
+    // 3. Registrar no Banco de Dados
+    const { data, error } = await supabase
+        .from('process_documents')
+        .insert({
+            tenant_id: tid,
+            process_id: processId,
+            name: file.name,
+            status: 'Received',
+            file_url: publicUrl,
+            file_size: file.size,
+            file_type: file.type,
+            storage_path: filePath
+        })
+        .select()
+        .single();
+        
+    if (error) {
+        // Cleanup storage if db fails
+        await supabase.storage.from('process-documents').remove([filePath]);
+        throw error;
+    }
+
+    return {
+        id: data.id,
+        process_id: data.process_id,
+        name: data.name,
+        status: data.status,
+        file_url: data.file_url,
+        file_size: data.file_size,
+        file_type: data.file_type,
+        storage_path: data.storage_path,
+        created_at: data.created_at
+    };
+}
+
+export async function deleteProcessDocument(
+    tenantId: string | null, 
+    docId: string, 
+    storagePath: string
+): Promise<void> {
+    const tid = requireTenantId(tenantId);
+    
+    // 1. Remover do Storage
+    const { error: storageError } = await supabase.storage
+        .from('process-documents')
+        .remove([storagePath]);
+        
+    if (storageError) console.error('Aviso: Erro ao remover do storage, continuando...', storageError);
+
+    // 2. Remover do Banco
+    const { error } = await supabase
+        .from('process_documents')
+        .delete()
+        .eq('id', docId)
+        .eq('tenant_id', tid);
+        
+    if (error) throw error;
+}
+
+export async function getProcessDocumentSignedUrl(
+    tenantId: string | null, 
+    storagePath: string
+): Promise<string> {
+    const tid = requireTenantId(tenantId);
+    
+    // Garantir que o path pertence ao tenant (segurança extra)
+    if (!storagePath.startsWith(`${tid}/`)) {
+        throw new Error('Acesso negado: O documento não pertence ao seu escritório.');
+    }
+
+    const { data, error } = await supabase.storage
+        .from('process-documents')
+        .createSignedUrl(storagePath, 3600); // URL válida por 1 hora
+
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error('Não foi possível gerar a URL de acesso.');
+
+    return data.signedUrl;
 }
 
 // ============================================================

@@ -13,6 +13,7 @@ export async function subscriptionGuard(req: Request, res: Response, next: NextF
 
     if (!tenantId) {
         // Se não houver tenantId, o authMiddleware falhou ou não foi aplicado
+        console.warn(`[SubscriptionGuard] Bloqueio preventivo: tenantId ausente para a rota ${req.path}`);
         res.status(401).json({ error: 'Tenant não identificado. Autenticação necessária.', code: 'UNAUTHORIZED' });
         return;
     }

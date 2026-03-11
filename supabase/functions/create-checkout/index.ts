@@ -48,51 +48,62 @@ Deno.serve(async (req) => {
     let customerId = null;
     let tenantId = '';
 
-    // Se houver usuário, buscamos o tenant e o stripe_customer_id em paralelo
+    // Busca simplificada em query única (Join)
     if (user) {
-      const { data: tenantUser } = await supabaseClient
+      const { data: userData } = await supabaseClient
         .from('tenant_users')
-        .select('tenant_id')
+        .select('tenant_id, tenants(stripe_customer_id)')
         .eq('user_id', user.id)
         .maybeSingle();
         
-      if (tenantUser) {
-          tenantId = tenantUser.tenant_id;
-          const { data: tenant } = await supabaseClient
-            .from('tenants')
-            .select('stripe_customer_id')
-            .eq('id', tenantId)
-            .maybeSingle();
-          customerId = tenant?.stripe_customer_id;
+      if (userData) {
+          tenantId = userData.tenant_id;
+          customerId = (userData.tenants as any)?.stripe_customer_id;
       }
     }
 
-    // Se não tivermos o ID do cliente, criamos ou buscamos no Stripe
-    if (!customerId) {
+    // Função interna para criar sessão (usada para retry se o customerId for inválido/antigo)
+    const createSession = async (cid: string | null) => {
+      return await stripe.checkout.sessions.create({
+        customer: cid || undefined,
+        customer_email: cid ? undefined : customerEmail, // Só passa email se não tiver CID
+        payment_method_types: ['card'],
+        line_items: [{ price: planId, quantity: 1 }],
+        mode: 'subscription',
+        success_url: `${origin}/dashboard/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/dashboard/plans?canceled=true`,
+        metadata: { tenant_id: tenantId, user_id: customerUserId }
+      });
+    };
+
+    let session;
+    try {
+      // Tentativa otimista: usa o customerId que temos
+      session = await createSession(customerId);
+    } catch (err: any) {
+      // Se o erro for "cliente não encontrado" (ex: mudou de Teste p/ Produção), limpamos e tentamos de novo
+      if (err.message?.includes('No such customer')) {
+        console.log('Customer not found, creating a new one...');
+        
         const customer = await stripe.customers.create({
-            email: customerEmail,
-            metadata: { tenant_id: tenantId, user_id: customerUserId }
+          email: customerEmail,
+          metadata: { tenant_id: tenantId, user_id: customerUserId }
         });
         customerId = customer.id;
         
-        // Atualização assíncrona (não bloqueia a criação da sessão)
+        // Atualização em background (não bloqueia o redirecionamento)
         if (tenantId) {
-            const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE);
-            supabaseAdmin.from('tenants').update({ stripe_customer_id: customerId }).eq('id', tenantId)
-              .then(({ error }) => error && console.error('Error updating tenant customer:', error));
+          const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE);
+          supabaseAdmin.from('tenants').update({ stripe_customer_id: customerId }).eq('id', tenantId)
+            .then(({ error }) => error && console.error('Error updating tenant customer:', error));
         }
+        
+        // Segunda tentativa com o novo customerId
+        session = await createSession(customerId);
+      } else {
+        throw err;
+      }
     }
-
-    // Criação da sessão de checkout
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ['card'],
-      line_items: [{ price: planId, quantity: 1 }],
-      mode: 'subscription',
-      success_url: `${origin}/dashboard/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/dashboard/plans?canceled=true`,
-      metadata: { tenant_id: tenantId, user_id: customerUserId }
-    });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

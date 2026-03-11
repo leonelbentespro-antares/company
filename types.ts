@@ -74,8 +74,14 @@ export interface User {
 
 export interface ProcessDocument {
   id: string;
+  process_id: string;
   name: string;
   status: 'Received' | 'Pending' | 'Missing';
+  file_url?: string;
+  file_size?: number;
+  file_type?: string;
+  storage_path?: string;
+  created_at?: string;
 }
 
 export interface Process {

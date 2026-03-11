@@ -84,6 +84,7 @@ import { integrationsRouter } from './routes/integrations.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { messagesRouter } from './routes/messages.js';
 import { subscriptionGuard } from './middleware/subscriptionGuard.js';
+import { authMiddleware } from './middleware/auth.js';
 import { initSocketIO } from './socket/index.js';
 
 // Inicializar Socket.IO no servidor HTTP compartilhado
@@ -94,10 +95,10 @@ app.use('/api/webhooks', webhookRouter);
 
 // Rotas da API: exigem JWT válido + tenant extraído + Assinatura Ativa
 // O middleware de auth e o guard de assinatura são aplicados aqui
-app.use('/api/whatsapp', subscriptionGuard, whatsappRouter);
-app.use('/api/integrations', subscriptionGuard, integrationsRouter);
-app.use('/api/api-keys', subscriptionGuard, apiKeysRouter);
-app.use('/api/messages', subscriptionGuard, messagesRouter);
+app.use('/api/whatsapp', authMiddleware, subscriptionGuard, whatsappRouter);
+app.use('/api/integrations', authMiddleware, subscriptionGuard, integrationsRouter);
+app.use('/api/api-keys', authMiddleware, subscriptionGuard, apiKeysRouter);
+app.use('/api/messages', authMiddleware, subscriptionGuard, messagesRouter);
 // app.use('/api', aiRouter);
 
 // Rota de admin para visualizar alertas de segurança (uso interno)

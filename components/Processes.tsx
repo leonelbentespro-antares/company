@@ -34,10 +34,11 @@ import {
     Download,
     Loader2,
     FileText,
-    Database
+    Database,
+    Eye
 } from 'lucide-react';
-import { Process, ProcessStage } from '../types.ts';
-import { getProcesses, createProcess, updateProcess, deleteProcess } from '../services/supabaseService.ts';
+import { Process, ProcessStage, ProcessDocument } from '../types.ts';
+import { getProcesses, createProcess, updateProcess, deleteProcess, getProcessDocuments, uploadProcessDocument, deleteProcessDocument, getProcessDocumentSignedUrl } from '../services/supabaseService.ts';
 import { useTenant } from '../services/tenantContext.tsx';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
@@ -92,6 +93,13 @@ export const Processes: React.FC = () => {
     const [selectedStage, setSelectedStage] = useState<KanbanStage | null>(null);
     const [showFeedback, setShowFeedback] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [activeTab, setActiveTab] = useState<'data' | 'documents'>('data');
+    const [processDocuments, setProcessDocuments] = useState<ProcessDocument[]>([]);
+    const [isDocLoading, setIsDocLoading] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<ProcessDocument | null>(null);
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -123,6 +131,93 @@ export const Processes: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [showFeedback]);
+
+    useEffect(() => {
+        if (isEditModalOpen && selectedProcess && activeTab === 'documents') {
+            loadDocuments();
+        }
+    }, [isEditModalOpen, selectedProcess, activeTab]);
+
+    const loadDocuments = async () => {
+        if (!selectedProcess) return;
+        setIsDocLoading(true);
+        try {
+            const docs = await getProcessDocuments(tenantId, selectedProcess.id);
+            setProcessDocuments(docs);
+        } catch (err) {
+            console.error('Erro ao carregar documentos:', err);
+        } finally {
+            setIsDocLoading(false);
+        }
+    };
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedProcess) return;
+
+        setIsUploading(true);
+        try {
+            const newDoc = await uploadProcessDocument(tenantId, selectedProcess.id, file);
+            setProcessDocuments(prev => [newDoc, ...prev]);
+            setShowFeedback({ message: 'Arquivo enviado com sucesso!', type: 'success' });
+        } catch (err) {
+            console.error('Erro no upload:', err);
+            setShowFeedback({ message: 'Falha ao enviar arquivo.', type: 'error' });
+        } finally {
+            setIsUploading(false);
+            if (e.target) e.target.value = '';
+        }
+    };
+
+    const handleDeleteDoc = async (doc: ProcessDocument) => {
+        if (!doc.storage_path) return;
+        try {
+            await deleteProcessDocument(tenantId, doc.id, doc.storage_path);
+            setProcessDocuments(prev => prev.filter(d => d.id !== doc.id));
+            if (selectedPreviewDoc?.id === doc.id) setSelectedPreviewDoc(null);
+            setShowFeedback({ message: 'Documento removido.', type: 'success' });
+        } catch (err) {
+            console.error('Erro ao deletar documento:', err);
+            setShowFeedback({ message: 'Erro ao remover documento.', type: 'error' });
+        }
+    };
+
+    const handleDownloadDoc = async (doc: ProcessDocument) => {
+        if (!doc.storage_path) return;
+        try {
+            const signedUrl = await getProcessDocumentSignedUrl(tenantId, doc.storage_path);
+            const response = await fetch(signedUrl);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = doc.name;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            console.error('Erro ao baixar arquivo:', err);
+            setShowFeedback({ message: 'Erro ao baixar arquivo.', type: 'error' });
+        }
+    };
+
+    const handleOpenPreview = async (doc: ProcessDocument) => {
+        if (!doc.storage_path) return;
+        setSelectedPreviewDoc(doc);
+        setPreviewUrl(null);
+        setIsPreviewLoading(true);
+        try {
+            const url = await getProcessDocumentSignedUrl(tenantId, doc.storage_path);
+            setPreviewUrl(url);
+        } catch (err) {
+            console.error('Erro ao gerar preview:', err);
+            setShowFeedback({ message: 'Erro ao carregar visualização.', type: 'error' });
+            setSelectedPreviewDoc(null);
+        } finally {
+            setIsPreviewLoading(false);
+        }
+    };
 
     const filteredProcesses = processes.filter(p => {
         const matchesSearch = p.number.includes(searchTerm) ||
@@ -541,7 +636,11 @@ export const Processes: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {filteredProcesses.map((p) => (
-                                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                                    <tr 
+                                        key={p.id} 
+                                        onClick={() => { setSelectedProcess(p); setFormData({ ...p }); setIsEditModalOpen(true); }}
+                                        className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
+                                    >
                                         <td className="px-6 py-4">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-1.5 text-slate-900 dark:text-slate-100 font-bold text-sm">
@@ -565,8 +664,8 @@ export const Processes: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex justify-center gap-2">
-                                                <button onClick={() => { setSelectedProcess(p); setFormData({ ...p }); setIsEditModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-legal-navy hover:text-white dark:hover:bg-legal-bronze rounded-xl transition-all"><Edit2 size={16} /></button>
-                                                <button onClick={() => { setSelectedProcess(p); setIsDeleteModalOpen(true); }} className="p-2 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 rounded-xl transition-all"><Trash2 size={16} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(p); setFormData({ ...p }); setIsEditModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-legal-navy hover:text-white dark:hover:bg-legal-bronze rounded-xl transition-all"><Edit2 size={16} /></button>
+                                                <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(p); setIsDeleteModalOpen(true); }} className="p-2 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 rounded-xl transition-all"><Trash2 size={16} /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -615,14 +714,15 @@ export const Processes: React.FC = () => {
                                                                     ref={provided.innerRef}
                                                                     {...provided.draggableProps}
                                                                     {...provided.dragHandleProps}
-                                                                    className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group relative"
+                                                                    onClick={() => { setSelectedProcess(process); setFormData({ ...process }); setIsEditModalOpen(true); }}
+                                                                    className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group relative cursor-pointer"
                                                                 >
                                                                     <div className="space-y-2 mb-4">
                                                                         <div className="flex justify-between items-start">
                                                                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">CNJ: {process.number.split('.')[0]}...</span>
                                                                             <div className="flex items-center gap-1">
-                                                                                <button onClick={() => { setSelectedProcess(process); setFormData({ ...process }); setIsEditModalOpen(true); }} className="text-slate-300 dark:text-slate-600 hover:text-legal-navy"><Edit2 size={12} /></button>
-                                                                                <button onClick={() => { setSelectedProcess(process); setIsDeleteModalOpen(true); }} className="text-slate-300 dark:text-slate-600 hover:text-rose-500"><Trash2 size={12} /></button>
+                                                                                <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(process); setFormData({ ...process }); setIsEditModalOpen(true); }} className="text-slate-300 dark:text-slate-600 hover:text-legal-navy"><Edit2 size={12} /></button>
+                                                                                <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(process); setIsDeleteModalOpen(true); }} className="text-slate-300 dark:text-slate-600 hover:text-rose-500"><Trash2 size={12} /></button>
                                                                             </div>
                                                                         </div>
                                                                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight">{process.clientName}</h4>
@@ -630,8 +730,8 @@ export const Processes: React.FC = () => {
                                                                     </div>
 
                                                                     <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-700">
-                                                                        <button onClick={() => moveStage(process.id, 'prev')} disabled={kanbanStages.indexOf(stage) === 0} className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-0">Voltar</button>
-                                                                        <button onClick={() => moveStage(process.id, 'next')} disabled={kanbanStages.indexOf(stage) === kanbanStages.length - 1} className="px-3 py-1.5 bg-legal-navy dark:bg-legal-bronze text-white rounded-lg text-[10px] font-bold hover:brightness-110 disabled:opacity-0 flex items-center gap-1">Avançar <ChevronRight size={10} /></button>
+                                                                        <button onClick={(e) => { e.stopPropagation(); moveStage(process.id, 'prev'); }} disabled={kanbanStages.indexOf(stage) === 0} className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-0">Voltar</button>
+                                                                        <button onClick={(e) => { e.stopPropagation(); moveStage(process.id, 'next'); }} disabled={kanbanStages.indexOf(stage) === kanbanStages.length - 1} className="px-3 py-1.5 bg-legal-navy dark:bg-legal-bronze text-white rounded-lg text-[10px] font-bold hover:brightness-110 disabled:opacity-0 flex items-center gap-1">Avançar <ChevronRight size={10} /></button>
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -736,90 +836,179 @@ export const Processes: React.FC = () => {
                             </div>
                         </div>
 
-                        <form onSubmit={handleUpdateProcess} className="p-8 grid grid-cols-2 gap-6">
-                            <div className="col-span-2 md:col-span-1 space-y-2">
-                                <label className="text-xs font-black text-slate-500 uppercase">Número do Processo (CNJ)</label>
-                                <div className="relative">
-                                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
-                                        value={formData.number}
-                                        onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                                    />
-                                </div>
-                            </div>
+                        <div className="flex border-b border-slate-100 dark:border-slate-800 px-8">
+                            <button 
+                                onClick={() => setActiveTab('data')}
+                                className={`py-4 px-6 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'data' ? 'border-legal-bronze text-legal-navy dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                            >
+                                Dados do Processo
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('documents')}
+                                className={`py-4 px-6 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'documents' ? 'border-legal-bronze text-legal-navy dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'} flex items-center gap-2`}
+                            >
+                                Documentos <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{processDocuments.length}</span>
+                            </button>
+                        </div>
 
-                            <div className="col-span-2 md:col-span-1 space-y-2">
-                                <label className="text-xs font-black text-slate-500 uppercase">Cliente</label>
-                                <div className="relative">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input
-                                        type="text"
-                                        required
-                                        list="clients-list"
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
-                                        value={formData.clientName}
-                                        onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                                    />
-                                    <datalist id="clients-list">
-                                        {clients.map(c => <option key={c} value={c} />)}
-                                    </datalist>
+                        {activeTab === 'data' ? (
+                            <form onSubmit={handleUpdateProcess} className="p-8 grid grid-cols-2 gap-6">
+                                <div className="col-span-2 md:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase">Número do Processo (CNJ)</label>
+                                    <div className="relative">
+                                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
+                                            value={formData.number}
+                                            onChange={(e) => setFormData({ ...formData, number: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="col-span-2 space-y-2">
-                                <label className="text-xs font-black text-slate-500 uppercase">Assunto / Objeto</label>
-                                <div className="relative">
-                                    <FileText className="absolute left-3 top-3 text-slate-400" size={18} />
-                                    <textarea
-                                        required
-                                        rows={3}
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-medium text-slate-600 dark:text-slate-300 resize-none"
-                                        value={formData.subject}
-                                        onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                                    ></textarea>
+                                <div className="col-span-2 md:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase">Cliente</label>
+                                    <div className="relative">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            type="text"
+                                            required
+                                            list="clients-list"
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
+                                            value={formData.clientName}
+                                            onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                                        />
+                                        <datalist id="clients-list">
+                                            {clients.map(c => <option key={c} value={c} />)}
+                                        </datalist>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="col-span-2 md:col-span-1 space-y-2">
-                                <label className="text-xs font-black text-slate-500 uppercase">Tribunal / Vara</label>
-                                <div className="relative">
-                                    <Gavel className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input
-                                        type="text"
-                                        required
-                                        className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
-                                        value={formData.court}
-                                        onChange={(e) => setFormData({ ...formData, court: e.target.value })}
-                                    />
+                                <div className="col-span-2 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase">Assunto / Objeto</label>
+                                    <div className="relative">
+                                        <FileText className="absolute left-3 top-3 text-slate-400" size={18} />
+                                        <textarea
+                                            required
+                                            rows={3}
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-medium text-slate-600 dark:text-slate-300 resize-none"
+                                            value={formData.subject}
+                                            onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                                        ></textarea>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="col-span-2 md:col-span-1 space-y-2">
-                                <label className="text-xs font-black text-slate-500 uppercase">Status Atual</label>
-                                <div className="relative">
-                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
-                                    <select
-                                        className="w-full pl-4 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white appearance-none cursor-pointer"
-                                        value={formData.status}
-                                        onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                                    >
-                                        <option value="Active">Em Curso</option>
-                                        <option value="Suspended">Suspenso</option>
-                                        <option value="Archived">Arquivado</option>
-                                    </select>
+                                <div className="col-span-2 md:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase">Tribunal / Vara</label>
+                                    <div className="relative">
+                                        <Gavel className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input
+                                            type="text"
+                                            required
+                                            className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
+                                            value={formData.court}
+                                            onChange={(e) => setFormData({ ...formData, court: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="col-span-2 pt-4 flex gap-3">
-                                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
-                                <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-xl font-bold hover:brightness-110 shadow-lg shadow-legal-navy/20 flex items-center justify-center gap-2">
-                                    <Save size={20} /> Salvar Alterações
-                                </button>
+                                <div className="col-span-2 md:col-span-1 space-y-2">
+                                    <label className="text-xs font-black text-slate-500 uppercase">Status Atual</label>
+                                    <div className="relative">
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                                        <select
+                                            className="w-full pl-4 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white appearance-none cursor-pointer"
+                                            value={formData.status}
+                                            onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                                        >
+                                            <option value="Active">Em Curso</option>
+                                            <option value="Suspended">Suspenso</option>
+                                            <option value="Archived">Arquivado</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 pt-4 flex gap-3">
+                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                                    <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-xl font-bold hover:brightness-110 shadow-lg shadow-legal-navy/20 flex items-center justify-center gap-2">
+                                        <Save size={20} /> Salvar Alterações
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="p-8 space-y-6 animate-in fade-in duration-300">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Cofre de Documentos</h4>
+                                    <label className="cursor-pointer">
+                                        <input type="file" className="hidden" onChange={handleUpload} disabled={isUploading} />
+                                        <span className="flex items-center gap-2 px-4 py-2 bg-legal-navy text-white rounded-xl text-xs font-bold hover:bg-opacity-90 transition-all shadow-md">
+                                            {isUploading ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+                                            Subir Arquivo
+                                        </span>
+                                    </label>
+                                </div>
+
+                                {isDocLoading ? (
+                                    <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+                                        <Loader2 className="animate-spin text-legal-bronze" size={32} />
+                                        <p className="text-xs font-bold uppercase tracking-widest">Abrindo Cofre...</p>
+                                    </div>
+                                ) : processDocuments.length === 0 ? (
+                                    <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-4 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-[2rem]">
+                                        <Archive size={48} className="opacity-20" />
+                                        <div className="text-center">
+                                            <p className="font-bold text-slate-500 dark:text-slate-400">Nenhum documento guardado</p>
+                                            <p className="text-xs">Suba procurações, petições ou provas aqui.</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {processDocuments.map(doc => (
+                                            <div key={doc.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 group hover:border-legal-bronze transition-all">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center text-legal-navy dark:text-legal-bronze shadow-sm">
+                                                        {doc.file_type?.includes('pdf') ? <FileText size={20} /> : <FileSpreadsheet size={20} />}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200 line-clamp-1">{doc.name}</p>
+                                                        <p className="text-[10px] text-slate-400 font-medium">
+                                                            {(doc.file_size || 0) > 1024 * 1024 
+                                                                ? `${((doc.file_size || 0) / (1024 * 1024)).toFixed(1)} MB` 
+                                                                : `${((doc.file_size || 0) / 1024).toFixed(0)} KB`} 
+                                                            • {new Date(doc.created_at || '').toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={() => handleOpenPreview(doc)}
+                                                        title="Visualização Rápida"
+                                                        className="p-2 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-legal-navy rounded-lg transition-colors shadow-sm"
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDownloadDoc(doc)}
+                                                        title="Baixar Arquivo"
+                                                        className="p-2 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-legal-navy rounded-lg transition-colors shadow-sm"
+                                                    >
+                                                        <Download size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteDoc(doc)}
+                                                        title="Excluir"
+                                                        className="p-2 bg-white dark:bg-slate-700 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shadow-sm"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        </form>
+                        )}
                     </div>
                 </div>
             )}
@@ -1009,6 +1198,86 @@ export const Processes: React.FC = () => {
                                 {selectedStage ? 'Salvar Alterações' : 'Criar Etapa'}
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* --- QUICK LOOK MODAL (APPLE STYLE) --- */}
+            {selectedPreviewDoc && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl" onClick={() => setSelectedPreviewDoc(null)}></div>
+                    
+                    <div className="relative bg-white dark:bg-slate-900 w-full h-full max-w-6xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-legal-navy rounded-xl flex items-center justify-center text-white">
+                                    {selectedPreviewDoc.file_type?.includes('pdf') ? <FileText size={20} /> : <Eye size={20} />}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-900 dark:text-white">{selectedPreviewDoc.name}</h4>
+                                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Visualização Rápida • {((selectedPreviewDoc.file_size || 0) / 1024).toFixed(0)} KB</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => handleDownloadDoc(selectedPreviewDoc)}
+                                    className="hidden md:flex items-center gap-2 px-6 py-2 bg-legal-navy text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all"
+                                >
+                                    <Download size={14} /> Baixar
+                                </button>
+                                <button 
+                                    onClick={() => setSelectedPreviewDoc(null)}
+                                    className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-full hover:bg-rose-50 hover:text-rose-500 transition-all"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-950/50 flex items-center justify-center p-4">
+                            {isPreviewLoading ? (
+                                <div className="flex flex-col items-center gap-4">
+                                    <Loader2 className="animate-spin text-legal-navy" size={48} />
+                                    <p className="text-slate-400 font-bold animate-pulse">Gerando acesso seguro...</p>
+                                </div>
+                            ) : previewUrl ? (
+                                selectedPreviewDoc.file_type?.includes('image') ? (
+                                    <img 
+                                        src={previewUrl} 
+                                        alt={selectedPreviewDoc.name}
+                                        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+                                    />
+                                ) : selectedPreviewDoc.file_type?.includes('pdf') ? (
+                                    <iframe 
+                                        src={`${previewUrl}#toolbar=0`} 
+                                        className="w-full h-full border-none rounded-xl"
+                                        title="PDF Preview"
+                                    />
+                                ) : (
+                                    <div className="text-center space-y-6 max-w-sm">
+                                        <div className="w-32 h-32 bg-white dark:bg-slate-800 rounded-[2.5rem] flex items-center justify-center mx-auto shadow-xl text-legal-navy dark:text-legal-bronze rotate-3">
+                                            {selectedPreviewDoc.file_type?.includes('spreadsheet') || selectedPreviewDoc.name.endsWith('.csv') ? <FileSpreadsheet size={64} /> : <Archive size={64} />}
+                                        </div>
+                                        <div>
+                                            <h5 className="text-xl font-bold">Arquivo {selectedPreviewDoc.file_type?.split('/').pop()?.toUpperCase() || 'DOCUMENTO'}</h5>
+                                            <p className="text-sm text-slate-400 mt-2">
+                                                Este formato não suporta visualização direta no navegador. Use o botão abaixo para baixar e abrir no seu sistema.
+                                            </p>
+                                        </div>
+                                        <button 
+                                            onClick={() => handleDownloadDoc(selectedPreviewDoc)}
+                                            className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                        >
+                                            <Download size={20} /> Baixar para o Computador
+                                        </button>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="text-rose-500 font-bold">Erro ao carregar visualização.</div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
