@@ -105,3 +105,90 @@ webhookRouter.post('/notificame', async (req: Request, res: Response) => {
 
     res.status(200).send('OK');
 });
+
+/**
+ * Webhook para o Supabase (Tabela workspace_invites)
+ * Disparado quando um novo convite é inserido.
+ */
+webhookRouter.post('/supabase/invites', async (req: Request, res: Response) => {
+    console.log('[Webhook Supabase] Recebido:', JSON.stringify(req.body));
+    const { record, type } = req.body;
+
+    // Apenas processamos inserções
+    if (type !== 'INSERT') {
+        console.log('[Webhook Supabase] Ignorando tipo de evento:', type);
+        return res.status(200).send('Event ignored');
+    }
+
+    if (!record) {
+        console.error('[Webhook Supabase] Payload inválido: "record" ausente.');
+        return res.status(400).send('Invalid payload');
+    }
+
+    const { email, tenant_id, role } = record;
+
+    if (!email || !tenant_id) {
+        console.warn('[Webhook Supabase] Dados insuficientes no registro:', record);
+        return res.status(400).send('Missing email or tenant_id');
+    }
+
+    try {
+        console.log(`[Webhook Supabase] Processando convite para ${email} (Tenant: ${tenant_id})`);
+        const { emailService } = await import('../services/emailService.js');
+        const { supabaseAdmin } = await import('../config/supabase.js');
+
+        // 1. Buscar nome do Escritório (Tenant)
+        const { data: tenant, error: tenantError } = await supabaseAdmin
+            .from('tenants')
+            .select('name')
+            .eq('id', tenant_id)
+            .single();
+
+        if (tenantError) {
+            console.error('[Webhook Supabase] Erro ao buscar tenant:', tenantError);
+        }
+
+        const tenantName = tenant?.name || 'LexHub Workspace';
+        const baseUrl = process.env.VITE_APP_URL || 'https://lexhub.company';
+
+        console.log(`[Webhook Supabase] Preparando email para ${email} em nome de ${tenantName}`);
+
+        // 2. Enviar Email
+        const { data, error } = await emailService.sendEmail({
+            from: 'LexHub <noreply@lexhub.company>',
+            to: email,
+            subject: `Você foi convidado para o time ${tenantName} no LexHub`,
+            html: `
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; rounded: 10px;">
+                    <h2 style="color: #1e293b;">Olá! 👋</h2>
+                    <p style="font-size: 16px; color: #475569;">
+                        Você foi convidado para se juntar ao escritório <strong>${tenantName}</strong> no LexHub como <strong>${role === 'admin' ? 'Administrador' : 'Colaborador'}</strong>.
+                    </p>
+                    <p style="font-size: 16px; color: #475569;">
+                        Para aceitar o convite e começar a trabalhar, clique no botão abaixo para criar sua conta ou fazer login:
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="${baseUrl}/auth" style="background-color: #0f172a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                            Acessar LexHub
+                        </a>
+                    </div>
+                    <hr style="border: 0; border-top: 1px solid #eee;" />
+                    <p style="font-size: 12px; color: #94a3b8;">
+                        Se você não esperava este convite, pode ignorar este email.
+                    </p>
+                </div>
+            `
+        });
+
+        if (error) {
+            console.error('[Webhook Supabase] Erro ao enviar email:', error);
+            return res.status(500).json({ error: 'Email failed', details: error });
+        }
+
+        console.log(`✅ Convite enviado com sucesso para: ${email}. ID Resend:`, data);
+        res.status(200).send('Invite sent');
+    } catch (err) {
+        console.error('[Webhook Supabase] Erro crítico:', err);
+        res.status(500).send('Internal error');
+    }
+});

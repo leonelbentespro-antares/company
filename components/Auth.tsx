@@ -17,15 +17,20 @@ import {
 } from 'lucide-react';
 import { UserRole } from '../types.ts';
 import { supabase } from '../services/supabaseClient.ts';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 interface AuthProps {
   onLogin: (userData: any) => void;
+  initialView?: 'auth' | 'forgot-password' | 'update-password';
 }
 
-export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+export const Auth: React.FC<AuthProps> = ({ onLogin, initialView = 'auth' }) => {
+  const [view, setView] = useState<'auth' | 'forgot-password' | 'update-password'>(initialView);
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [isSignUpSuccess, setIsSignUpSuccess] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
   const [authType, setAuthType] = useState<'professional' | 'client'>('professional');
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -36,77 +41,85 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
     password: '',
     confirmPassword: ''
   });
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validação de senha no cadastro
-    if (!isLogin && formData.password !== formData.confirmPassword) {
+    // Validação de senha no cadastro ou atualização
+    if ((!isLogin || view === 'update-password') && formData.password !== formData.confirmPassword) {
       setError("As senhas digitadas não coincidem.");
+      return;
+    }
+
+    if ((isLogin || !isLogin) && view === 'auth' && !captchaToken) {
+      setError("Por favor, resolva o Captcha antes de continuar.");
       return;
     }
 
     setLoading(true);
 
     try {
-      let authUser = null;
-
-      if (isLogin) {
-        // Tentativa de Login
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
+      if (view === 'forgot-password') {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+          redirectTo: window.location.origin,
         });
-
-        if (signInError) throw signInError;
-        authUser = data.user;
-
+        if (resetError) throw resetError;
+        setResetSuccess(true);
+      } else if (view === 'update-password') {
+        const { error: updateError } = await supabase.auth.updateUser({
+          password: formData.password
+        });
+        if (updateError) throw updateError;
+        setUpdateSuccess(true);
       } else {
-        // Cadastro de nova banca Admin
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.name
+        let authUser = null;
+
+        if (isLogin) {
+          const { data, error: signInError } = await supabase.auth.signInWithPassword({
+            email: formData.email,
+            password: formData.password,
+            options: {
+              captchaToken: captchaToken!
             }
-          }
-        });
-
-        if (signUpError) throw signUpError;
-        authUser = data.user;
-      }
-
-      const role = authType === 'client' ? UserRole.Client : UserRole.Admin;
-      const name = authType === 'client' ? (authUser?.user_metadata?.full_name || 'Cliente') : (formData.name || authUser?.user_metadata?.full_name || 'Usuário');
-
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const registrationId = `LH-2024-${randomSuffix}`;
-
-      // Envia os dados provisórios para o front end exibir enquanto o Tenant carrega em background
-      if (authUser) {
-        if (!isLogin) {
-          // Se for um novo cadastro, mostramos a tela de sucesso para confirmação de e-mail
-          setIsSignUpSuccess(true);
-          return;
+          });
+          if (signInError) throw signInError;
+          authUser = data.user;
+        } else {
+          const { data, error: signUpError } = await supabase.auth.signUp({
+            email: formData.email,
+            password: formData.password,
+            options: { 
+              data: { full_name: formData.name },
+              captchaToken: captchaToken!
+            }
+          });
+          if (signUpError) throw signUpError;
+          authUser = data.user;
         }
 
-        onLogin({
-          id: authUser.id,
-          registrationId: registrationId,
-          name: name,
-          email: authUser.email || formData.email,
-          role: role,
-          avatar: role === UserRole.Client
-            ? 'https://ui-avatars.com/api/?name=Carlos+Eduardo&background=002B49&color=fff'
-            : undefined
-        });
-      }
+        const role = authType === 'client' ? UserRole.Client : UserRole.Admin;
+        const name = authType === 'client' ? (authUser?.user_metadata?.full_name || 'Cliente') : (formData.name || authUser?.user_metadata?.full_name || 'Usuário');
+        const registrationId = `LH-2024-${Math.floor(1000 + Math.random() * 9000)}`;
 
+        if (authUser) {
+          if (!isLogin) {
+            setIsSignUpSuccess(true);
+            return;
+          }
+          onLogin({
+            id: authUser.id,
+            registrationId: registrationId,
+            name: name,
+            email: authUser.email || formData.email,
+            role: role
+          });
+        }
+      }
     } catch (err: any) {
       console.error("[Auth] Falha:", err);
-      setError(err.message || 'Erro ao autenticar no servidor.');
+      setError(err.message || 'Erro ao processar solicitação.');
     } finally {
       setLoading(false);
     }
@@ -179,10 +192,14 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
 
           <div className="mb-8 text-center md:text-left">
             <h2 className="text-3xl font-bold text-legal-navy mb-2">
-              {isLogin ? (authType === 'client' ? 'Portal do Cliente' : 'Acesso Profissional') : 'Criar minha conta'}
+              {view === 'forgot-password' ? 'Recuperar Senha' : 
+               view === 'update-password' ? 'Nova Senha' :
+               isLogin ? (authType === 'client' ? 'Portal do Cliente' : 'Acesso Profissional') : 'Criar minha conta'}
             </h2>
             <p className="text-slate-500 font-medium">
-              {isLogin
+              {view === 'forgot-password' ? 'Enviaremos um link de recuperação para seu e-mail.' :
+               view === 'update-password' ? 'Crie uma nova senha segura para sua conta.' :
+               isLogin
                 ? (authType === 'client' ? 'Consulte seus processos com transparência.' : 'Acesse seu painel administrativo.')
                 : 'Cadastre sua banca e comece agora.'}
             </p>
@@ -210,43 +227,57 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
             )}
 
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
-                {authType === 'client' ? 'Seu E-mail ou CPF' : 'E-mail Corporativo'}
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  type="text" name="email" required placeholder={authType === 'client' ? "nome@email.com" : "advogado@escritorio.com"}
-                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
-                  value={formData.email} onChange={handleChange}
-                />
+            {(view === 'auth' || view === 'forgot-password') && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                  {authType === 'client' ? 'Seu E-mail ou CPF' : 'E-mail Corporativo'}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type="text" name="email" required placeholder={authType === 'client' ? "nome@email.com" : "advogado@escritorio.com"}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
+                    value={formData.email} onChange={handleChange}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="space-y-1">
-              <div className="flex justify-between items-center ml-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Senha de Acesso</label>
-                {isLogin && <a href="#" className="text-[10px] text-legal-bronze font-bold hover:underline uppercase tracking-widest">Esqueceu?</a>}
+            {(view === 'auth' || view === 'update-password') && (
+              <div className="space-y-1">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    {view === 'update-password' ? 'Nova Senha' : 'Senha de Acesso'}
+                  </label>
+                  {isLogin && view === 'auth' && (
+                    <button 
+                      type="button"
+                      onClick={() => setView('forgot-password')}
+                      className="text-[10px] text-legal-bronze font-bold hover:underline uppercase tracking-widest"
+                    >
+                      Esqueceu?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <input
+                    type={showPassword ? "text" : "password"} name="password" required placeholder="••••••••"
+                    className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
+                    value={formData.password} onChange={handleChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input
-                  type={showPassword ? "text" : "password"} name="password" required placeholder="••••••••"
-                  className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 transition-all font-medium"
-                  value={formData.password} onChange={handleChange}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
+            )}
 
-            {!isLogin && (
+            {(!isLogin || view === 'update-password') && (
               <div className="space-y-1 animate-in slide-in-from-top-2">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Confirmar Senha</label>
                 <div className="relative">
@@ -267,19 +298,48 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
               </div>
             )}
 
+            {view === 'auth' && (
+              <div className="flex justify-center my-4">
+                <Turnstile 
+                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || ''} 
+                  onSuccess={(token) => {
+                    setCaptchaToken(token);
+                    if (error) setError(null);
+                  }}
+                  onExpire={() => setCaptchaToken(null)}
+                  onError={() => {
+                    setError("Erro ao carregar o captcha. Tente novamente.");
+                    setCaptchaToken(null);
+                  }}
+                />
+              </div>
+            )}
+
             <button
-              type="submit" disabled={loading}
+              type="submit" disabled={loading || (view === 'auth' && !captchaToken)}
               className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-xl disabled:opacity-70 mt-4 ${authType === 'client' ? 'bg-legal-bronze text-white shadow-legal-bronze/20' : 'bg-legal-navy text-white shadow-legal-navy/20'}`}
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  {isLogin ? 'Entrar no Portal' : 'Finalizar Cadastro'}
+                  {view === 'forgot-password' ? 'Enviar Link' :
+                   view === 'update-password' ? 'Salvar Nova Senha' :
+                   isLogin ? 'Entrar no Portal' : 'Finalizar Cadastro'}
                   <ArrowRight size={18} />
                 </>
               )}
             </button>
+
+            {view !== 'auth' && !updateSuccess && !resetSuccess && (
+              <button
+                type="button"
+                onClick={() => { setView('auth'); setResetSuccess(false); setUpdateSuccess(false); setError(null); }}
+                className="w-full py-2 text-xs font-bold text-slate-400 hover:text-legal-navy transition-colors uppercase tracking-widest mt-2"
+              >
+                Voltar para o Login
+              </button>
+            )}
           </form>
 
           {authType === 'professional' && (
@@ -296,10 +356,54 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
             </div>
           )}
 
-          {/* Popup de Confirmação de E-mail */}
+          {/* Popup de Sucesso no Reset de Senha */}
+          {resetSuccess && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setResetSuccess(false)}></div>
+              <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 border border-white/10">
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
+                  <CheckCircle2 size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-4">E-mail Enviado!</h2>
+                <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                  Verifique sua caixa de entrada. Enviamos um link para você redefinir sua senha com segurança.
+                </p>
+                <button
+                  onClick={() => { setResetSuccess(false); setView('auth'); }}
+                  className="w-full py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20"
+                >
+                  Voltar para o Login
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Popup de Sucesso na Atualização de Senha */}
+          {updateSuccess && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => { setUpdateSuccess(false); setView('auth'); window.location.reload(); }}></div>
+              <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 border border-white/10">
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600">
+                  <ShieldCheck size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-4">Senha Atualizada!</h2>
+                <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                  Sua nova senha foi salva com sucesso. Você já pode acessar o portal agora.
+                </p>
+                <button
+                  onClick={() => { setUpdateSuccess(false); setView('auth'); window.location.reload(); }}
+                  className="w-full py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20"
+                >
+                  Fazer Login
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Popup de Confirmação de E-mail (Cadastro) */}
           {isSignUpSuccess && (
             <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setIsSignUpSuccess(false); setIsLogin(true); }}></div>
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => { setIsSignUpSuccess(false); setView('auth'); setIsLogin(true); }}></div>
               <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 duration-300 transition-colors border border-white/10">
                 <div className="w-24 h-24 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-8 text-emerald-600 shadow-xl shadow-emerald-500/10">
                   <Mail size={48} className="animate-bounce" />
@@ -313,7 +417,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin }) => {
                 </p>
 
                 <button
-                  onClick={() => { setIsSignUpSuccess(false); setIsLogin(true); }}
+                  onClick={() => { setIsSignUpSuccess(false); setView('auth'); setIsLogin(true); }}
                   className="w-full py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   Entendi, vou verificar!

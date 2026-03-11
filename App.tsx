@@ -106,6 +106,7 @@ const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showProfileFeedback, setShowProfileFeedback] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
 
   // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
   useEffect(() => {
@@ -175,6 +176,16 @@ const App: React.FC = () => {
       });
     }
   }, [contextAuth, currentUser]);
+
+  // 🔔 Supabase Auth — Escutar evento de recuperação de senha
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // 🔔 Supabase Realtime — Assinar notificações de jobs de IA concluídos
   useEffect(() => {
@@ -286,7 +297,7 @@ const App: React.FC = () => {
 
   // Bloqueio de tela: Se não está autenticado no contexto e não temos um usuário local preventivo, mostra login
   if (!contextAuth && !tenantContextLoading && !currentUser) {
-    return <Auth onLogin={handleLogin} />;
+    return <Auth onLogin={handleLogin} initialView={isRecoveryMode ? 'update-password' : 'auth'} />;
   }
 
   // Trava a tela enquanto o Tenant não acorda no Contexto
@@ -777,7 +788,7 @@ const App: React.FC = () => {
       {isSidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
-          <aside className="absolute inset-y-0 left-0 w-72 bg-legal-navy p-6 flex flex-col animate-in slide-in-from-left duration-300">
+          <aside className="absolute inset-y-0 left-0 w-72 bg-legal-navy p-6 flex flex-col overflow-y-auto animate-in slide-in-from-left duration-300">
             <button
               onClick={() => setIsSidebarOpen(false)}
               className="absolute top-6 right-6 text-white/50 hover:text-white"

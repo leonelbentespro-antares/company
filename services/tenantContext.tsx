@@ -106,7 +106,49 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 });
             }
 
-            // 2. Criar tenant
+            // 2. Verificar se o usuário foi CONVIDADO para um workspace existente
+            const { data: invite, error: inviteError } = await supabase
+                .from('workspace_invites')
+                .select('*')
+                .eq('email', authUser.email)
+                .single();
+
+            if (invite) {
+                console.log('[TenantContext] Convite encontrado! Vinculando ao tenant:', invite.tenant_id);
+
+                // Vincular usuário ao tenant do convite
+                await supabase.from('tenant_users').insert({
+                    user_id: authUser.id,
+                    tenant_id: invite.tenant_id,
+                    role: invite.role || 'member',
+                });
+
+                // Deletar convite usado imediatamente
+                await supabase.from('workspace_invites').delete().eq('id', invite.id);
+
+                // Carregar dados do tenant convidado
+                const { data: convTenant } = await supabase
+                    .from('tenants')
+                    .select('*')
+                    .eq('id', invite.tenant_id)
+                    .single();
+
+                if (convTenant) {
+                    setTenantId(convTenant.id);
+                    setTenant({
+                        id: convTenant.id,
+                        name: convTenant.name,
+                        domain: convTenant.domain,
+                        plan: convTenant.plan,
+                        status: convTenant.status,
+                    });
+                }
+
+                setIsAuthenticated(true);
+                return;
+            }
+
+            // 3. Caso não tenha convite, CIAR NOVO TENANT (Lógica original)
             const { data: newTenant, error: tenantError } = await supabase
                 .from('tenants')
                 .insert({
@@ -124,14 +166,14 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 return;
             }
 
-            // 3. Vincular usuário ao tenant
+            // Vincular usuário ao novo tenant
             await supabase.from('tenant_users').insert({
                 user_id: authUser.id,
                 tenant_id: newTenant.id,
                 role: 'admin',
             });
 
-            // 4. Criar assinatura trial
+            // Criar assinatura trial
             await supabase.from('tenant_subscriptions').insert({
                 tenant_id: newTenant.id,
                 plan: 'Starter',
@@ -194,7 +236,7 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
             if (profileData) {
                 setUser({
-                    id: profileData.id,
+                    id: profileData.auth_user_id,
                     registrationId: profileData.registration_id,
                     name: profileData.name,
                     email: profileData.email,

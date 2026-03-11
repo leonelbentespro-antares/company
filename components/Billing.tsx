@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { PLANS } from '../constants.ts';
 import { PlanName } from '../types.ts';
+import { useTenant } from '../services/tenantContext.tsx';
+import { supabase } from '../services/supabaseClient';
 
 interface BillingProps {
   userEmail?: string;
@@ -50,9 +52,17 @@ const INITIAL_CONTRACTS: ContractRecord[] = [
   { id: 'ct4', client: 'Roberto J. Pereira', value: 1200, status: 'Paid', dueDate: '2024-05-12', category: 'Mensalidade' },
   { id: 'ct5', client: 'Condomínio Solar', value: 3200, status: 'Late', dueDate: '2024-06-01', category: 'Honorários' },
 ];
-
 export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.com.br' }) => {
-  const [activePlan, setActivePlan] = useState<PlanName>(PlanName.Professional);
+  const { tenant, subscription, user: authUser, refresh } = useTenant();
+  
+  // Mapear o plano do banco de dados para o PlanName do frontend
+  const activePlan = useMemo(() => {
+    const dbPlan = subscription?.plan || tenant?.plan || 'Starter';
+    if (dbPlan === 'Professional') return PlanName.Professional;
+    if (dbPlan === 'Enterprise') return PlanName.Enterprise;
+    return PlanName.Starter;
+  }, [subscription, tenant]);
+
   const [isAddMethodModalOpen, setIsAddMethodModalOpen] = useState(false);
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -60,6 +70,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
   const [planChangeStep, setPlanChangeStep] = useState<'selection' | 'processing' | 'success'>('selection');
   const [showToast, setShowToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [selectedNewPlan, setSelectedNewPlan] = useState<PlanName | null>(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   
   // Gestão de Recebíveis State
   const [contracts, setContracts] = useState<ContractRecord[]>(() => {
@@ -171,15 +182,50 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     }, 1500);
   };
 
-  const handlePlanChange = (plan: PlanName) => {
-    setSelectedNewPlan(plan);
+  const handlePlanChange = async (planName: PlanName) => {
+    const targetPlan = PLANS.find(p => p.name === planName);
+    if (!targetPlan) return;
+
+    setSelectedNewPlan(planName);
     setPlanChangeStep('processing');
-    setIsSaving(true);
-    setTimeout(() => {
-      setActivePlan(plan);
-      setIsSaving(false);
-      setPlanChangeStep('success');
-    }, 2000);
+    setCheckoutLoading(true);
+
+    try {
+      const res = await supabase.functions.invoke('create-checkout', {
+        body: {
+          planId: targetPlan.stripePriceId,
+          rootEmail: authUser?.email || tenant?.domain + '@placeholder.com',
+          rootUserId: authUser?.id || 'tenant-' + tenant?.id
+        }
+      });
+
+      const { data, error } = res;
+      if (error) {
+        let detail = '';
+        try {
+          const jsonErr = await error.context.json();
+          detail = JSON.stringify(jsonErr);
+        } catch (e) { }
+        throw new Error(error.message + ' | Details: ' + detail);
+      }
+
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        // Se não houver URL, simulamos sucesso (ambiente de teste sem stripe configurado)
+        setPlanChangeStep('success');
+        refresh(); // Tentar atualizar dados locais
+      }
+    } catch (err: any) {
+      console.error('Erro ao redirecionar para o checkout:', err);
+      setShowToast({ 
+        message: 'Erro ao processar plano: ' + (err.message || 'Erro desconhecido'), 
+        type: 'error' 
+      });
+      setPlanChangeStep('selection');
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   return (
