@@ -158,16 +158,33 @@ export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
                     return;
                 }
 
+                const requestBody = {
+                    email: formData.email,
+                    tenant_id: tenantId,
+                    role: formData.role === 'Administrador' ? 'admin' : 'lawyer',
+                    invited_by: currentUser?.id
+                };
+
                 const { error: invError } = await supabase
                     .from('workspace_invites')
-                    .insert({
-                        email: formData.email,
-                        tenant_id: tenantId,
-                        role: formData.role === 'Administrador' ? 'admin' : 'lawyer',
-                        invited_by: currentUser?.id
-                    });
+                    .insert(requestBody);
 
                 if (invError) throw invError;
+
+                // Dispara o e-mail diretamente pela API (contorna bloqueio de Cloudflare na Trigger do BD)
+                try {
+                    await fetch(`${import.meta.env.VITE_API_URL}/api/webhooks/supabase/invites`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'INSERT',
+                            record: requestBody
+                        })
+                    });
+                } catch (apiError) {
+                    console.error('Erro ao chamar API de envio de email:', apiError);
+                }
+
                 setSuccessMessage('Convite enviado! Peça ao novo membro para verificar o e-mail e confirmar.');
             }
 
