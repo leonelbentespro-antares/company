@@ -171,16 +171,25 @@ export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
 
                 if (invError) throw invError;
 
-                // Dispara o e-mail diretamente pela API (contorna bloqueio de Cloudflare na Trigger do BD)
+                // Dispara o e-mail diretamente pela API (rota segura)
                 try {
-                    await fetch(`${import.meta.env.VITE_API_URL}/api/webhooks/supabase/invites`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            type: 'INSERT',
-                            record: requestBody
-                        })
-                    });
+                    const session = await supabase.auth.getSession();
+                    const token = session.data.session?.access_token;
+                    
+                    if (token) {
+                        await fetch(`${import.meta.env.VITE_API_URL}/api/team/invite`, {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                email: formData.email,
+                                tenant_id: tenantId,
+                                role: formData.role === 'Administrador' ? 'admin' : 'lawyer'
+                            })
+                        });
+                    }
                 } catch (apiError) {
                     console.error('Erro ao chamar API de envio de email:', apiError);
                 }

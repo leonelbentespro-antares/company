@@ -83,6 +83,7 @@ import { whatsappRouter } from './routes/whatsapp.js';
 import { integrationsRouter } from './routes/integrations.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { messagesRouter } from './routes/messages.js';
+import { teamRouter } from './routes/team.js';
 import { subscriptionGuard } from './middleware/subscriptionGuard.js';
 import { authMiddleware } from './middleware/auth.js';
 import { initSocketIO } from './socket/index.js';
@@ -99,7 +100,7 @@ app.use('/api/whatsapp', authMiddleware, subscriptionGuard, whatsappRouter);
 app.use('/api/integrations', authMiddleware, subscriptionGuard, integrationsRouter);
 app.use('/api/api-keys', authMiddleware, subscriptionGuard, apiKeysRouter);
 app.use('/api/messages', authMiddleware, subscriptionGuard, messagesRouter);
-// app.use('/api', aiRouter);
+app.use('/api/team', authMiddleware, subscriptionGuard, teamRouter);
 
 // Rota de admin para visualizar alertas de segurança (uso interno)
 app.use('/internal', adminRouter);
