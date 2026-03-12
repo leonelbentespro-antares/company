@@ -30,6 +30,7 @@ const CLOUD_APPS: CloudApp[] = [
   { id: 'gmail', name: 'Gmail', description: 'Sincronize e-mails de clientes diretamente nos processos.', icon: <Mail size={24} />, color: 'bg-red-500', category: 'Email' },
   { id: 'outlook', name: 'Outlook', description: 'Integração completa com calendário e e-mails Microsoft 365.', icon: <Mail size={24} />, color: 'bg-blue-600', category: 'Email' },
   { id: 'drive', name: 'Google Drive', description: 'Anexe documentos da nuvem aos seus cards de processos.', icon: <HardDrive size={24} />, color: 'bg-emerald-500', category: 'Storage' },
+  { id: 'gcalendar', name: 'Google Agenda', description: 'Permita que nossos Agentes de IA marquem e leiam compromissos da sua agenda.', icon: <Layout size={24} />, color: 'bg-emerald-600', category: 'Productivity' },
   { id: 'dropbox', name: 'Dropbox', description: 'Acesso rápido a arquivos e backups externos.', icon: <FolderOpen size={24} />, color: 'bg-blue-500', category: 'Storage' },
   { id: 'trello', name: 'Trello', description: 'Sincronize prazos e tarefas com seus quadros do Trello.', icon: <Layout size={24} />, color: 'bg-indigo-500', category: 'Productivity' },
   { id: 'slack', name: 'Slack', description: 'Notificações de movimentações judiciais em seus canais.', icon: <Slack size={24} />, color: 'bg-purple-600', category: 'Communication' },
@@ -497,7 +498,7 @@ export const Integrations: React.FC = () => {
         console.log('[OAuth-Debug] Mensagem recebida no window:', event.data);
         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
           console.log('[OAuth-Debug] Sucesso detectado! Atualizando estado...');
-          setConnectedApps(prev => [...new Set([...prev, 'gmail', 'drive'])]);
+          setConnectedApps(prev => [...new Set([...prev, 'gmail', 'drive', 'gcalendar'])]);
           setShowToast("Google Cloud conectado com sucesso! 🚀");
           window.removeEventListener('message', handleMessage);
           setAppLoading(null);
@@ -781,7 +782,7 @@ export const Integrations: React.FC = () => {
     console.log('[OAuth-Debug] Clique detectado para:', appId);
     console.log('[OAuth-Debug] Apps conectados no momento:', connectedApps);
 
-    if ((appId === 'gmail' || appId === 'drive') && !connectedApps.includes(appId)) {
+    if ((appId === 'gmail' || appId === 'drive' || appId === 'gcalendar') && !connectedApps.includes(appId)) {
       console.log('[OAuth-Debug] Interceptando para fluxo Google...');
       handleConnectGoogle(appId);
       return;
