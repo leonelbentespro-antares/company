@@ -235,7 +235,9 @@ export const AIAgents: React.FC = () => {
 
   const handleSaveKey = async (provider: string, key: string) => {
     try {
+      if (!tenantId) throw new Error('Tenant ID is required');
       await upsertIntegration({
+        tenantId: tenantId,
         provider: provider,
         settings: {
           apiKey: key,

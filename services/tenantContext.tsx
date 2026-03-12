@@ -107,20 +107,25 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
 
             // 2. Verificar se o usuário foi CONVIDADO para um workspace existente
-            const { data: invite, error: inviteError } = await supabase
+            const { data: invite } = await supabase
                 .from('workspace_invites')
                 .select('*')
-                .eq('email', authUser.email)
-                .single();
+                .ilike('email', authUser.email)
+                .maybeSingle();
 
             if (invite) {
                 console.log('[TenantContext] Convite encontrado! Vinculando ao tenant:', invite.tenant_id);
+
+                // Mapear roles do convite para roles aceitas no tenant_users
+                // roles permitidas: 'admin', 'member', 'viewer'
+                let targetRole = invite.role || 'member';
+                if (targetRole === 'lawyer') targetRole = 'member';
 
                 // Vincular usuário ao tenant do convite
                 await supabase.from('tenant_users').insert({
                     user_id: authUser.id,
                     tenant_id: invite.tenant_id,
-                    role: invite.role || 'member',
+                    role: targetRole,
                 });
 
                 // Deletar convite usado imediatamente

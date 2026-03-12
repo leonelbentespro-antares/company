@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CLIENT_ID = process.env.SLACK_CLIENT_ID;
 const CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET;
-const REDIRECT_URI = process.env.SLACK_REDIRECT_URI;
+const REDIRECT_URI = process.env.SLACK_REDIRECT_URI || 'https://lexhub.company/api/integrations/slack/callback';
 
 export const getSlackAuthUrl = (tenantId: string) => {
     const baseUrl = 'https://slack.com/oauth/v2/authorize';

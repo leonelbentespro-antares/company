@@ -161,7 +161,7 @@ export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
                 const requestBody = {
                     email: formData.email,
                     tenant_id: tenantId,
-                    role: formData.role === 'Administrador' ? 'admin' : 'lawyer',
+                    role: formData.role === 'Administrador' ? 'admin' : 'member',
                     invited_by: currentUser?.id
                 };
 

@@ -311,7 +311,7 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-2">
             <p className="text-legal-navy dark:text-white font-black text-xl tracking-tight animate-pulse">{t.loading.workspace}</p>
-            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">Preparando seu ambiente jurídico seguro...</p>
+            <p className="text-slate-400 dark:text-slate-500 text-sm font-medium">{t.nav.dashboard === 'Dashboard' ? 'Preparing your secure legal environment...' : 'Preparando seu ambiente jurídico seguro...'}</p>
           </div>
         </div>
       </div>
@@ -356,7 +356,7 @@ const App: React.FC = () => {
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <button className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all border border-slate-100 dark:border-slate-700">
-              <ExternalLink size={16} /> Site do Escritório
+              <ExternalLink size={16} /> {t.header.officeWebsite}
             </button>
 
             <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-800"></div>
@@ -462,7 +462,7 @@ const App: React.FC = () => {
                 <h2 className="text-3xl font-black tracking-tight">{profileForm.name}</h2>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                   <span className="bg-white/10 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-white/5">{currentUser?.role}</span>
-                  <span className="bg-legal-bronze text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">Cadastro Ativo</span>
+                  <span className="bg-legal-bronze text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm">{t.profile.activeRegistration}</span>
                 </div>
               </div>
             </div>
@@ -472,7 +472,7 @@ const App: React.FC = () => {
             {showProfileFeedback && (
               <div className="mb-8 p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-2xl flex items-center gap-3 text-emerald-700 dark:text-emerald-400 animate-in slide-in-from-top-2">
                 <div className="bg-emerald-500 p-1 rounded-full text-white"><Check size={14} /></div>
-                <p className="text-sm font-bold">{isChangingPassword ? 'Senha atualizada com sucesso!' : 'Perfil atualizado com sucesso!'}</p>
+                <p className="text-sm font-bold">{isChangingPassword ? t.profile.passwordSuccess : t.profile.savedSuccess}</p>
               </div>
             )}
 
@@ -482,7 +482,7 @@ const App: React.FC = () => {
                   onClick={() => setIsChangingPassword(false)}
                   className="flex items-center gap-2 text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-8 hover:text-legal-navy dark:hover:text-slate-200 transition-colors"
                 >
-                  <ArrowLeft size={16} /> Voltar para o Perfil
+                  <ArrowLeft size={16} /> {t.profile.backToProfile}
                 </button>
 
                 <div className="flex items-center gap-3 mb-8">
@@ -490,8 +490,8 @@ const App: React.FC = () => {
                     <Lock size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-legal-navy dark:text-white">Alterar Senha de Acesso</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Sua senha deve ter pelo menos 6 caracteres.</p>
+                    <h3 className="text-xl font-bold text-legal-navy dark:text-white">{t.profile.changePassword}</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t.profile.passwordMinChars}</p>
                   </div>
                 </div>
 
@@ -504,7 +504,7 @@ const App: React.FC = () => {
 
                 <form onSubmit={handleSavePassword} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Atual</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.currentPassword}</label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                       <input
@@ -519,7 +519,7 @@ const App: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nova Senha</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.newPassword}</label>
                       <div className="relative">
                         <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                         <input
@@ -532,7 +532,7 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.confirmPassword}</label>
                       <div className="relative">
                         <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                         <input
@@ -551,7 +551,7 @@ const App: React.FC = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest hover:text-legal-navy dark:hover:text-slate-200 transition-colors"
                   >
-                    {showPassword ? <><EyeOff size={14} /> Ocultar Senhas</> : <><Eye size={14} /> Mostrar Senhas</>}
+                    {showPassword ? <><EyeOff size={14} /> {t.profile.hidePasswords}</> : <><Eye size={14} /> {t.profile.showPasswords}</>}
                   </button>
 
                   <div className="pt-6 flex gap-4">
@@ -560,13 +560,13 @@ const App: React.FC = () => {
                       onClick={() => setIsChangingPassword(false)}
                       className="flex-1 py-4 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 transition-colors"
                     >
-                      Cancelar
+                      {t.profile.cancel}
                     </button>
                     <button
                       type="submit"
                       className="flex-1 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-2xl shadow-legal-navy/30 dark:shadow-legal-bronze/20 flex items-center justify-center gap-3 hover:brightness-110 transition-all"
                     >
-                      <Save size={20} /> Atualizar Senha
+                      <Save size={20} /> {t.profile.updatePassword}
                     </button>
                   </div>
                 </form>
@@ -575,7 +575,7 @@ const App: React.FC = () => {
               <div className="animate-in slide-in-from-left duration-300">
                 <form onSubmit={handleSaveProfile} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="col-span-1 md:col-span-2 space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.fullName}</label>
                     <div className="relative">
                       <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                       <input
@@ -589,7 +589,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Profissional</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.professionalEmail}</label>
                     <div className="relative">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                       <input
@@ -603,7 +603,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Registro OAB / Profissional</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.oabRegistration}</label>
                     <div className="relative">
                       <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                       <input
@@ -616,7 +616,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp / Telefone</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.profile.whatsapp}</label>
                     <div className="relative">
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600" size={18} />
                       <input
@@ -634,13 +634,13 @@ const App: React.FC = () => {
                       onClick={() => setIsProfileModalOpen(false)}
                       className="flex-1 py-4 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 transition-colors"
                     >
-                      Cancelar
+                      {t.profile.cancel}
                     </button>
                     <button
                       type="submit"
                       className="flex-1 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-2xl shadow-legal-navy/30 dark:shadow-legal-bronze/20 flex items-center justify-center gap-3 hover:brightness-110 transition-all"
                     >
-                      <Save size={20} /> Salvar Alterações
+                      <Save size={20} /> {t.profile.saveChanges}
                     </button>
                   </div>
                 </form>
@@ -649,15 +649,15 @@ const App: React.FC = () => {
                   <div className="bg-slate-900 dark:bg-slate-800 rounded-[2rem] p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 transition-colors">
                     <div className="space-y-1 text-center md:text-left">
                       <h4 className="font-bold flex items-center gap-2 justify-center md:justify-start">
-                        <ShieldCheck size={18} className="text-legal-bronze" /> Segurança da Conta
+                        <ShieldCheck size={18} className="text-legal-bronze" /> {t.profile.security}
                       </h4>
-                      <p className="text-white/50 dark:text-slate-400 text-xs">Sua conta é protegida por criptografia de ponta a ponta.</p>
+                      <p className="text-white/50 dark:text-slate-400 text-xs">{t.profile.securityDesc}</p>
                     </div>
                     <button
                       onClick={() => setIsChangingPassword(true)}
                       className="px-6 py-3 bg-white/10 dark:bg-white/5 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-white/20 dark:hover:bg-white/10 transition-all"
                     >
-                      Alterar Senha de Acesso
+                      {t.profile.changePassword}
                     </button>
                   </div>
                 </div>
@@ -883,12 +883,12 @@ const App: React.FC = () => {
                     ) : (
                       <div className="p-12 text-center space-y-4">
                         <Bell size={40} className="mx-auto text-slate-200" />
-                        <p className="text-sm font-bold text-slate-400">Tudo limpo por aqui!</p>
+                        <p className="text-sm font-bold text-slate-400">{t.header.noNotifications}</p>
                       </div>
                     )}
                   </div>
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-50 dark:border-slate-800 text-center">
-                    <button className="text-xs font-black text-legal-navy dark:text-legal-bronze uppercase tracking-widest">Ver Todo o Histórico</button>
+                    <button className="text-xs font-black text-legal-navy dark:text-legal-bronze uppercase tracking-widest">{t.nav.dashboard === 'Dashboard' ? 'View All History' : 'Ver Todo o Histórico'}</button>
                   </div>
                 </div>
               )}
@@ -941,7 +941,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <p className="font-black text-sm">{aiToast.message}</p>
-              <p className="text-emerald-100 text-xs font-medium">Resultado disponível na aba Módulo IA</p>
+              <p className="text-emerald-100 text-xs font-medium">{t.nav.dashboard === 'Dashboard' ? 'Result available in AI Module tab' : 'Resultado disponível na aba Módulo IA'}</p>
             </div>
             <button
               onClick={() => setAiToast(null)}

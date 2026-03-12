@@ -1,21 +1,14 @@
 import { supabase } from '../services/supabaseClient';
-import { io as socketIO } from 'socket.io-client';
-import React, { useState, useEffect, useRef } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useState, useEffect } from 'react';
 import {
-  Mail, FolderOpen, Layout, Slack, Plus, Check, Settings2, Globe, Loader2, ArrowRight,
-  PlugZap, MessageCircle, QrCode, Zap, Trash2, RefreshCw, X, Lock, SmartphoneNfc,
-  Info, Database, HardDrive, Edit2, Save, Send, Wrench, Smartphone, AlertCircle, ShieldCheck,
-  Facebook, Instagram, PowerOff
+  Mail, FolderOpen, Layout, Check, Globe, Loader2, ArrowRight,
+  PlugZap, X, Lock, Info, Database, HardDrive, Send, Wrench, AlertCircle,
+  Facebook, Instagram
 } from 'lucide-react';
-import { WhatsAppDevice } from '../types';
 import {
-  getWhatsAppDevices, createWhatsAppDevice, updateWhatsAppDevice, deleteWhatsAppDevice,
   getIntegrations, upsertIntegration
 } from '../services/supabaseService';
 import { useTenant } from '../services/tenantContext';
-
-// WhatsAppSession interface removed in favor of WhatsAppDevice from types
 
 interface CloudApp {
   id: string;
@@ -32,107 +25,23 @@ const CLOUD_APPS: CloudApp[] = [
   { id: 'drive', name: 'Google Drive', description: 'Anexe documentos da nuvem aos seus cards de processos.', icon: <HardDrive size={24} />, color: 'bg-emerald-500', category: 'Storage' },
   { id: 'gcalendar', name: 'Google Agenda', description: 'Permita que nossos Agentes de IA marquem e leiam compromissos da sua agenda.', icon: <Layout size={24} />, color: 'bg-emerald-600', category: 'Productivity' },
   { id: 'dropbox', name: 'Dropbox', description: 'Acesso rápido a arquivos e backups externos.', icon: <FolderOpen size={24} />, color: 'bg-blue-500', category: 'Storage' },
-  { id: 'trello', name: 'Trello', description: 'Sincronize prazos e tarefas com seus quadros do Trello.', icon: <Layout size={24} />, color: 'bg-indigo-500', category: 'Productivity' },
-  { id: 'slack', name: 'Slack', description: 'Notificações de movimentações judiciais em seus canais.', icon: <Slack size={24} />, color: 'bg-purple-600', category: 'Communication' },
   { id: 'facebook', name: 'Facebook', description: 'Conecte sua página para gerenciar mensagens e comentários.', icon: <Facebook size={24} />, color: 'bg-blue-600', category: 'Social' },
   { id: 'instagram', name: 'Instagram', description: 'Responda DMs e interaja com seus seguidores diretamente.', icon: <Instagram size={24} />, color: 'bg-pink-600', category: 'Social' },
-  { id: 'notificame', name: 'NotificaMe Hub', description: 'Centralize canais de atendimento e automação via NotificaMe.', icon: <Globe size={24} />, color: 'bg-indigo-600', category: 'Communication' },
 ];
 
-// INITIAL_SESSIONS removed
-
-export const Integrations: React.FC = () => {
+export const Integrations: React.FC = React.memo(() => {
   const { tenantId } = useTenant();
-  const [activeTab, setActiveTab] = useState<'channels' | 'apps'>('channels');
-  const [sessions, setSessions] = useState<WhatsAppDevice[]>([]);
   const [connectedApps, setConnectedApps] = useState<string[]>([]);
-  const [isOfficialConnected, setIsOfficialConnected] = useState(false);
-  const [metaConfig, setMetaConfig] = useState({ token: '', phoneId: '', businessId: '' });
+  const [appLoading, setAppLoading] = useState<string | null>(null);
+  const [showToast, setShowToast] = useState<string | null>(null);
+  const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
+  const [suggestionForm, setSuggestionForm] = useState({ toolName: '', reason: '' });
 
   useEffect(() => {
     if (tenantId) {
       loadData();
     }
   }, [tenantId]);
-
-  const loadData = async () => {
-    if (!tenantId) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-
-      // Buscar dispositivos via API do backend (usa supabaseAdmin, bypassa RLS)
-      const devRes = await fetch(`${apiUrl}/api/whatsapp/devices`, {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenantId
-        }
-      });
-      if (devRes.ok) {
-        const devData = await devRes.json();
-        // Mapear do formato do banco para o formato da UI
-        const devices = devData.map((d: any) => ({
-          id: d.id, tenantId: d.tenant_id, name: d.name, phone: d.phone,
-          status: d.status, type: d.type, batteryLevel: d.battery_level,
-          lastActive: d.last_active, createdAt: d.created_at
-        }));
-        setSessions(devices);
-      } else {
-        console.error('[Integrations] Erro ao buscar dispositivos:', await devRes.text());
-      }
-
-      const integrations = await getIntegrations(tenantId);
-
-      // Process Connected Apps
-      const apps = integrations
-        .filter(i => CLOUD_APPS.some(app => app.id === i.provider) && i.settings.enabled)
-        .map(i => i.provider);
-      setConnectedApps(apps);
-
-      // Process Meta Config
-      const metaIntegration = integrations.find(i => i.provider === 'meta');
-      if (metaIntegration) {
-        setIsOfficialConnected(!!metaIntegration.settings.enabled);
-        setMetaConfig({
-          token: metaIntegration.settings.token || '',
-          phoneId: metaIntegration.settings.phoneId || '',
-          businessId: metaIntegration.settings.businessId || ''
-        });
-      }
-
-      // Process NotificaMe Config
-      const notificaMeIntegration = integrations.find(i => i.provider === 'notificame');
-      if (notificaMeIntegration) {
-        setNotificaMeConfig({
-          token: notificaMeIntegration.settings.token || '',
-          channelId: notificaMeIntegration.settings.channelId || ''
-        });
-      }
-    } catch (error) {
-      console.error('Error loading integrations data:', error);
-    }
-  };
-
-  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isMetaModalOpen, setIsMetaModalOpen] = useState(false);
-  const [isNotificaMeModalOpen, setIsNotificaMeModalOpen] = useState(false);
-  const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success'>('naming');
-  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-  const [pairCode, setPairCode] = useState<string | null>(null);
-  const [notificaMeConfig, setNotificaMeConfig] = useState({ token: '', channelId: '' });
-  const socketRef = useRef<ReturnType<typeof socketIO> | null>(null);
-
-  const [editingSession, setEditingSession] = useState<WhatsAppDevice | null>(null);
-  const [sessionForm, setSessionForm] = useState({ name: '', phone: '' });
-
-  const [suggestionForm, setSuggestionForm] = useState({ toolName: '', reason: '' });
-  const [appLoading, setAppLoading] = useState<string | null>(null);
-  const [showToast, setShowToast] = useState<string | null>(null);
-
-  // Removed localStorage effects
 
   useEffect(() => {
     if (showToast) {
@@ -141,336 +50,27 @@ export const Integrations: React.FC = () => {
     }
   }, [showToast]);
 
-  // Cleanup: desconectar socket ao fechar o modal de QR
-  useEffect(() => {
-    if (!isQRModalOpen) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      setPairCode(null);
-      setQrCodeData(null);
-    }
-  }, [isQRModalOpen]);
-
-  // Conectar ao WebSocket e escutar eventos do WhatsApp
-  const connectSocket = (sessionName: string) => {
+  const loadData = async () => {
     if (!tenantId) return;
-
-    // Evitar múltiplas conexões
-    if (socketRef.current?.connected) return;
-
-    const socket = socketIO(import.meta.env.VITE_API_URL || '', {
-      auth: { tenantId },
-      transports: ['websocket', 'polling'],
-      withCredentials: true
-    });
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      console.log(`[Socket Debug] Conectado! Tenant=${tenantId}, SocketId=${socket.id}`);
-    });
-
-    // Evento: QR Code ou Pair Code gerado
-    socket.on('qr:update', (data: { qr?: string; paircode?: string; status: string }) => {
-      console.log('[Socket Debug] qr:update recebido:', data);
-      if (data.paircode) {
-        setPairCode(data.paircode);
-      }
-      if (data.qr) {
-        setQrCodeData(data.qr);
-      }
-      setIsConnecting(false);
-    });
-
-    socket.on('qr:error', (data: { message: string }) => {
-      console.warn('[Socket Debug] qr:error recebido:', data);
-      setIsConnecting(false);
-      setShowToast(`Erro: ${data.message}`);
-    });
-
-    // Evento: WhatsApp conectado com sucesso
-    socket.on('whatsapp:connected', async (data: { status: string; user?: any }) => {
-      setShowToast('WhatsApp Conectado com Sucesso! 🎉');
-      setQrStep('success');
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        const phone = data.user?.id?.split(':')[0] || sessionForm.phone || 'Desconhecido';
-
-        const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-            'x-tenant-id': tenantId || ''
-          },
-          body: JSON.stringify({
-            name: sessionName,
-            phone,
-            status: 'connected',
-            type: 'qr',
-            batteryLevel: 100,
-            lastActive: new Date().toISOString()
-          })
-        });
-        if (res.ok) {
-          const newDevice = await res.json();
-          const mappedDevice = {
-            id: newDevice.id, tenantId: newDevice.tenant_id, name: newDevice.name,
-            phone: newDevice.phone, status: newDevice.status, type: newDevice.type,
-            batteryLevel: newDevice.battery_level, lastActive: newDevice.last_active, createdAt: newDevice.created_at
-          };
-          setSessions(prev => {
-            if (prev.some(d => d.name === mappedDevice.name)) return prev;
-            return [mappedDevice, ...prev];
-          });
-        } else {
-          console.error('[Integrations] Erro ao criar dispositivo via API:', await res.text());
-          // Recarregar lista para garantir consistência
-          await loadData();
-        }
-      } catch (error) {
-        console.error('Error saving device:', error);
-      }
-      setQrCodeData(null);
-      setPairCode(null);
-      setIsConnecting(false);
-      socket.disconnect();
-    });
-
-    socket.on('connect_error', (err) => {
-      console.error('[Socket] Erro de conexão:', err.message);
-    });
-  };
-
-  // Fallback Polling: Se o socket demorar, consulta o status via HTTP
-  useEffect(() => {
-    let pollTimer: NodeJS.Timeout;
-
-    if (isConnecting && isQRModalOpen) {
-      pollTimer = setInterval(async () => {
-        console.log('[Fallback] Consultando status via HTTP...');
-        const { data: { session: authSession } } = await supabase.auth.getSession();
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        try {
-          const res = await fetch(`${apiUrl}/api/whatsapp/status/${tenantId}`, {
-            headers: {
-              'Authorization': `Bearer ${authSession?.access_token}`,
-              'x-tenant-id': tenantId || ''
-            }
-          });
-          const data = await res.json();
-
-          if (data.status === 'QR_READY' && data.qr) {
-            setQrCodeData(data.qr);
-            setIsConnecting(false);
-          } else if (data.status === 'PAIR_CODE_READY' && data.paircode) {
-            setPairCode(data.paircode);
-            setIsConnecting(false);
-          } else if (data.status === 'Disconnected' || data.status === 'Failed') {
-            setIsConnecting(false);
-            setQrStep('naming');
-            setQrCodeData(null);
-            setShowToast('Falha na geração: a conexão UAZAPI foi interrompida ou desconectada.');
-          } else if (data.status === 'Connected') {
-            setIsConnecting(false);
-            setQrStep('success');
-            setShowToast('WhatsApp Conectado! 🎉');
-
-            try {
-              const { data: { session } } = await supabase.auth.getSession();
-              const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${session?.access_token}`,
-                  'x-tenant-id': tenantId || ''
-                },
-                body: JSON.stringify({
-                  name: sessionForm.name,
-                  phone: sessionForm.phone || data.user?.id?.split(':')[0] || 'Desconhecido',
-                  status: 'connected', type: 'qr', batteryLevel: 100,
-                  lastActive: new Date().toISOString()
-                })
-              });
-              if (res.ok) {
-                const newDevice = await res.json();
-                const mapped = {
-                  id: newDevice.id, tenantId: newDevice.tenant_id, name: newDevice.name,
-                  phone: newDevice.phone, status: newDevice.status, type: newDevice.type,
-                  batteryLevel: newDevice.battery_level, lastActive: newDevice.last_active, createdAt: newDevice.created_at
-                };
-                setSessions(prev => prev.some(d => d.name === mapped.name) ? prev : [mapped, ...prev]);
-              }
-            } catch (error) {
-              console.error('Error saving device via fallback:', error);
-            }
-          }
-        } catch (err) {
-          console.warn('[Fallback] Erro ao consultar status:', err);
-        }
-      }, 3000);
-    }
-
-    return () => clearInterval(pollTimer);
-  }, [isConnecting, isQRModalOpen, tenantId]);
-
-  const handleCreateSession = async () => {
-    if (!sessionForm.name.trim()) return;
-    setQrStep('scanning');
-    setIsConnecting(true);
-    setQrCodeData(null);
-    setPairCode(null);
-    const name = sessionForm.name;
-    const phone = sessionForm.phone; // Captura o telefone para Pair Code
-
     try {
-      // 1. Conectar ao WebSocket ANTES de iniciar a sessão (evita race condition)
-      connectSocket(name);
-
-      // 2. Disparar início da sessão no backend
-      const { data: { session: authSession } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      await fetch(`${apiUrl}/api/whatsapp/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authSession?.access_token}`
-        },
-        body: JSON.stringify({ tenantId, phone })
-      });
-    } catch (err) {
-      console.error(err);
-      setShowToast('Erro ao iniciar pareamento com o backend.');
-      setIsConnecting(false);
-    }
-  };
-
-  const handleEditSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSession) return;
-
-    try {
-      await updateWhatsAppDevice(editingSession.id, {
-        name: sessionForm.name,
-        phone: sessionForm.phone
-      });
-
-      setSessions(prev => prev.map(s =>
-        s.id === editingSession.id
-          ? { ...s, name: sessionForm.name, phone: sessionForm.phone }
-          : s
-      ));
-
-      setIsEditModalOpen(false);
-      setEditingSession(null);
-      setShowToast("Configurações do aparelho atualizadas!");
+      const integrations = await getIntegrations(tenantId);
+      const apps = integrations
+        .filter(i => CLOUD_APPS.some(app => app.id === i.provider) && i.settings.enabled)
+        .map(i => i.provider);
+      setConnectedApps(apps);
     } catch (error) {
-      console.error('Error updating device:', error);
-      setShowToast("Erro ao atualizar aparelho.");
-    }
-  };
-
-  const openEditModal = (session: WhatsAppDevice) => {
-    setEditingSession(session);
-    setSessionForm({ name: session.name, phone: session.phone });
-    setIsEditModalOpen(true);
-  };
-
-  const handleSaveMetaConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAppLoading('meta');
-
-    try {
-      await upsertIntegration({
-        provider: 'meta',
-        settings: {
-          ...metaConfig,
-          enabled: true
-        }
-      });
-
-      setIsOfficialConnected(true);
-      setIsMetaModalOpen(false);
-      setShowToast("API da Meta conectada e validada!");
-    } catch (error) {
-      console.error('Error saving meta config:', error);
-      setShowToast("Erro ao conectar API da Meta.");
-    } finally {
-      setAppLoading(null);
-    }
-  };
-
-  const disconnectMeta = async () => {
-    if (confirm("Deseja realmente desconectar a API da Meta? Isso interromperá disparos em massa ativos.")) {
-      try {
-        await upsertIntegration({
-          provider: 'meta',
-          settings: {
-            ...metaConfig,
-            enabled: false
-          }
-        });
-        setIsOfficialConnected(false);
-        setShowToast("API da Meta desconectada.");
-      } catch (error) {
-        console.error('Error disconnecting meta:', error);
-        setShowToast("Erro ao desconectar.");
-      }
-    }
-  };
-
-  const handleSaveNotificaMeConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAppLoading('notificame');
-
-    try {
-      await upsertIntegration({
-        provider: 'notificame',
-        settings: {
-          ...notificaMeConfig,
-          enabled: true
-        }
-      });
-
-      setConnectedApps(prev => [...prev, 'notificame']);
-      setIsNotificaMeModalOpen(false);
-      setShowToast("NotificaMe Hub conectado com sucesso!");
-
-      // Registrar webhook automaticamente (opcional, pode ser feito no backend ao salvar)
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const webhookUrl = `${apiUrl}/api/webhooks/notificame`;
-
-      // Chamada para o backend registrar o webhook no NotificaMe
-      await fetch(`${apiUrl}/api/integrations/notificame/subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId, token: notificaMeConfig.token, channelId: notificaMeConfig.channelId, webhookUrl })
-      });
-
-    } catch (error) {
-      console.error('Error saving NotificaMe config:', error);
-      setShowToast("Erro ao conectar NotificaMe Hub.");
-    } finally {
-      setAppLoading(null);
+      console.error('Error loading integrations data:', error);
     }
   };
 
   const handleConnectGoogle = async (appId: string = 'gmail') => {
-    console.log('[OAuth-Debug] Iniciando handleConnectGoogle para:', appId);
-    if (!tenantId) {
-      console.log('[OAuth-Debug] Erro: tenantId ausente');
-      return;
-    }
+    if (!tenantId) return;
 
-    // Abrir popup IMEDIATAMENTE para evitar bloqueio pelo navegador
     const width = 500;
     const height = 600;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
 
-    console.log('[OAuth-Debug] Abrindo popup window.open...');
     const authWindow = window.open(
       'about:blank',
       'google-auth',
@@ -478,7 +78,6 @@ export const Integrations: React.FC = () => {
     );
 
     if (!authWindow) {
-      console.error('[OAuth-Debug] Popup BLOQUEADO');
       setShowToast("⚠️ O popup foi bloqueado pelo navegador. Por favor, autorize popups para este site.");
       return;
     }
@@ -486,18 +85,20 @@ export const Integrations: React.FC = () => {
     setAppLoading(appId);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      console.log('[OAuth-Debug] Buscando URL de:', apiUrl);
-      const res = await fetch(`${apiUrl}/api/integrations/google/auth?tenantId=${tenantId}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${apiUrl}/api/integrations/google/auth?tenantId=${tenantId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId
+        }
+      });
       if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
 
       const { url } = await res.json();
-      console.log('[OAuth-Debug] URL recebida, redirecionando popup...');
       authWindow.location.href = url;
 
       const handleMessage = (event: MessageEvent) => {
-        console.log('[OAuth-Debug] Mensagem recebida no window:', event.data);
         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          console.log('[OAuth-Debug] Sucesso detectado! Atualizando estado...');
           setConnectedApps(prev => [...new Set([...prev, 'gmail', 'drive', 'gcalendar'])]);
           setShowToast("Google Cloud conectado com sucesso! 🚀");
           window.removeEventListener('message', handleMessage);
@@ -509,7 +110,6 @@ export const Integrations: React.FC = () => {
 
       const checkClosed = setInterval(() => {
         if (authWindow.closed) {
-          console.log('[OAuth-Debug] Popup fechado pelo usuário');
           clearInterval(checkClosed);
           setAppLoading(null);
           window.removeEventListener('message', handleMessage);
@@ -527,11 +127,11 @@ export const Integrations: React.FC = () => {
   const handleConnectMicrosoft = async () => {
     if (!tenantId) return;
 
-    // Abrir popup IMEDIATAMENTE
     const width = 500;
     const height = 600;
     const left = window.screen.width / 2 - width / 2;
     const top = window.screen.height / 2 - height / 2;
+
     const authWindow = window.open(
       'about:blank',
       'microsoft-auth',
@@ -546,250 +146,36 @@ export const Integrations: React.FC = () => {
     setAppLoading('outlook');
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/integrations/microsoft/auth?tenantId=${tenantId}`);
-      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
-
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${apiUrl}/api/integrations/microsoft/auth?tenantId=${tenantId}`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId
+        }
+      });
       const { url } = await res.json();
       authWindow.location.href = url;
 
       const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'MICROSOFT_AUTH_SUCCESS') {
-          setConnectedApps(prev => [...prev, 'outlook']);
-          setShowToast("Outlook conectado com sucesso! 🚀");
-          window.removeEventListener('message', handleMessage);
-          setAppLoading(null);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-
-      const checkClosed = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkClosed);
-          setAppLoading(null);
-          window.removeEventListener('message', handleMessage);
-        }
-      }, 1000);
-    } catch (error) {
-      console.error('Error starting Microsoft OAuth:', error);
-      authWindow.close();
-      setShowToast("Erro ao iniciar conexão com Microsoft.");
-      setAppLoading(null);
-    }
-  };
-  const handleConnectDropbox = async () => {
-    if (!tenantId) return;
-
-    const width = 500;
-    const height = 600;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    const authWindow = window.open(
-      'about:blank',
-      'dropbox-auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
-    if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
-      return;
-    }
-
-    setAppLoading('dropbox');
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/integrations/dropbox/auth?tenantId=${tenantId}`);
-      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
-
-      const { url } = await res.json();
-      authWindow.location.href = url;
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'DROPBOX_AUTH_SUCCESS') {
-          setConnectedApps(prev => [...new Set([...prev, 'dropbox'])]);
-          setShowToast("Dropbox conectado com sucesso! 🚀");
-          window.removeEventListener('message', handleMessage);
-          setAppLoading(null);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-
-      const checkClosed = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkClosed);
-          setAppLoading(null);
-          window.removeEventListener('message', handleMessage);
-        }
-      }, 1000);
-    } catch (error) {
-      console.error('Dropbox OAuth error:', error);
-      authWindow.close();
-      setShowToast("Erro ao iniciar conexão com Dropbox.");
-      setAppLoading(null);
-    }
-  };
-
-  const handleConnectMeta = async () => {
-    if (!tenantId) return;
-
-    const width = 600;
-    const height = 700;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    const authWindow = window.open(
-      'about:blank',
-      'meta-auth',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
-    if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
-      return;
-    }
-
-    setAppLoading('meta');
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/integrations/meta/auth?tenantId=${tenantId}`);
-      if (!res.ok) throw new Error('Erro ao buscar URL de autenticação');
-
-      const { url } = await res.json();
-      authWindow.location.href = url;
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'META_AUTH_SUCCESS') {
-          setConnectedApps(prev => [...new Set([...prev, 'facebook', 'instagram', 'meta'])]);
-          setIsOfficialConnected(true);
-          setShowToast("Meta conectado com sucesso! 🚀");
-          window.removeEventListener('message', handleMessage);
-          setAppLoading(null);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-
-      const checkClosed = setInterval(() => {
-        if (authWindow.closed) {
-          clearInterval(checkClosed);
-          setAppLoading(null);
-          window.removeEventListener('message', handleMessage);
-        }
-      }, 1000);
-    } catch (error) {
-      console.error('Meta OAuth error:', error);
-      authWindow.close();
-      setShowToast("Erro ao iniciar conexão com Meta.");
-      setAppLoading(null);
-    }
-  };
-
-  const handleConnectSlack = async () => {
-    if (!tenantId) return;
-    const width = 600;
-    const height = 700;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    const authWindow = window.open('about:blank', 'slack-auth', `width=${width},height=${height},left=${left},top=${top}`);
-
-    if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
-      return;
-    }
-
-    setAppLoading('slack');
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/integrations/slack/auth?tenantId=${tenantId}`);
-      const { url } = await res.json();
-      authWindow.location.href = url;
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'SLACK_AUTH_SUCCESS') {
-          setConnectedApps(prev => [...new Set([...prev, 'slack'])]);
-          setShowToast("Slack conectado com sucesso! 🚀");
+        if (event.data.type === 'MS_AUTH_SUCCESS') {
+          setConnectedApps(prev => [...new Set([...prev, 'outlook'])]);
+          setShowToast("Microsoft 365 conectado com sucesso! 🚀");
           window.removeEventListener('message', handleMessage);
           setAppLoading(null);
         }
       };
       window.addEventListener('message', handleMessage);
     } catch (error) {
-      console.error('Slack OAuth error:', error);
+      console.error('Microsoft OAuth error:', error);
       authWindow.close();
-      setShowToast("Erro ao conectar Slack.");
-      setAppLoading(null);
-    }
-  };
-
-  const handleConnectTrello = async () => {
-    if (!tenantId) return;
-    const width = 600;
-    const height = 700;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    const authWindow = window.open('about:blank', 'trello-auth', `width=${width},height=${height},left=${left},top=${top}`);
-
-    if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
-      return;
-    }
-
-    setAppLoading('trello');
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/integrations/trello/auth?tenantId=${tenantId}`);
-      const { url } = await res.json();
-      authWindow.location.href = url;
-
-      const checkInterval = setInterval(() => {
-        try {
-          if (authWindow.location.href.includes('callback') || authWindow.location.href.includes(window.location.origin)) {
-            const hash = authWindow.location.hash;
-            if (hash && hash.includes('token=')) {
-              const token = hash.split('token=')[1].split('&')[0];
-              fetch(`${apiUrl}/api/integrations/trello/callback?token=${token}&state=${tenantId}`)
-                .then(() => {
-                  setConnectedApps(prev => [...new Set([...prev, 'trello'])]);
-                  setShowToast("Trello conectado com sucesso! 🚀");
-                  authWindow.close();
-                  clearInterval(checkInterval);
-                  setAppLoading(null);
-                });
-            }
-          }
-        } catch (e) { }
-        if (authWindow.closed) {
-          clearInterval(checkInterval);
-          setAppLoading(null);
-        }
-      }, 1000);
-
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'TRELLO_AUTH_SUCCESS') {
-          setConnectedApps(prev => [...new Set([...prev, 'trello'])]);
-          setShowToast("Trello conectado com sucesso! 🚀");
-          window.removeEventListener('message', handleMessage);
-          setAppLoading(null);
-        }
-      };
-      window.addEventListener('message', handleMessage);
-    } catch (error) {
-      console.error('Trello OAuth error:', error);
-      authWindow.close();
-      setShowToast("Erro ao conectar Trello.");
+      setShowToast("Erro ao iniciar conexão Microsoft.");
       setAppLoading(null);
     }
   };
 
   const toggleAppConnection = async (appId: string) => {
-    console.log('[OAuth-Debug] Clique detectado para:', appId);
-    console.log('[OAuth-Debug] Apps conectados no momento:', connectedApps);
-
     if ((appId === 'gmail' || appId === 'drive' || appId === 'gcalendar') && !connectedApps.includes(appId)) {
-      console.log('[OAuth-Debug] Interceptando para fluxo Google...');
       handleConnectGoogle(appId);
-      return;
-    }
-
-    if (appId === 'dropbox' && !connectedApps.includes('dropbox')) {
-      handleConnectDropbox();
       return;
     }
 
@@ -798,28 +184,7 @@ export const Integrations: React.FC = () => {
       return;
     }
 
-    if ((appId === 'facebook' || appId === 'instagram' || appId === 'meta') && !connectedApps.includes(appId)) {
-      handleConnectMeta();
-      return;
-    }
-
-    if (appId === 'notificame' && !connectedApps.includes('notificame')) {
-      setIsNotificaMeModalOpen(true);
-      return;
-    }
-
-    if (appId === 'slack' && !connectedApps.includes('slack')) {
-      handleConnectSlack();
-      return;
-    }
-
-    if (appId === 'trello' && !connectedApps.includes('trello')) {
-      handleConnectTrello();
-      return;
-    }
-
     setAppLoading(appId);
-
     const isConnected = connectedApps.includes(appId);
     const newState = !isConnected;
 
@@ -854,94 +219,6 @@ export const Integrations: React.FC = () => {
     }, 2000);
   };
 
-  const syncDevicePhone = async (id: string) => {
-    setAppLoading(`sync-${id}`);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/whatsapp/sync-phone`, {
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenantId || ''
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.phone) {
-          setSessions(prev => prev.map(s => s.id === id ? { ...s, phone: data.phone } : s));
-          setShowToast(`Número sincronizado: ${data.phone}`);
-        } else {
-          setShowToast('Não foi possível obter o número. Tente novamente em instantes.');
-        }
-      } else {
-        setShowToast('Erro ao sincronizar número.');
-      }
-    } catch (error) {
-      console.error('Erro ao sincronizar número:', error);
-      setShowToast('Erro ao sincronizar número.');
-    } finally {
-      setAppLoading(null);
-    }
-  };
-
-  const logoutSession = async (id: string) => {
-    if (!confirm('Deseja realmente desconectar este aparelho?')) return;
-
-    setAppLoading(`logout-${id}`);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-
-      // Desconectar instância UAZAPI
-      await fetch(`${apiUrl}/api/whatsapp/logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId })
-      });
-
-      // Atualizar status do dispositivo via API do backend
-      await fetch(`${apiUrl}/api/whatsapp/devices/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenantId || ''
-        },
-        body: JSON.stringify({ status: 'disconnected' })
-      });
-
-      setSessions(prev => prev.map(s => s.id === id ? { ...s, status: 'disconnected' } : s));
-      setShowToast('WhatsApp desconectado com sucesso.');
-    } catch (error) {
-      console.error('Error logging out session:', error);
-      setShowToast('Erro ao desconectar sessão.');
-    } finally {
-      setAppLoading(null);
-    }
-  };
-
-  const removeSession = async (id: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      await fetch(`${apiUrl}/api/whatsapp/devices/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenantId || ''
-        }
-      });
-      setSessions(sessions.filter(s => s.id !== id));
-      setShowToast('Conexão removida.');
-    } catch (error) {
-      console.error('Error removing session:', error);
-      setShowToast('Erro ao remover conexão.');
-    }
-  };
-
-  const qrSessions = sessions.filter(s => s.type === 'qr');
-  const MAX_QR = 10;
-
   return (
     <div className="space-y-8 animate-in fade-in duration-700 pb-20">
       {showToast && (
@@ -954,530 +231,83 @@ export const Integrations: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Canais & <span className="text-legal-bronze">Apps Cloud</span> <span className="text-xs font-normal text-slate-400">v1.2</span></h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Configure seus aparelhos de recepção e conecte ferramentas de produtividade.</p>
+          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Integrações & <span className="text-legal-bronze">Apps Cloud</span></h1>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Conecte ferramentas de produtividade para potencializar seu escritório.</p>
         </div>
 
         <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <button
-            onClick={() => setActiveTab('channels')}
-            className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'channels' ? 'bg-legal-navy text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-          >
-            Mensageria (WhatsApp)
-          </button>
-          <button
-            onClick={() => setActiveTab('apps')}
-            className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'apps' ? 'bg-legal-navy text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-legal-navy text-white shadow-lg`}
           >
             Aplicativos Cloud
           </button>
         </div>
       </div>
 
-      {activeTab === 'channels' ? (
-        <div className="space-y-10 animate-in slide-in-from-left duration-500">
-
-          {/* SECTION: WHATSAPP WEB (QR CODE) */}
-          <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-              <div>
-                <div className="flex items-center gap-2 text-[10px] font-black text-legal-bronze uppercase tracking-[0.2em] mb-2">
-                  <QrCode size={14} /> Multi-dispositivos
+      <div className="space-y-10 animate-in slide-in-from-right duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {React.useMemo(() => CLOUD_APPS.map((app) => (
+            <div key={app.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:shadow-xl transition-all group flex flex-col h-full">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`w-14 h-14 ${app.color} text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform`}>
+                  {app.icon}
                 </div>
-                <h2 className="text-2xl font-black text-legal-navy dark:text-white">Conexões por <span className="text-slate-300 dark:text-slate-700">QR Code</span></h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Gerencie os aparelhos de recepção, triagem e setores específicos.</p>
+                {connectedApps.includes(app.id) ? (
+                  <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
+                    <Check size={12} /> Ativo
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">
+                    Disponível
+                  </span>
+                )}
               </div>
-              <div className="bg-white dark:bg-slate-900 px-6 py-4 rounded-[1.5rem] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-6 transition-colors">
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Capacidade de Sessões</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-32 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-legal-navy transition-all duration-700" style={{ width: `${(qrSessions.length / MAX_QR) * 100}%` }}></div>
-                    </div>
-                    <span className="text-sm font-black text-legal-navy dark:text-white">{qrSessions.length} / {MAX_QR}</span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => { setQrStep('naming'); setSessionForm({ name: '', phone: '' }); setIsQRModalOpen(true); }}
-                  disabled={qrSessions.length >= MAX_QR}
-                  className="px-6 py-3 bg-legal-navy text-white rounded-xl font-bold text-xs hover:brightness-110 disabled:opacity-30 transition-all flex items-center gap-2 shadow-lg shadow-legal-navy/20"
-                >
-                  <Plus size={16} /> Gerar QR Code
-                </button>
+
+              <div className="space-y-2 mb-8 flex-1">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">{app.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{app.description}</p>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {qrSessions.map((session) => (
-                <div key={session.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:shadow-xl transition-all group overflow-hidden relative flex flex-col">
-                  <div className="absolute top-0 right-0 p-8">
-                    {session.status === 'connected' ? (
-                      <span className="flex items-center gap-2 text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 dark:bg-emerald-900/10 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/20">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div> Online
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">
-                        Desconectado
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-6 mb-8 mt-2">
-                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-legal-navy dark:text-legal-bronze group-hover:scale-110 transition-transform shadow-inner">
-                      <SmartphoneNfc size={32} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black text-slate-900 dark:text-white truncate max-w-[150px]">{session.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <p className="text-sm font-bold text-slate-400 dark:text-slate-500">
-                          {session.phone && session.phone !== 'Desconhecido' && session.phone !== '+55 11 99999-0000' ? session.phone : '— Número não sincronizado'}
-                        </p>
-                        {session.status === 'connected' && (
-                          <button
-                            onClick={() => syncDevicePhone(session.id)}
-                            disabled={appLoading === `sync-${session.id}`}
-                            title="Sincronizar número real"
-                            className="p-1 rounded-lg text-slate-300 hover:text-legal-bronze transition-colors"
-                          >
-                            {appLoading === `sync-${session.id}` ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 space-y-4">
-                    {session.status === 'connected' && (
-                      <>
-                        <div className="flex justify-between items-center text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                          <span className="flex items-center gap-1.5"><Zap size={12} /> Saúde da Sessão</span>
-                          <span className={session.batteryLevel && session.batteryLevel < 20 ? 'text-rose-500' : 'text-emerald-500'}>{session.batteryLevel}%</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className={`h-full transition-all duration-700 ${session.batteryLevel && session.batteryLevel < 20 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${session.batteryLevel}%` }}></div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2 mt-8">
-                    {session.status === 'connected' ? (
-                      <button
-                        onClick={() => logoutSession(session.id)}
-                        disabled={appLoading === `logout-${session.id}`}
-                        className="flex-1 py-3 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-xl font-bold text-xs hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 group-hover:shadow-md"
-                      >
-                        {appLoading === `logout-${session.id}` ? <Loader2 size={16} className="animate-spin" /> : <><PowerOff size={16} /> Desconectar</>}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => { setQrStep('naming'); setSessionForm({ name: session.name, phone: session.phone }); setIsQRModalOpen(true); }}
-                        className="flex-1 py-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-xl font-bold text-xs hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 group-hover:shadow-md"
-                      >
-                        <QrCode size={16} /> Conectar
-                      </button>
-                    )}
-                    <button
-                      onClick={() => openEditModal(session)}
-                      className="p-3 bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl font-bold text-xs hover:bg-legal-navy hover:text-white transition-all flex items-center justify-center gap-2 group-hover:shadow-md"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      onClick={() => removeSession(session.id)}
-                      className="p-3 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-rose-500 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/40 transition-all border border-transparent hover:border-rose-100"
-                      title="Excluir Aparelho"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION: OFFICIAL META API */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] mb-2">
-              <ShieldCheck size={14} /> WhatsApp Business Platform
-            </div>
-            <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl group border border-white/5">
-              <div className="absolute top-0 right-0 p-12 opacity-5 rotate-12 transition-transform group-hover:scale-110"><Globe size={240} /></div>
-
-              <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-10">
-                <div className="max-w-2xl space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 bg-white/10 rounded-[2rem] flex items-center justify-center text-emerald-400 shadow-xl border border-white/10 backdrop-blur-sm">
-                      <MessageCircle size={48} />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-black">Meta <span className="text-emerald-400">Official API</span></h2>
-                      <p className="text-white/50 font-medium mt-1">A solução definitiva para grandes volumes de atendimento e segurança de marca.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-colors">
-                      <div className="p-2 bg-amber-500/20 rounded-lg text-amber-400"><Zap size={20} /></div>
-                      <div>
-                        <p className="text-[10px] font-black text-white/40 uppercase">Performance</p>
-                        <p className="text-xs font-bold text-white/90">Disparos em massa ilimitados</p>
-                      </div>
-                    </div>
-                    <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-colors">
-                      <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400"><Lock size={20} /></div>
-                      <div>
-                        <p className="text-[10px] font-black text-white/40 uppercase">Segurança</p>
-                        <p className="text-xs font-bold text-white/90">Sem risco de banimento</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="w-full lg:w-80 shrink-0">
-                  {isOfficialConnected ? (
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-8 rounded-[2.5rem] space-y-4 animate-in zoom-in-95 backdrop-blur-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Status: Conectado</span>
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                      </div>
-                      <p className="text-xs text-white/60 font-medium leading-relaxed">Sua conta do Meta Business Manager está integrada com sucesso.</p>
-                      <div className="flex gap-2">
-                        <button onClick={() => setIsMetaModalOpen(true)} className="flex-1 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase transition-colors">Ajustes</button>
-                        <button onClick={disconnectMeta} className="flex-1 py-3 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 rounded-xl text-[10px] font-black uppercase transition-colors">Sair</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setIsMetaModalOpen(true)}
-                      className="w-full py-5 bg-emerald-500 text-slate-900 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                      Configurar API <ArrowRight size={20} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* APPS VIEW */
-        <div className="space-y-10 animate-in slide-in-from-right duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {CLOUD_APPS.map((app) => (
-              <div key={app.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 p-8 shadow-sm hover:shadow-xl transition-all group flex flex-col h-full">
-                <div className="flex justify-between items-start mb-6">
-                  <div className={`w-14 h-14 ${app.color} text-white rounded-2xl flex items-center justify-center shadow-lg group-hover:rotate-6 transition-transform`}>
-                    {app.icon}
-                  </div>
-                  {connectedApps.includes(app.id) ? (
-                    <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
-                      <Check size={12} /> Ativo
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">
-                      Disponível
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-2 mb-8 flex-1">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">{app.name}</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 font-medium leading-relaxed">{app.description}</p>
-                </div>
-
-                <button
-                  onClick={() => toggleAppConnection(app.id)}
-                  disabled={appLoading === app.id}
-                  className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 mt-auto ${connectedApps.includes(app.id)
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-500'
-                    : 'bg-legal-navy text-white hover:brightness-110 shadow-lg shadow-legal-navy/10'
-                    }`}
-                >
-                  {appLoading === app.id ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : connectedApps.includes(app.id) ? (
-                    'Desconectar App'
-                  ) : (
-                    <>Conectar {app.name} <PlugZap size={16} /></>
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* SUGGESTION SECTION */}
-          <div className="bg-white dark:bg-slate-900 p-12 rounded-[3.5rem] border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-6 shadow-sm hover:border-legal-bronze/50 transition-all group overflow-hidden relative">
-            <div className="absolute -top-10 -left-10 w-40 h-40 bg-legal-navy/5 dark:bg-legal-bronze/5 rounded-full blur-3xl group-hover:bg-legal-bronze/10 transition-colors"></div>
-            <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-400 group-hover:scale-110 group-hover:bg-legal-navy group-hover:text-white transition-all shadow-inner relative z-10">
-              <Wrench size={32} />
-            </div>
-            <div className="space-y-2 relative z-10">
-              <h4 className="text-2xl font-black text-legal-navy dark:text-white">Deseja integrar outra ferramenta?</h4>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">Nossa equipe de engenharia pode desenvolver conectores personalizados via Webhook ou integração direta.</p>
-            </div>
-            <div className="relative z-10 pt-4">
               <button
-                onClick={() => setIsSuggestModalOpen(true)}
-                className="px-10 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 flex items-center gap-3 mx-auto"
+                onClick={() => toggleAppConnection(app.id)}
+                disabled={appLoading === app.id}
+                className={`w-full py-4 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 mt-auto ${connectedApps.includes(app.id)
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-500'
+                  : 'bg-legal-navy text-white hover:brightness-110 shadow-lg shadow-legal-navy/10'
+                  }`}
               >
-                Sugerir Nova Integração <ArrowRight size={20} />
+                {appLoading === app.id ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : connectedApps.includes(app.id) ? (
+                  'Desconectar App'
+                ) : (
+                  <>Conectar {app.name} <PlugZap size={16} /></>
+                )}
               </button>
             </div>
+          )), [connectedApps, appLoading])}
+        </div>
+
+        {/* SUGGESTION SECTION */}
+        <div className="bg-white dark:bg-slate-900 p-12 rounded-[3.5rem] border border-dashed border-slate-200 dark:border-slate-800 text-center space-y-6 shadow-sm hover:border-legal-bronze/50 transition-all group overflow-hidden relative">
+          <div className="absolute -top-10 -left-10 w-40 h-40 bg-legal-navy/5 dark:bg-legal-bronze/5 rounded-full blur-3xl group-hover:bg-legal-bronze/10 transition-colors"></div>
+          <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto text-slate-400 group-hover:scale-110 group-hover:bg-legal-navy group-hover:text-white transition-all shadow-inner relative z-10">
+            <Wrench size={32} />
+          </div>
+          <div className="space-y-2 relative z-10">
+            <h4 className="text-2xl font-black text-legal-navy dark:text-white">Deseja integrar outra ferramenta?</h4>
+            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">Nossa equipe de engenharia pode desenvolver conectores personalizados via Webhook ou integração direta.</p>
+          </div>
+          <div className="relative z-10 pt-4">
+            <button
+              onClick={() => setIsSuggestModalOpen(true)}
+              className="px-10 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 flex items-center gap-3 mx-auto"
+            >
+              Sugerir Nova Integração <ArrowRight size={20} />
+            </button>
           </div>
         </div>
-      )}
-
-      {/* MODAL: QR CODE PAIRING */}
-      {isQRModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md animate-in fade-in" onClick={() => !isConnecting && setIsQRModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 flex flex-col">
-
-            {qrStep === 'naming' && (
-              <div className="p-10 space-y-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-legal-navy text-white rounded-2xl flex items-center justify-center shadow-lg"><Smartphone size={28} /></div>
-                  <div>
-                    <h3 className="text-2xl font-black text-legal-navy dark:text-white">Gerar Novo QR Code</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Identifique o aparelho antes de iniciar o pareamento.</p>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Setor / Aparelho</label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Aparelho Jurídico 04"
-                      className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                      value={sessionForm.name}
-                      onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Número do Whatsapp (Opcional)</label>
-                    <input
-                      type="tel"
-                      placeholder="Ex: +55 11 99999-9999"
-                      className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                      value={sessionForm.phone}
-                      onChange={(e) => setSessionForm({ ...sessionForm, phone: e.target.value })}
-                    />
-                    <p className="text-[10px] text-slate-400 pl-1"><AlertCircle size={10} className="inline mr-1" /> Use apenas para identificação interna.</p>
-                  </div>
-                </div>
-                <button
-                  onClick={handleCreateSession}
-                  disabled={!sessionForm.name.trim()}
-                  className="w-full py-4 bg-legal-navy text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-legal-navy/20 hover:brightness-110 disabled:opacity-50 transition-all"
-                >
-                  Gerar Código QR
-                </button>
-              </div>
-            )}
-
-            {qrStep === 'scanning' && (
-              <div className="p-12 text-center space-y-10">
-                <div className="space-y-2">
-                  <h3 className="text-3xl font-black text-legal-navy dark:text-white tracking-tight">Escaneie o Código</h3>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto">Abra o WhatsApp no seu celular {'>'} Configurações {'>'} Aparelhos Conectados.</p>
-                </div>
-
-                <div className="relative group max-w-[340px] mx-auto p-4 bg-white rounded-[3rem] shadow-2xl border-4 border-legal-navy animate-in zoom-in-95 duration-500 overflow-hidden">
-                  {isConnecting ? (
-                    <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-[2.5rem]">
-                      <RefreshCw size={48} className="text-legal-bronze animate-spin" />
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Validando Conexão...</p>
-                    </div>
-                  ) : pairCode ? (
-                    <div className="aspect-square bg-slate-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-center p-8">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código de Pareamento</p>
-                      <div className="text-5xl font-black text-legal-navy tracking-[0.2em] bg-white px-8 py-6 rounded-3xl shadow-inner border border-slate-100">
-                        {pairCode}
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-medium mt-4">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
-                    </div>
-                  ) : qrCodeData ? (
-                    <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-0 relative overflow-hidden">
-                      {qrCodeData.startsWith('data:') ? (
-                        <img
-                          src={qrCodeData}
-                          alt="QR Code do WhatsApp"
-                          className="w-full h-full object-contain"
-                          style={{ imageRendering: 'pixelated' }}
-                        />
-                      ) : (
-                        <div className="p-4 bg-white w-full h-full flex items-center justify-center">
-                          <QRCodeSVG
-                            value={qrCodeData}
-                            size={280}
-                            level="H"
-                            includeMargin={true}
-                            className="w-full h-full"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative">
-                      <QrCode size={240} className="text-slate-900 opacity-20" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xs font-bold text-slate-500">Gerando...</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  <ShieldCheck size={14} className="text-emerald-500" /> Segurança LexHub Docker
-                </div>
-              </div>
-            )}
-
-            {qrStep === 'success' && (
-              <div className="p-16 text-center space-y-8 animate-in zoom-in-95 duration-500">
-                <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mx-auto shadow-xl shadow-emerald-100">
-                  <Check size={48} strokeWidth={3} />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Sessão Ativada!</h3>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium">O aparelho <strong>{sessionForm.name}</strong> já está integrado.</p>
-                </div>
-                <button
-                  onClick={() => { setIsQRModalOpen(false); setQrStep('naming'); }}
-                  className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20"
-                >
-                  Começar Atendimento
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: META API CONFIG */}
-      {isMetaModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md animate-in fade-in" onClick={() => !appLoading && setIsMetaModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
-            <div className="bg-legal-navy p-10 text-white relative flex-shrink-0">
-              <button onClick={() => setIsMetaModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
-              <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-xl"><Globe size={32} /></div>
-                <div>
-                  <h3 className="text-3xl font-black">Meta API Config</h3>
-                  <p className="text-white/60 text-[10px] uppercase font-black tracking-widest mt-1">Conexão WhatsApp Cloud Platform</p>
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveMetaConfig} className="p-10 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number ID</label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Ex: 10542387..."
-                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                    value={metaConfig.phoneId}
-                    onChange={(e) => setMetaConfig({ ...metaConfig, phoneId: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Business Account ID</label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Ex: 8842105..."
-                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                    value={metaConfig.businessId}
-                    onChange={(e) => setMetaConfig({ ...metaConfig, businessId: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Permanent Access Token (System User)</label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                  <input
-                    required
-                    type="password"
-                    placeholder="EAABW2..."
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                    value={metaConfig.token}
-                    onChange={(e) => setMetaConfig({ ...metaConfig, token: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl flex items-start gap-4">
-                <Info className="text-blue-500 shrink-0" size={20} />
-                <p className="text-[10px] text-blue-700 dark:text-blue-300 font-bold uppercase leading-relaxed">Certifique-se de que o Webhook do LexHub (Cloud Connector) esteja configurado em seu painel de desenvolvedor da Meta para receber eventos em tempo real.</p>
-              </div>
-
-              <div className="pt-4 flex gap-4">
-                <button type="button" onClick={() => setIsMetaModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancelar</button>
-                <button
-                  type="submit"
-                  disabled={appLoading === 'meta'}
-                  className="flex-1 py-4 bg-emerald-500 text-slate-900 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
-                >
-                  {appLoading === 'meta' ? <Loader2 size={18} className="animate-spin" /> : <><Globe size={18} /> Conectar API Oficial</>}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: EDIT SESSION */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md animate-in fade-in" onClick={() => setIsEditModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95">
-            <div className="bg-legal-navy p-10 text-white relative">
-              <button onClick={() => setIsEditModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Settings2 size={28} /></div>
-                <div>
-                  <h3 className="text-2xl font-black">Configurar Aparelho</h3>
-                  <p className="text-white/60 text-sm">Atualize os dados desta conexão WhatsApp.</p>
-                </div>
-              </div>
-            </div>
-            <form onSubmit={handleEditSession} className="p-10 space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Identificação do Aparelho</label>
-                <input
-                  required
-                  type="text"
-                  className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                  value={sessionForm.name}
-                  onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Número de Telefone</label>
-                <input
-                  required
-                  type="text"
-                  className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
-                  value={sessionForm.phone}
-                  onChange={(e) => setSessionForm({ ...sessionForm, phone: e.target.value })}
-                />
-              </div>
-              <div className="pt-4 flex gap-4">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2">
-                  <Save size={18} /> Salvar Alterações
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* MODAL: SUGGEST NEW INTEGRATION */}
       {isSuggestModalOpen && (
@@ -1531,74 +361,6 @@ export const Integrations: React.FC = () => {
           </div>
         </div>
       )}
-      {/* MODAL: NOTIFICAME HUB CONFIG */}
-      {isNotificaMeModalOpen && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md animate-in fade-in" onClick={() => !appLoading && setIsNotificaMeModalOpen(false)}></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 flex flex-col">
-            <div className="bg-indigo-600 p-10 text-white relative flex-shrink-0">
-              <button onClick={() => setIsNotificaMeModalOpen(false)} className="absolute top-8 right-8 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
-              <div className="flex items-center gap-6">
-                <div className="w-16 h-16 bg-white text-indigo-600 rounded-2xl flex items-center justify-center shadow-xl"><Globe size={32} /></div>
-                <div>
-                  <h3 className="text-3xl font-black">NotificaMe Hub</h3>
-                  <p className="text-white/60 text-[10px] uppercase font-black tracking-widest mt-1">Configuração de Integração Omnichannel</p>
-                </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveNotificaMeConfig} className="p-10 space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Account API Token</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                    <input
-                      required
-                      type="password"
-                      placeholder="Token da sua conta NotificaMe"
-                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-indigo-600/5"
-                      value={notificaMeConfig.token}
-                      onChange={(e) => setNotificaMeConfig({ ...notificaMeConfig, token: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Channel ID (WhatsApp)</label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Ex: 5511999999999 ou UUID do canal"
-                    className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-indigo-600/5"
-                    value={notificaMeConfig.channelId}
-                    onChange={(e) => setNotificaMeConfig({ ...notificaMeConfig, channelId: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900/30 rounded-2xl flex items-start gap-4">
-                <Info className="text-indigo-600 shrink-0" size={20} />
-                <div className="space-y-1">
-                  <p className="text-[10px] text-indigo-700 dark:text-indigo-300 font-bold uppercase tracking-tight">Registro Automático</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">Ao salvar, o LexHub tentará registrar automaticamente o webhook no seu canal NotificaMe para receber mensagens em tempo real.</p>
-                </div>
-              </div>
-
-              <div className="pt-4 flex gap-4">
-                <button type="button" onClick={() => setIsNotificaMeModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold hover:bg-slate-200 transition-all">Cancelar</button>
-                <button
-                  type="submit"
-                  disabled={appLoading === 'notificame'}
-                  className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
-                >
-                  {appLoading === 'notificame' ? <Loader2 size={20} className="animate-spin" /> : 'Salvar e Conectar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
-};
+});

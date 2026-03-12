@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CLIENT_ID = process.env.DROPBOX_CLIENT_ID;
 const CLIENT_SECRET = process.env.DROPBOX_CLIENT_SECRET;
-const REDIRECT_URI = process.env.DROPBOX_REDIRECT_URI;
+const REDIRECT_URI = process.env.DROPBOX_REDIRECT_URI || 'https://lexhub.company/api/integrations/dropbox/callback';
 
 export const getDropboxAuthUrl = (tenantId: string) => {
     const baseUrl = 'https://www.dropbox.com/oauth2/authorize';

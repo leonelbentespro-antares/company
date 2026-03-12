@@ -65,19 +65,19 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // registerHoneypotRoutes(app);
 
-// ============================================================
 // CAMADA 3: WORKERS DO BULLMQ (Ativos)
 // ============================================================
+// Ativar workers para processamento assíncrono
 
 // import './workers/whatsappWorker.js';
-// import './workers/documentWorker.js';
+import './workers/documentWorker.js';
 
 // ============================================================
 // CAMADA 4: ROTAS LEGÍTIMAS COM PROTEÇÃO JWT
 // ============================================================
 
 import { webhookRouter } from './routes/webhooks.js';
-// import { aiRouter } from './routes/ai.js';
+import { aiRouter } from './routes/ai.js';
 import { adminRouter } from './routes/admin.js';
 import { whatsappRouter } from './routes/whatsapp.js';
 import { integrationsRouter } from './routes/integrations.js';
@@ -101,6 +101,7 @@ app.use('/api/integrations', authMiddleware, subscriptionGuard, integrationsRout
 app.use('/api/api-keys', authMiddleware, subscriptionGuard, apiKeysRouter);
 app.use('/api/messages', authMiddleware, subscriptionGuard, messagesRouter);
 app.use('/api/team', authMiddleware, subscriptionGuard, teamRouter);
+app.use('/api', authMiddleware, subscriptionGuard, aiRouter); // Rotas de IA (/documents/generate)
 
 // Rota de admin para visualizar alertas de segurança (uso interno)
 app.use('/internal', adminRouter);

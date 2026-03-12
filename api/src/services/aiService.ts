@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import type { FunctionDeclaration } from '@google/genai';
 import { OpenAI } from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -222,31 +223,90 @@ function handleToolExecution(name: string, args: any) {
 
 /**
  * Geração Pesada de Documentos (Petições, Contratos)
- * Prioriza chaves dos tenants também.
+ * Identifica a chave cadastrada pelo Tenant nas Integrações.
  */
 export async function generateDocumentComGenAI(documentType: string, context: Record<string, any>) {
     const tenantId = context.tenantId;
-    
-    try {
-        // Tenta pegar chave do Gemini do tenant (OpenAI gera formato diferente, manter GenAI para documentos por enquanto)
-        const { data: googleInt } = await supabase
-            .from('integrations')
-            .select('settings')
-            .eq('tenant_id', tenantId)
-            .eq('provider', 'google')
-            .eq('settings->>enabled', 'true')
-            .single();
 
-        const key = googleInt?.settings?.apiKey || DEFAULT_GEMINI_KEY;
-        const genAI = new GoogleGenAI({ apiKey: key });
+    try {
+        const { data: integrations } = await supabase
+            .from('integrations')
+            .select('provider, settings')
+            .eq('tenant_id', tenantId)
+            .in('provider', ['openai', 'anthropic', 'xai', 'meta', 'google'])
+            .eq('settings->>enabled', 'true');
+
+        const openaiInt = integrations?.find(i => i.provider === 'openai');
+        const anthropicInt = integrations?.find(i => i.provider === 'anthropic');
+        const xaiInt = integrations?.find(i => i.provider === 'xai');
+        const metaInt = integrations?.find(i => i.provider === 'meta');
+        const googleInt = integrations?.find(i => i.provider === 'google');
 
         const prompt = `Você é um Advogado Sênior. Redija: ${documentType}. Contexto: ${JSON.stringify(context, null, 2)}`;
-        
-        const response = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: [{ role: 'user', parts: [{ text: prompt }] }]
-        });
-        return response.text || "Erro na geração.";
+
+        // Priority 1: OpenAI
+        if (openaiInt?.settings?.apiKey) {
+           const openai = new OpenAI({ apiKey: openaiInt.settings.apiKey });
+           const response = await openai.chat.completions.create({
+               model: "gpt-4-turbo-preview",
+               messages: [{ role: "user", content: prompt }]
+           });
+           return response.choices[0]?.message?.content || "Erro na geração pela OpenAI.";
+        }
+
+        // Priority 2: Anthropic (Claude)
+        if (anthropicInt?.settings?.apiKey) {
+            const anthropic = new Anthropic({ apiKey: anthropicInt.settings.apiKey });
+            const response = await anthropic.messages.create({
+                model: 'claude-3-5-sonnet-20241022',
+                max_tokens: 4096,
+                messages: [{ role: 'user', content: prompt }]
+            });
+            const firstContent = response.content[0];
+            if (firstContent && firstContent.type === 'text') {
+                return firstContent.text;
+            }
+            return "Erro na geração pela Anthropic.";
+        }
+
+        // Priority 3: xAI (Grok)
+        if (xaiInt?.settings?.apiKey) {
+           const openai = new OpenAI({ 
+               apiKey: xaiInt.settings.apiKey, 
+               baseURL: 'https://api.x.ai/v1' 
+           });
+           const response = await openai.chat.completions.create({
+               model: "grok-beta",
+               messages: [{ role: "user", content: prompt }]
+           });
+           return response.choices[0]?.message?.content || "Erro na geração pela xAI.";
+        }
+
+        // Priority 4: Meta (Llama via Groq)
+        if (metaInt?.settings?.apiKey) {
+           const openai = new OpenAI({ 
+               apiKey: metaInt.settings.apiKey, 
+               baseURL: 'https://api.groq.com/openai/v1' 
+           });
+           const response = await openai.chat.completions.create({
+               model: "llama-3.3-70b-versatile",
+               messages: [{ role: "user", content: prompt }]
+           });
+           return response.choices[0]?.message?.content || "Erro na geração pela Meta (Groq).";
+        }
+
+        // Priority 5: Google (Gemini)
+        if (googleInt?.settings?.apiKey) {
+            const genAI = new GoogleGenAI({ apiKey: googleInt.settings.apiKey });
+            const response = await genAI.models.generateContent({
+                model: 'gemini-2.0-flash',
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
+            });
+            return response.text || "Erro na geração pela Google.";
+        }
+
+        throw new Error("ERR_NO_API_KEY: Nenhuma chave de IA foi configurada. Por favor, adicione uma chave nas Integrações.");
+
     } catch (error) {
          console.error('[AI Service Document] Error:', error);
          throw error;

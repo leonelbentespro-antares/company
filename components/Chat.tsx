@@ -57,6 +57,8 @@ import { ChatConversation, ChatMessage } from '../types.ts';
 import { supabase } from '../services/supabaseClient';
 import { io } from 'socket.io-client';
 import { useTenant } from '../services/tenantContext';
+import { useLanguage } from '../services/languageContext';
+import { WhatsAppConnector } from './WhatsAppConnector';
 
 interface ChatTag {
   id: string;
@@ -167,9 +169,11 @@ interface ChatProps {
 
 export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   const { tenantId, user, tenant } = useTenant();
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
@@ -1122,6 +1126,56 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
     }
   };
 
+  // Placeholder for modals that are not fully defined in the provided snippet
+  const renderTagsModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-md">
+        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.manageTags}</h3>
+        {/* Tag management UI would go here */}
+        <button onClick={() => setIsTagsModalOpen(false)} className="mt-4 px-4 py-2 bg-legal-navy text-white rounded-xl">
+          {t.common.close}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderNewActionModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-md">
+        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.newAction}</h3>
+        {/* New action UI would go here */}
+        <button onClick={() => setIsNewActionModalOpen(false)} className="mt-4 px-4 py-2 bg-legal-navy text-white rounded-xl">
+          {t.common.close}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderQuickReplyModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-md">
+        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.quickReplies}</h3>
+        {/* Quick reply management UI would go here */}
+        <button onClick={() => setIsQuickReplyModalOpen(false)} className="mt-4 px-4 py-2 bg-legal-navy text-white rounded-xl">
+          {t.common.close}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderTransferModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-md">
+        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.transferChat}</h3>
+        {/* Transfer UI would go here */}
+        <button onClick={() => setIsTransferModalOpen(false)} className="mt-4 px-4 py-2 bg-legal-navy text-white rounded-xl">
+          {t.common.close}
+        </button>
+      </div>
+    </div>
+  );
+
+
   return (
     <div className="h-[calc(100vh-140px)] bg-white dark:bg-slate-900 rounded-[3rem] border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden flex animate-in fade-in duration-700 relative">
 
@@ -1136,19 +1190,19 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
       <div className={`w-full md:w-80 lg:w-96 border-r border-slate-100 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 ${!isSidebarOpen && 'hidden md:flex'}`}>
         <div className="p-6 space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">Mensagens</h2>
+            <h2 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">{t.chat.messages}</h2>
             <div className="flex gap-2">
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mr-2">
                 <button
                   onClick={() => setChatViewMode('list')}
-                  title="Modo Lista"
+                  title={t.chat.listView}
                   className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                   <List size={14} />
                 </button>
                 <button
                   onClick={() => setChatViewMode('kanban')}
-                  title="Modo Kanban"
+                  title={t.chat.kanbanView}
                   className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                   <KanbanSquare size={14} />
@@ -1156,21 +1210,21 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               </div>
               <button
                 onClick={() => setIsTagsModalOpen(true)}
-                title="Gerenciar Etiquetas"
+                title={t.chat.manageTags}
                 className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:bg-legal-bronze hover:text-white text-legal-bronze transition-all"
               >
                 <Tag size={16} />
               </button>
               <button
                 onClick={() => setIsQuickReplyModalOpen(true)}
-                title="Respostas Rápidas"
+                title={t.chat.quickReplies}
                 className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:bg-legal-navy hover:text-white text-slate-500 transition-all"
               >
                 <Zap size={16} />
               </button>
               <button
                 onClick={() => { setNewActionTab('chat'); setIsNewActionModalOpen(true); }}
-                title="Novo Chat / Contato"
+                title={t.chat.newChatContact}
                 className="p-2 bg-legal-navy text-white rounded-xl shadow-lg hover:bg-legal-bronze transition-all"
               >
                 <Plus size={16} />
@@ -1178,18 +1232,25 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
             </div>
           </div>
 
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
-            <button
-              onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              <MessageSquareText size={14} /> Caixa de Entrada
-            </button>
+          <div className="flex gap-2">
             <button
               onClick={() => { setMainTab('pending'); setSelectedChat(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-bronze text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Clock size={14} /> Pendentes
+              <Clock size={16} /> {t.nav.kanban === 'Kanban Board' ? 'Pending' : 'Pendentes'}
+            </button>
+            <button
+              onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
+            >
+              <Archive size={16} /> {t.nav.kanban === 'Kanban Board' ? 'Inbox' : 'Entrada'}
+            </button>
+            <button
+              onClick={() => setIsWhatsAppModalOpen(true)}
+              className="p-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+              title={t.nav.dashboard === 'Dashboard' ? 'Connect WhatsApp' : 'Conectar WhatsApp'}
+            >
+              <QrCode size={18} />
             </button>
           </div>
 
@@ -1235,7 +1296,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Buscar conversas..."
+              placeholder={t.header.search}
               className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none transition-all dark:text-white"
             />
           </div>
@@ -1486,11 +1547,11 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                         />
                       )}
                       {msg.mediaType === 'audio' && msg.mediaUrl && (
-                        <div className="p-1 pr-3">
+                        <div className="p-2 w-64 md:w-72">
                           <audio
                             controls
                             src={msg.mediaUrl}
-                            className="w-full min-w-[240px] h-11"
+                            className="w-full h-11"
                             controlsList="nodownload noplaybackrate"
                           />
                         </div>
@@ -1510,7 +1571,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
 
                       {/* Texto da mensagem */}
                       <div className="px-4 md:px-5 py-3">
-                        {msg.text && (
+                        {msg.text && msg.text !== '[AUDIO]' && msg.text !== '[Áudio]' && (
                           <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
                         )}
                         {/* Fallback apenas se mediaUrl falhar/não existir */}
@@ -2241,6 +2302,18 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
           </div>
         )
       }
+      {/* MODAL: WHATSAPP CONNECTOR */}
+      {isWhatsAppModalOpen && (
+        <WhatsAppConnector 
+          onClose={() => setIsWhatsAppModalOpen(false)} 
+          onSuccess={() => {
+            setIsWhatsAppModalOpen(false);
+            if (typeof (window as any).loadConversations === 'function') {
+              (window as any).loadConversations();
+            }
+          }}
+        />
+      )}
     </div >
   );
 };

@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CLIENT_ID = process.env.MICROSOFT_CLIENT_ID;
 const CLIENT_SECRET = process.env.MICROSOFT_CLIENT_SECRET;
-const REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI;
+const REDIRECT_URI = process.env.MICROSOFT_REDIRECT_URI || 'https://lexhub.company/api/integrations/microsoft/callback';
 
 const SCOPES = ['openid', 'profile', 'email', 'offline_access', 'Mail.Read', 'User.Read'];
 

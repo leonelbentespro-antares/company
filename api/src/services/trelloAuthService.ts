@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const API_KEY = process.env.TRELLO_API_KEY;
 // Trello usa um fluxo de autorização simplificado que retorna o token diretamente ou via callback
-const REDIRECT_URI = process.env.TRELLO_REDIRECT_URI;
+const REDIRECT_URI = process.env.TRELLO_REDIRECT_URI || 'https://lexhub.company/api/integrations/trello/callback';
 
 export const getTrelloAuthUrl = (tenantId: string) => {
     const baseUrl = 'https://trello.com/1/authorize';

@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CLIENT_ID = process.env.META_CLIENT_ID;
 const CLIENT_SECRET = process.env.META_CLIENT_SECRET;
-const REDIRECT_URI = process.env.META_REDIRECT_URI;
+const REDIRECT_URI = process.env.META_REDIRECT_URI || 'https://lexhub.company/api/integrations/meta/callback';
 
 // Scopes comuns para gerenciar páginas e anúncios
 const SCOPES = [

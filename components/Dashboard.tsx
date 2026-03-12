@@ -44,6 +44,7 @@ import { COLORS } from '../constants.ts';
 import { User, UserRole, Tenant, Process } from '../types.ts';
 import { getTenants, getProcesses, getMyTenant } from '../services/supabaseService.ts';
 import { useTenant } from '../services/tenantContext.tsx';
+import { useLanguage } from '../services/languageContext.tsx';
 
 const dataPerformance: any[] = [];
 
@@ -75,6 +76,7 @@ const ICON_OPTIONS = [
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser }) => {
   const { tenantId, tenant: myTenant } = useTenant();
+  const { t } = useLanguage();
   const [isExporting, setIsExporting] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCustomizing, setIsCustomizing] = useState(false);
@@ -173,12 +175,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
 
   const calculateValue = (widget: WidgetConfig) => {
     if (widget.category !== 'custom') return 0;
+    const locale = t.nav.dashboard === 'Dashboard' ? 'en-US' : 'pt-BR';
+    const currency = t.nav.dashboard === 'Dashboard' ? 'USD' : 'BRL';
+    
     switch (widget.dataSource) {
       case 'processes': return processes.length;
       case 'tenants': return tenants.length;
       case 'mrr':
         const total = tenants.reduce((sum, t) => sum + t.mrr, 0);
-        return widget.operation === 'avg' ? (total / (tenants.length || 1)).toFixed(0) : total;
+        const val = widget.operation === 'avg' ? (total / (tenants.length || 1)) : total;
+        return val;
       default: return 0;
     }
   };
@@ -225,14 +231,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
       {showFeedback && (
         <div className="fixed top-24 right-8 z-[150] px-6 py-4 bg-emerald-600 text-white rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-right duration-300">
           <div className="bg-white/20 p-1.5 rounded-full"><CheckCircle2 size={20} /></div>
-          <p className="font-bold text-sm">Dashboard exportado com sucesso!</p>
+          <p className="font-bold text-sm">{t.dashboard.exportSuccess}</p>
         </div>
       )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Overview <span className="text-slate-300 dark:text-slate-600 font-light">LexHub</span></h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Olá, {currentUser?.name}. Gerencie sua operação jurídica com métricas personalizadas.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+            {t.nav.dashboard === 'Dashboard' ? 'Hello' : 'Olá'}, {currentUser?.name}. {t.settings.subtitle}
+          </p>
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -240,7 +248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
             onClick={() => setIsCustomizing(true)}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"
           >
-            <Settings2 size={18} className="text-legal-bronze" /> Personalizar Dashboard
+            <Settings2 size={18} className="text-legal-bronze" /> {t.dashboard.customize}
           </button>
           <button
             onClick={handleExport}
@@ -248,26 +256,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
             className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-3.5 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold text-sm hover:brightness-110 transition-all shadow-xl shadow-legal-navy/20"
           >
             {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
-            {isExporting ? 'Processando...' : 'Exportar Dados'}
+            {isExporting ? t.dashboard.processing : t.dashboard.exportData}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {filteredWidgets.filter(w => (w.category === 'metric' || w.category === 'custom') && w.enabled).map(widget => {
+          const locale = t.nav.dashboard === 'Dashboard' ? 'en-US' : 'pt-BR';
+          const currency = t.nav.dashboard === 'Dashboard' ? 'USD' : 'BRL';
+          const symbol = t.nav.dashboard === 'Dashboard' ? '$' : 'R$';
+
           if (widget.category === 'custom') {
             const val = calculateValue(widget);
-            const displayVal = widget.dataSource === 'mrr' ? `R$ ${Number(val).toLocaleString('pt-BR')}` : val;
+            const displayVal = widget.dataSource === 'mrr' ? `${symbol} ${Number(val).toLocaleString(locale)}` : val;
             return <MetricCard key={widget.id} label={widget.label} value={displayVal} percentage={0} trend="up" icon={widget.icon} />;
           }
 
           switch (widget.id) {
-            case 'mrr': return <MetricCard key={widget.id} label="MRR Realizado" value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} percentage={12.5} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'arr': return <MetricCard key={widget.id} label="ARR Projetado" value={`R$ ${(totalMRR * 12).toLocaleString('pt-BR')}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'tenants_count': return <MetricCard key={widget.id} label="Tenants Ativos" value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
-            case 'processes_count': return <MetricCard key={widget.id} label="Processos no CRM" value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
-            case 'churn': return <MetricCard key={widget.id} label="Churn Rate" value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
-            case 'ltv': return <MetricCard key={widget.id} label="Lifetime Value" value="R$ 0" percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
+            case 'mrr': return <MetricCard key={widget.id} label={t.dashboard.mrr} value={`${symbol} ${totalMRR.toLocaleString(locale)}`} percentage={12.5} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'arr': return <MetricCard key={widget.id} label={t.dashboard.arr} value={`${symbol} ${(totalMRR * 12).toLocaleString(locale)}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'tenants_count': return <MetricCard key={widget.id} label={t.dashboard.tenants} value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
+            case 'processes_count': return <MetricCard key={widget.id} label={t.dashboard.processes} value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
+            case 'churn': return <MetricCard key={widget.id} label={t.dashboard.churn} value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
+            case 'ltv': return <MetricCard key={widget.id} label={t.dashboard.ltv} value={`${symbol} 0`} percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
             default: return null;
           }
         })}
@@ -280,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
               <div>
                 <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-tighter">
                   <TrendingUp size={24} className="text-legal-bronze" />
-                  Crescimento Operacional
+                  {t.dashboard.growth}
                 </h3>
               </div>
             </div>
@@ -309,7 +321,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
             <div>
               <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-tighter">
                 <Layers size={24} className="text-legal-bronze" />
-                Retenção
+                {t.dashboard.retention}
               </h3>
             </div>
             <div className="h-56 mt-8">
@@ -331,31 +343,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-md animate-in fade-in" onClick={() => setIsCustomizing(false)}></div>
           <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-3xl overflow-hidden animate-in zoom-in-95 transition-colors">
-            <div className="bg-legal-navy p-8 text-white relative">
-              <button onClick={() => setIsCustomizing(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-              </button>
+            <div className="bg-legal-navy p-8 text-white flex justify-between items-center">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg">
                   <LayoutGrid size={32} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold">Personalizar Dashboard</h3>
-                  <p className="text-white/60 text-sm">Crie novas métricas ou gerencie as existentes.</p>
+                  <h3 className="text-2xl font-bold">{t.dashboard.customize}</h3>
+                  <p className="text-white/60 text-sm">{t.dashboard.newMetric}</p>
                 </div>
               </div>
+              <button onClick={() => setIsCustomizing(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/50 hover:text-white">
+                <X size={20} />
+              </button>
             </div>
-
             <div className="flex flex-col md:flex-row h-[60vh]">
               <div className="flex-1 overflow-y-auto p-8 border-r border-slate-100 dark:border-slate-800 custom-scrollbar">
                 <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Widgets Disponíveis</h4>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.dashboard.availableWidgets}</h4>
                   {!isCreatingMetric && (
                     <button
                       onClick={() => setIsCreatingMetric(true)}
                       className="flex items-center gap-1.5 text-[10px] font-black text-legal-bronze hover:underline uppercase"
                     >
-                      <Plus size={14} /> Criar Métrica
+                      <Plus size={14} /> {t.dashboard.createMetric}
                     </button>
                   )}
                 </div>
@@ -400,12 +411,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
               {isCreatingMetric ? (
                 <div className="w-full md:w-80 bg-slate-50 dark:bg-slate-800/50 p-8 animate-in slide-in-from-right duration-300">
                   <h4 className="text-sm font-black text-legal-navy dark:text-white uppercase mb-6 flex items-center gap-2">
-                    <Calculator size={18} className="text-legal-bronze" /> Nova Métrica
+                    <Calculator size={18} className="text-legal-bronze" /> {t.dashboard.newMetric}
                   </h4>
 
                   <form onSubmit={handleCreateMetric} className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nome da Métrica</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.dashboard.metricName}</label>
                       <input
                         required
                         type="text"
@@ -417,15 +428,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fonte de Dados</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.dashboard.dataSource}</label>
                       <select
                         className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none"
                         value={newMetricForm.dataSource}
                         onChange={(e) => setNewMetricForm({ ...newMetricForm, dataSource: e.target.value as any })}
                       >
-                        <option value="processes">Processos Judiciais</option>
-                        <option value="tenants">Tenants / Bancas</option>
-                        <option value="mrr">Faturamento (MRR)</option>
+                        <option value="processes">{t.dashboard.processesSource}</option>
+                        <option value="tenants">{t.dashboard.tenantsSource}</option>
+                        <option value="mrr">{t.dashboard.mrrSource}</option>
                       </select>
                     </div>
 
@@ -437,13 +448,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                         onChange={(e) => setNewMetricForm({ ...newMetricForm, operation: e.target.value as any })}
                       >
                         <option value="count">Contagem Total</option>
-                        <option value="sum">Soma de Valores</option>
-                        <option value="avg">Média Mensal</option>
+                        <option value="sum">{t.dashboard.sumOp}</option>
+                        <option value="avg">{t.dashboard.avgOp}</option>
                       </select>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ícone Representativo</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.dashboard.selectIcon}</label>
                       <div className="grid grid-cols-3 gap-2">
                         {ICON_OPTIONS.map(opt => (
                           <button
@@ -463,14 +474,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                         type="submit"
                         className="w-full py-4 bg-legal-bronze text-white rounded-2xl font-bold text-sm shadow-xl shadow-legal-bronze/20 hover:brightness-110 transition-all"
                       >
-                        Adicionar ao Painel
+                        {t.dashboard.saveMetric}
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsCreatingMetric(false)}
                         className="w-full py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600"
                       >
-                        Cancelar
+                        {t.dashboard.cancel}
                       </button>
                     </div>
                   </form>
@@ -478,8 +489,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
               ) : (
                 <div className="hidden md:flex flex-1 flex-col items-center justify-center p-10 text-center bg-slate-50 dark:bg-slate-800/20">
                   <PieChart size={48} className="text-slate-200 dark:text-slate-700 mb-4" />
-                  <h5 className="text-sm font-bold text-slate-400 mb-2">Painel Dinâmico LexHub</h5>
-                  <p className="text-xs text-slate-300 dark:text-slate-500 max-w-[200px]">Selecione os widgets ao lado para compor sua visão operacional.</p>
+                  <h5 className="text-sm font-bold text-slate-400 mb-2">{t.dashboard.dynamicPanel}</h5>
+                  <p className="text-xs text-slate-300 dark:text-slate-500 max-w-[200px]">{t.dashboard.dynamicPanelDesc}</p>
                 </div>
               )}
             </div>
@@ -489,7 +500,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                 onClick={() => setIsCustomizing(false)}
                 className="px-10 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 hover:brightness-110 transition-all"
               >
-                Salvar Painel
+                {t.dashboard.savePanel}
               </button>
             </div>
           </div>
