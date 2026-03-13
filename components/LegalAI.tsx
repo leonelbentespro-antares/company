@@ -49,7 +49,7 @@ export const LegalAI: React.FC = () => {
           </div>
           <div>
             <h2 className="text-2xl font-bold text-legal-navy">Assistente Jurídico de IA</h2>
-            <p className="text-slate-500 font-medium text-sm lg:text-base">Análise documental avançada com tecnologia Gemini 3.</p>
+
           </div>
         </div>
 

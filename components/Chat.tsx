@@ -59,6 +59,7 @@ import { io } from 'socket.io-client';
 import { useTenant } from '../services/tenantContext';
 import { useLanguage } from '../services/languageContext';
 import { WhatsAppConnector } from './WhatsAppConnector';
+import { AudioPlayer } from './AudioPlayer';
 
 interface ChatTag {
   id: string;
@@ -1547,14 +1548,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                         />
                       )}
                       {msg.mediaType === 'audio' && msg.mediaUrl && (
-                        <div className="p-2 w-64 md:w-72">
-                          <audio
-                            controls
-                            src={msg.mediaUrl}
-                            className="w-full h-11"
-                            controlsList="nodownload noplaybackrate"
-                          />
-                        </div>
+                        <AudioPlayer src={msg.mediaUrl} fromMe={msg.fromMe} />
                       )}
                       {msg.mediaType === 'document' && msg.mediaUrl && (
                         <div className="px-4 pt-3">

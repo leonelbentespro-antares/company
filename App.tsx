@@ -816,14 +816,7 @@ const App: React.FC = () => {
               <Menu size={24} />
             </button>
 
-            <div className="hidden md:flex items-center gap-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-1.5 w-64 lg:w-96 focus-within:ring-2 focus-within:ring-legal-navy/10 transition-all">
-              <Search size={18} className="text-slate-400" />
-              <input
-                type="text"
-                placeholder={t.header.search}
-                className="bg-transparent border-none outline-none text-sm w-full text-slate-900 dark:text-slate-100"
-              />
-            </div>
+            {/* Busca removida conforme solicitado - funcionalidade pendente */}
           </div>
 
           <div className="flex items-center gap-2 lg:gap-4">
