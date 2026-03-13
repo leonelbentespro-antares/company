@@ -281,74 +281,91 @@ export const Settings: React.FC = () => {
         {/* Lado Direito */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Section: PDPJ / PJe Integration */}
-          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-amber-500">
-            <div className="p-6 border-b border-slate-100 bg-amber-50/30 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-600 text-white rounded-xl"><Scale size={20} /></div>
+          {/* Section: PDPJ / PJe Integration - Premium Design */}
+          <div className="bg-white/80 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl shadow-slate-200/50 dark:shadow-none overflow-hidden transition-all duration-500">
+            <div className="p-8 border-b border-slate-100 dark:border-slate-800/50 bg-gradient-to-r from-amber-50/50 to-transparent dark:from-amber-900/10 flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-gradient-to-br from-amber-500 to-amber-600 text-white rounded-2xl shadow-lg shadow-amber-500/20 ring-4 ring-amber-500/10">
+                  <Scale size={24} />
+                </div>
                 <div>
-                  <h3 className="font-bold text-slate-800">Plataforma Digital (PDPJ-Br)</h3>
-                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Integração Direta com Tribunais</p>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">Plataforma Digital (PDPJ-Br)</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-widest">Integração Direta com Tribunais</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500">Status:</span>
+              <div className="flex items-center gap-3 px-4 py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status</span>
                 <button 
                   onClick={() => setPdpjSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
-                  className={`w-10 h-5 rounded-full transition-all relative ${pdpjSettings.enabled ? 'bg-amber-600' : 'bg-slate-200'}`}
+                  className={`w-12 h-6 rounded-full transition-all duration-300 relative ${pdpjSettings.enabled ? 'bg-amber-600 shadow-lg shadow-amber-600/20' : 'bg-slate-300 dark:bg-slate-700'}`}
                 >
-                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${pdpjSettings.enabled ? 'left-6' : 'left-1'}`}></div>
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300 ${pdpjSettings.enabled ? 'left-7' : 'left-1'}`}></div>
                 </button>
               </div>
             </div>
 
-            <div className="p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tribunal Sugerido</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: TRT3, TJSP, TRF1"
-                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-amber-500/5 outline-none transition-all"
-                    value={pdpjSettings.court}
-                    onChange={(e) => setPdpjSettings({ ...pdpjSettings, court: e.target.value })}
-                  />
+            <div className="p-8 space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="group space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1 transition-colors group-focus-within:text-amber-600">Tribunal Sugerido</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Ex: TRT3, TJSP, TRF1"
+                      className="w-full px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500/50 outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-slate-600"
+                      value={pdpjSettings.court}
+                      onChange={(e) => setPdpjSettings({ ...pdpjSettings, court: e.target.value })}
+                    />
+                    <Globe size={18} className="absolute right-5 top-4 text-slate-300 dark:text-slate-600" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tipo de Autenticação</label>
-                  <select 
-                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none"
-                    value={pdpjSettings.authType}
-                    onChange={(e) => setPdpjSettings({ ...pdpjSettings, authType: e.target.value as any })}
-                  >
-                    <option value="oauth2">OAuth2 (Keycloak)</option>
-                    <option value="certificate">Certificado Digital (A3)</option>
-                  </select>
+                
+                <div className="group space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1 transition-colors group-focus-within:text-amber-600">Tipo de Autenticação</label>
+                  <div className="relative">
+                    <select 
+                      className="w-full px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200 appearance-none outline-none focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500/50 transition-all cursor-pointer"
+                      value={pdpjSettings.authType}
+                      onChange={(e) => setPdpjSettings({ ...pdpjSettings, authType: e.target.value as any })}
+                    >
+                      <option value="oauth2" className="dark:bg-slate-900">OAuth2 (Keycloak)</option>
+                      <option value="certificate" className="dark:bg-slate-900">Certificado Digital (A3)</option>
+                    </select>
+                    <ShieldCheck size={18} className="absolute right-5 top-4 text-slate-300 dark:text-slate-600 pointer-events-none" />
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Datajud ApiKey (CNJ)</label>
+              <div className="group space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-1 transition-colors group-focus-within:text-amber-600">Datajud ApiKey (CNJ)</label>
                 <div className="relative">
                   <input
                     type="password"
                     placeholder="Sua chave pública do Datajud"
-                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-amber-500/5 outline-none transition-all pr-12"
+                    className="w-full px-6 py-4 bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-2xl text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500/50 outline-none transition-all pr-14 placeholder:text-slate-300 dark:placeholder:text-slate-600"
                     value={pdpjSettings.apiKey}
                     onChange={(e) => setPdpjSettings({ ...pdpjSettings, apiKey: e.target.value })}
                   />
-                  <Gavel size={18} className="absolute right-4 top-3 text-slate-300" />
+                  <Gavel size={18} className="absolute right-5 top-4 text-slate-300 dark:text-slate-600" />
                 </div>
-                <p className="text-[10px] text-slate-400">Necessária para busca automática de movimentações e espelhamento de processos.</p>
+                <div className="flex items-start gap-2 ml-1">
+                  <div className="mt-1 p-0.5 bg-amber-500/10 rounded-full text-amber-600 dark:text-amber-500"><Terminal size={10} /></div>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium leading-relaxed uppercase">Necessária para busca automática de movimentações e espelhamento de processos em tempo real.</p>
+                </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800/50 flex justify-end items-center gap-6">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium italic hidden sm:block">LexHub Justice Engine v1.0</span>
                 <button
                   onClick={handleSavePdpj}
-                  className="px-8 py-3 bg-legal-navy text-white rounded-xl font-bold text-sm shadow-xl shadow-legal-navy/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                  className="group px-10 py-4 bg-gradient-to-r from-legal-navy to-slate-800 dark:from-amber-600 dark:to-amber-700 text-white rounded-2xl font-bold text-sm shadow-2xl shadow-legal-navy/30 dark:shadow-amber-900/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-3 relative overflow-hidden"
                 >
-                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                  Salvar Configurações Judiciais
+                  <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-12"></div>
+                  <RefreshCw size={18} className={loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'} />
+                  <span>Salvar Configurações Judiciais</span>
                 </button>
               </div>
             </div>
