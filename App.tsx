@@ -42,7 +42,11 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  KanbanSquare
+  KanbanSquare,
+  Brain,
+  Puzzle,
+  Bot,
+  Gem
 } from 'lucide-react';
 import { Dashboard } from './components/Dashboard.tsx';
 import { Auth } from './components/Auth.tsx';
@@ -99,7 +103,7 @@ const SidebarItem: React.FC<{
 
 const App: React.FC = () => {
   const { tenantId, loading: tenantContextLoading, error, user: contextUser, isAuthenticated: contextAuth } = useTenant();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -710,25 +714,25 @@ const App: React.FC = () => {
           onClick={() => { setActiveTab('processes'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<BrainCircuit size={20} />}
+          icon={<Brain size={20} />}
           label={t.nav.aiModule}
           active={activeTab === 'ai'}
           onClick={() => { setActiveTab('ai'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<Share2 size={20} />}
+          icon={<Zap size={20} />}
           label={t.nav.automation}
           active={activeTab === 'automation'}
           onClick={() => { setActiveTab('automation'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<PlugZap size={20} />}
+          icon={<Puzzle size={20} />}
           label={t.nav.integrations}
           active={activeTab === 'integrations'}
           onClick={() => { setActiveTab('integrations'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<MessageSquare size={20} />}
+          icon={<Bot size={20} />}
           label={t.nav.aiAgents}
           active={activeTab === 'agents'}
           onClick={() => { setActiveTab('agents'); setIsSidebarOpen(false); }}
@@ -740,7 +744,7 @@ const App: React.FC = () => {
           onClick={() => { setActiveTab('billing'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
-          icon={<Sparkles size={20} />}
+          icon={<Gem size={20} />}
           label={t.nav.plans}
           active={activeTab === 'plans'}
           onClick={() => { setActiveTab('plans'); setIsSidebarOpen(false); }}
@@ -888,7 +892,9 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-50 dark:border-slate-800 text-center">
-                    <button className="text-xs font-black text-legal-navy dark:text-legal-bronze uppercase tracking-widest">{t.nav.dashboard === 'Dashboard' ? 'View All History' : 'Ver Todo o Histórico'}</button>
+                    <button className="text-xs font-black text-legal-navy dark:text-legal-bronze uppercase tracking-widest">
+                      {locale === 'en' ? 'View All History' : locale === 'es' ? 'Ver Todo el Histórico' : 'Ver Todo o Histórico'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -941,7 +947,9 @@ const App: React.FC = () => {
             </div>
             <div>
               <p className="font-black text-sm">{aiToast.message}</p>
-              <p className="text-emerald-100 text-xs font-medium">{t.nav.dashboard === 'Dashboard' ? 'Result available in AI Module tab' : 'Resultado disponível na aba Módulo IA'}</p>
+              <p className="text-emerald-100 text-xs font-medium">
+                {locale === 'en' ? 'Result available in AI Module tab' : locale === 'es' ? 'Resultado disponible en la pestaña Módulo IA' : 'Resultado disponível na aba Módulo IA'}
+              </p>
             </div>
             <button
               onClick={() => setAiToast(null)}

@@ -35,11 +35,13 @@ import {
     Loader2,
     FileText,
     Database,
-    Eye
+    Eye,
+    RefreshCw
 } from 'lucide-react';
 import { Process, ProcessStage, ProcessDocument } from '../types.ts';
 import { getProcesses, createProcess, updateProcess, deleteProcess, getProcessDocuments, uploadProcessDocument, deleteProcessDocument, getProcessDocumentSignedUrl } from '../services/supabaseService.ts';
 import { useTenant } from '../services/tenantContext.tsx';
+import { supabase } from '../services/supabaseClient';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 const INITIAL_CLIENTS: string[] = [];
@@ -49,23 +51,26 @@ interface KanbanStage {
     color: string;
 }
 
-const INITIAL_PROCESS_STAGES: KanbanStage[] = [
-    { id: ProcessStage.Initial, label: 'Petição Inicial', color: 'bg-blue-500' },
-    { id: ProcessStage.Evidence, label: 'Instrução', color: 'bg-indigo-500' },
-    { id: ProcessStage.Decision, label: 'Sentença', color: 'bg-amber-500' },
-    { id: ProcessStage.Appeal, label: 'Recursos', color: 'bg-rose-500' },
-    { id: ProcessStage.Archived, label: 'Arquivado', color: 'bg-emerald-500' },
-];
-
 const STAGE_COLORS = [
     'bg-blue-500', 'bg-indigo-500', 'bg-amber-500', 'bg-rose-500',
     'bg-emerald-500', 'bg-purple-500', 'bg-slate-500', 'bg-cyan-500'
 ];
 
+import { useLanguage } from '../services/languageContext.tsx';
+
 type ViewMode = 'Table' | 'Kanban' | 'ImportExport';
 
 export const Processes: React.FC = () => {
     const { tenantId } = useTenant();
+    const { t, locale } = useLanguage();
+    const INITIAL_PROCESS_STAGES: KanbanStage[] = [
+        { id: ProcessStage.Initial, label: t.processes.initialPetition, color: 'bg-blue-500' },
+        { id: ProcessStage.Evidence, label: t.processes.evidence, color: 'bg-indigo-500' },
+        { id: ProcessStage.Decision, label: t.processes.decision, color: 'bg-amber-500' },
+        { id: ProcessStage.Appeal, label: t.processes.appeal, color: 'bg-rose-500' },
+        { id: ProcessStage.Archived, label: t.processes.archived, color: 'bg-emerald-500' },
+    ];
+
     const [processes, setProcesses] = useState<Process[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -159,10 +164,10 @@ export const Processes: React.FC = () => {
         try {
             const newDoc = await uploadProcessDocument(tenantId, selectedProcess.id, file);
             setProcessDocuments(prev => [newDoc, ...prev]);
-            setShowFeedback({ message: 'Arquivo enviado com sucesso!', type: 'success' });
+            setShowFeedback({ message: locale === 'en' ? 'File uploaded successfully!' : locale === 'es' ? '¡Archivo subido con éxito!' : 'Arquivo enviado com sucesso!', type: 'success' });
         } catch (err) {
             console.error('Erro no upload:', err);
-            setShowFeedback({ message: 'Falha ao enviar arquivo.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Failed to upload file.' : locale === 'es' ? 'Error al subir el archivo.' : 'Falha ao enviar arquivo.', type: 'error' });
         } finally {
             setIsUploading(false);
             if (e.target) e.target.value = '';
@@ -175,10 +180,10 @@ export const Processes: React.FC = () => {
             await deleteProcessDocument(tenantId, doc.id, doc.storage_path);
             setProcessDocuments(prev => prev.filter(d => d.id !== doc.id));
             if (selectedPreviewDoc?.id === doc.id) setSelectedPreviewDoc(null);
-            setShowFeedback({ message: 'Documento removido.', type: 'success' });
+            setShowFeedback({ message: locale === 'en' ? 'Document removed.' : locale === 'es' ? 'Documento eliminado.' : 'Documento removido.', type: 'success' });
         } catch (err) {
             console.error('Erro ao deletar documento:', err);
-            setShowFeedback({ message: 'Erro ao remover documento.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Error removing document.' : locale === 'es' ? 'Error al eliminar el documento.' : 'Erro ao remover documento.', type: 'error' });
         }
     };
 
@@ -212,7 +217,7 @@ export const Processes: React.FC = () => {
             setPreviewUrl(url);
         } catch (err) {
             console.error('Erro ao gerar preview:', err);
-            setShowFeedback({ message: 'Erro ao carregar visualização.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Error loading preview.' : locale === 'es' ? 'Error al cargar la vista previa.' : 'Erro ao carregar visualização.', type: 'error' });
             setSelectedPreviewDoc(null);
         } finally {
             setIsPreviewLoading(false);
@@ -230,7 +235,16 @@ export const Processes: React.FC = () => {
     const handleExportCSV = () => {
         setIsProcessing(true);
         setTimeout(() => {
-            const headers = ['Número CNJ', 'Cliente', 'Assunto', 'Tribunal', 'Status', 'Fase', 'Última Movimentação', 'Criado em'];
+            const headers = [
+                locale === 'en' ? 'CNJ Number' : locale === 'es' ? 'Número CNJ' : 'Número CNJ',
+                locale === 'en' ? 'Client' : locale === 'es' ? 'Cliente' : 'Cliente',
+                locale === 'en' ? 'Subject' : locale === 'es' ? 'Asunto' : 'Assunto',
+                locale === 'en' ? 'Court' : locale === 'es' ? 'Tribunal' : 'Tribunal',
+                locale === 'en' ? 'Status' : locale === 'es' ? 'Estado' : 'Status',
+                locale === 'en' ? 'Stage' : locale === 'es' ? 'Etapa' : 'Fase',
+                locale === 'en' ? 'Last Movement' : locale === 'es' ? 'Último Movimiento' : 'Última Movimentação',
+                locale === 'en' ? 'Created At' : locale === 'es' ? 'Creado en' : 'Criado em'
+            ];
             const rows = processes.map(p => [
                 p.number,
                 p.clientName,
@@ -253,7 +267,7 @@ export const Processes: React.FC = () => {
             document.body.removeChild(link);
 
             setIsProcessing(false);
-            setShowFeedback({ message: 'Acervo exportado com sucesso!', type: 'success' });
+            setShowFeedback({ message: t.processes.exportSuccess || 'Acervo exportado com sucesso!', type: 'success' });
         }, 1200);
     };
 
@@ -304,7 +318,7 @@ export const Processes: React.FC = () => {
                 }
 
                 const validRows = rows.filter(row => row.length > 1 || (row.length === 1 && row[0] !== ''));
-                if (validRows.length < 2) throw new Error("O arquivo não contém dados para importar.");
+                if (validRows.length < 2) throw new Error(t.processes.importFormatError || "O arquivo não contém dados para importar.");
 
                 const headers = validRows[0].map(h => h.toLowerCase().replace(/^["'](.*)["']$/, '$1').trim());
 
@@ -323,7 +337,7 @@ export const Processes: React.FC = () => {
 
                 if (missingCols.length > 0) {
                     const cabecalhoLido = validRows[0].join(' | ');
-                    throw new Error(`As seguintes colunas obrigatórias não foram encontradas: ${missingCols.join(' e ')}. Verifique se a 1ª linha do seu arquivo contém esses títulos. Cabeçalho lido do arquivo: [ ${cabecalhoLido} ]`);
+                    throw new Error(`${t.processes.importMissingCols || 'Colunas obrigatórias não encontradas'}: ${missingCols.join(' e ')}. Cabeçalho: [ ${cabecalhoLido} ]`);
                 }
 
                 const imported: Process[] = [];
@@ -374,12 +388,12 @@ export const Processes: React.FC = () => {
 
                     if (createdProcesses.length > 0) {
                         setProcesses(prev => [...createdProcesses, ...prev]);
-                        setShowFeedback({ message: `${createdProcesses.length} processo(s) importado(s) com sucesso!`, type: 'success' });
+                        setShowFeedback({ message: t.processes.importSuccess(createdProcesses.length), type: 'success' });
                     } else {
-                        setShowFeedback({ message: `Erro ao salvar processos no banco de dados. Processos lidos: ${imported.length}.`, type: 'error' });
+                        setShowFeedback({ message: t.processes.importError || 'Erro ao importar processos.', type: 'error' });
                     }
                 } else {
-                    setShowFeedback({ message: `Nenhum processo novo para importar (podem ser duplicados na base atual).`, type: 'error' });
+                    setShowFeedback({ message: t.processes.importDuplicate || 'Nenhum processo novo para importar.', type: 'error' });
                 }
 
             } catch (err: any) {
@@ -423,9 +437,9 @@ export const Processes: React.FC = () => {
 
     const getStatusBadge = (status: string) => {
         switch (status) {
-            case 'Active': return <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><Check size={12} /> EM CURSO</span>;
-            case 'Suspended': return <span className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><Clock size={12} /> SUSPENSO</span>;
-            case 'Archived': return <span className="flex items-center gap-1.5 text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><CheckCircle size={12} /> FINALIZADO</span>;
+            case 'Active': return <span className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><Check size={12} /> {t.processes.statusActive}</span>;
+            case 'Suspended': return <span className="flex items-center gap-1.5 text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><Clock size={12} /> {t.processes.statusSuspended}</span>;
+            case 'Archived': return <span className="flex items-center gap-1.5 text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-tight"><CheckCircle size={12} /> {t.processes.statusArchived}</span>;
             default: return null;
         }
     };
@@ -443,10 +457,10 @@ export const Processes: React.FC = () => {
             setProcesses([newProcess, ...processes]);
             setIsCreateModalOpen(false);
             setIsAddingNewClient(false);
-            setShowFeedback({ message: 'Processo cadastrado no CRM com sucesso!', type: 'success' });
+            setShowFeedback({ message: locale === 'en' ? 'Case registered in CRM successfully!' : locale === 'es' ? '¡Caso registrado en CRM con éxito!' : 'Processo cadastrado no CRM com sucesso!', type: 'success' });
         } catch (err: any) {
             console.error('Erro ao criar processo:', err);
-            setShowFeedback({ message: `Erro: ${err.message || 'Falha ao criar processo no banco de dados.'}`, type: 'error' });
+            setShowFeedback({ message: `${t.common.error || 'Erro'}: ${err.message || 'Falha ao criar processo no banco de dados.'}`, type: 'error' });
         }
     };
 
@@ -457,10 +471,10 @@ export const Processes: React.FC = () => {
             await updateProcess(selectedProcess.id, tenantId, formData);
             setProcesses(prev => prev.map(p => p.id === selectedProcess.id ? { ...p, ...formData } : p));
             setIsEditModalOpen(false);
-            setShowFeedback({ message: 'Processo atualizado!', type: 'success' });
+            setShowFeedback({ message: locale === 'en' ? 'Case updated!' : locale === 'es' ? '¡Caso actualizado!' : 'Processo atualizado!', type: 'success' });
         } catch (err) {
             console.error('Erro ao atualizar processo:', err);
-            setShowFeedback({ message: 'Erro ao atualizar processo.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Error updating case.' : locale === 'es' ? 'Error al actualizar el proceso.' : 'Erro ao atualizar processo.', type: 'error' });
         }
     };
 
@@ -473,7 +487,7 @@ export const Processes: React.FC = () => {
         };
         setKanbanStages([...kanbanStages, newStage]);
         setIsStageModalOpen(false);
-        setShowFeedback({ message: 'Nova aba adicionada ao Kanban!', type: 'success' });
+        setShowFeedback({ message: locale === 'en' ? 'New tab added to Kanban!' : locale === 'es' ? '¡Nueva pestaña añadida al Kanban!' : 'Nova aba adicionada ao Kanban!', type: 'success' });
         setStageFormData({ label: '', color: STAGE_COLORS[0] });
     };
 
@@ -483,7 +497,7 @@ export const Processes: React.FC = () => {
         setKanbanStages(prev => prev.map(s => s.id === selectedStage.id ? { ...s, label: stageFormData.label, color: stageFormData.color } : s));
         setIsStageModalOpen(false);
         setSelectedStage(null);
-        setShowFeedback({ message: 'Aba renomeada com sucesso!', type: 'success' });
+        setShowFeedback({ message: locale === 'en' ? 'Tab renamed successfully!' : locale === 'es' ? '¡Pestaña renombrada con éxito!' : 'Aba renomeada com sucesso!', type: 'success' });
     };
 
     const openStageModal = (stage?: KanbanStage) => {
@@ -497,16 +511,53 @@ export const Processes: React.FC = () => {
         setIsStageModalOpen(true);
     };
 
+    const handleSyncProcess = async (process: Process) => {
+        setIsProcessing(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+            
+            const response = await fetch(`${apiUrl}/api/justice/sync/${process.id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token}`
+                },
+                body: JSON.stringify({ cnjNumber: process.number })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setShowFeedback({ 
+                    message: `Sincronizado: ${data.result.lastMovement}`, 
+                    type: 'success' 
+                });
+                // Atualizar lista local
+                setProcesses(prev => prev.map(p => 
+                    p.id === process.id ? { ...p, lastMovement: data.result.date.split('T')[0] } : p
+                ));
+            } else {
+                const errData = await response.json();
+                throw new Error(errData.messages?.[0] || 'Erro na comunicação judiciária');
+            }
+        } catch (err: any) {
+            console.error('Erro de sincronização:', err);
+            setShowFeedback({ message: err.message || 'Falha ao sincronizar com tribunal.', type: 'error' });
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleDeleteProcess = async () => {
         if (!selectedProcess) return;
         try {
             await deleteProcess(selectedProcess.id, tenantId);
             setProcesses(prev => prev.filter(p => p.id !== selectedProcess.id));
             setIsDeleteModalOpen(false);
-            setShowFeedback({ message: 'Processo excluído.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Case deleted.' : locale === 'es' ? 'Proceso eliminado.' : 'Processo excluído.', type: 'error' });
         } catch (err) {
             console.error('Erro ao deletar processo:', err);
-            setShowFeedback({ message: 'Erro ao excluir processo.', type: 'error' });
+            setShowFeedback({ message: locale === 'en' ? 'Error deleting case.' : locale === 'es' ? 'Error al eliminar el proceso.' : 'Erro ao excluir processo.', type: 'error' });
         }
     };
 
@@ -556,9 +607,9 @@ export const Processes: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-legal-navy dark:text-white flex items-center gap-2">
-                        <Scale className="text-legal-bronze" /> Processos Judiciais & CRM
+                        <Scale className="text-legal-bronze" /> {t.processes.title}
                     </h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm">Gerencie o acervo e mova os processos através das fases do tribunal.</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t.processes.subtitle}</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -567,19 +618,19 @@ export const Processes: React.FC = () => {
                             onClick={() => setViewMode('Table')}
                             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${viewMode === 'Table' ? 'bg-legal-navy text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'}`}
                         >
-                            <List size={14} /> Lista
+                            <List size={14} /> {t.processes.tabList}
                         </button>
                         <button
                             onClick={() => setViewMode('Kanban')}
                             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${viewMode === 'Kanban' ? 'bg-legal-bronze text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'}`}
                         >
-                            <LayoutGrid size={14} /> Kanban
+                            <LayoutGrid size={14} /> {t.processes.tabKanban}
                         </button>
                         <button
                             onClick={() => setViewMode('ImportExport')}
                             className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${viewMode === 'ImportExport' ? 'bg-legal-navy text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'}`}
                         >
-                            <FileSpreadsheet size={14} /> Dados
+                            <FileSpreadsheet size={14} /> {t.processes.tabData}
                         </button>
                     </div>
 
@@ -591,7 +642,7 @@ export const Processes: React.FC = () => {
                         }}
                         className="flex items-center gap-2 px-5 py-2.5 bg-legal-navy text-white rounded-xl hover:bg-opacity-90 transition-all font-bold shadow-lg shadow-legal-navy/20 dark:bg-legal-bronze dark:shadow-legal-bronze/20"
                     >
-                        <Plus size={20} /> Novo Processo
+                        <Plus size={20} /> {t.processes.newProcess}
                     </button>
                 </div>
             </div>
@@ -603,7 +654,7 @@ export const Processes: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
-                                placeholder="Buscar por CNJ ou Cliente..."
+                                placeholder={t.processes.searchPlaceholder}
                                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 text-sm dark:text-white"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -664,6 +715,14 @@ export const Processes: React.FC = () => {
                                         </td>
                                         <td className="px-6 py-4 text-center">
                                             <div className="flex justify-center gap-2">
+                                                 <button 
+                                                    onClick={(e) => { e.stopPropagation(); handleSyncProcess(p); }} 
+                                                    disabled={isProcessing}
+                                                    title="Sincronizar com Tribunal"
+                                                    className="p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 hover:bg-amber-600 hover:text-white rounded-xl transition-all"
+                                                 >
+                                                    {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                                 </button>
                                                 <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(p); setFormData({ ...p }); setIsEditModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-legal-navy hover:text-white dark:hover:bg-legal-bronze rounded-xl transition-all"><Edit2 size={16} /></button>
                                                 <button onClick={(e) => { e.stopPropagation(); setSelectedProcess(p); setIsDeleteModalOpen(true); }} className="p-2 bg-rose-50 dark:bg-rose-900/20 text-rose-500 hover:bg-rose-100 rounded-xl transition-all"><Trash2 size={16} /></button>
                                             </div>
@@ -788,8 +847,8 @@ export const Processes: React.FC = () => {
                                     <Download size={40} />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Exportar Acervo</h3>
-                                    <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto">Baixe toda a sua base de dados processuais para backup ou integração externa.</p>
+                                    <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">{t.processes.exportTitle}</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto">{t.processes.exportSubtitle}</p>
                                 </div>
                                 <div className="pt-4">
                                     <button
@@ -798,7 +857,7 @@ export const Processes: React.FC = () => {
                                         className="px-10 py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-bold text-sm shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex items-center justify-center gap-3 mx-auto"
                                     >
                                         {isProcessing ? <Loader2 className="animate-spin" size={18} /> : <Database size={18} />}
-                                        Gerar Planilha (CSV)
+                                        {t.processes.exportButton}
                                     </button>
                                 </div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total: {processes.length} registros</p>
@@ -808,12 +867,10 @@ export const Processes: React.FC = () => {
                         <div className="bg-amber-50 dark:bg-amber-900/10 p-8 rounded-[2rem] border border-amber-100 dark:border-amber-900/30 flex items-start gap-6">
                             <div className="p-3 bg-white dark:bg-amber-900/30 rounded-xl text-amber-600 shrink-0 shadow-sm"><AlertCircle size={24} /></div>
                             <div className="space-y-2">
-                                <h4 className="text-amber-800 dark:text-amber-400 font-bold uppercase text-xs tracking-widest">Instruções para Importação</h4>
+                                <h4 className="text-amber-800 dark:text-amber-400 font-bold uppercase text-xs tracking-widest">{t.processes.instructionsTitle}</h4>
                                 <p className="text-sm text-amber-700 dark:text-amber-500 font-medium leading-relaxed">
-                                    Para garantir o sucesso da importação, seu arquivo deve conter as colunas: <strong>Número CNJ, Cliente, Assunto</strong> e <strong>Tribunal</strong>.
-                                    Processos duplicados serão identificados automaticamente pelo número CNJ e não serão sobrescritos.
+                                    {t.processes.instructionsText}
                                 </p>
-                                <button className="text-[10px] font-black text-amber-600 dark:text-amber-400 hover:underline uppercase">Baixar Modelo Exemplo</button>
                             </div>
                         </div>
                     </div>
@@ -830,8 +887,8 @@ export const Processes: React.FC = () => {
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-legal-bronze rounded-xl flex items-center justify-center text-white shadow-lg"><Edit2 size={24} /></div>
                                 <div>
-                                    <h3 className="text-2xl font-bold">Editar Processo</h3>
-                                    <p className="text-indigo-100">Atualize os dados e movimentações</p>
+                                    <h3 className="text-2xl font-bold">{t.processes.modalEditTitle}</h3>
+                                    <p className="text-indigo-100">{t.processes.modalEditSubtitle}</p>
                                 </div>
                             </div>
                         </div>
@@ -841,25 +898,26 @@ export const Processes: React.FC = () => {
                                 onClick={() => setActiveTab('data')}
                                 className={`py-4 px-6 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'data' ? 'border-legal-bronze text-legal-navy dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
                             >
-                                Dados do Processo
+                                {t.processes.tabData}
                             </button>
                             <button 
                                 onClick={() => setActiveTab('documents')}
                                 className={`py-4 px-6 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${activeTab === 'documents' ? 'border-legal-bronze text-legal-navy dark:text-white' : 'border-transparent text-slate-400 hover:text-slate-600'} flex items-center gap-2`}
                             >
-                                Documentos <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{processDocuments.length}</span>
+                                {locale === 'en' ? 'Documents' : locale === 'es' ? 'Documentos' : 'Documentos'} <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{processDocuments.length}</span>
                             </button>
                         </div>
 
                         {activeTab === 'data' ? (
                             <form onSubmit={handleUpdateProcess} className="p-8 grid grid-cols-2 gap-6">
                                 <div className="col-span-2 md:col-span-1 space-y-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase">Número do Processo (CNJ)</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase">{t.processes.labelCnj}</label>
                                     <div className="relative">
                                         <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                         <input
                                             type="text"
                                             required
+                                            placeholder={t.processes.placeholderCnj}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
                                             value={formData.number}
                                             onChange={(e) => setFormData({ ...formData, number: e.target.value })}
@@ -868,7 +926,7 @@ export const Processes: React.FC = () => {
                                 </div>
 
                                 <div className="col-span-2 md:col-span-1 space-y-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase">Cliente</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase">{t.processes.labelClient}</label>
                                     <div className="relative">
                                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                         <input
@@ -886,12 +944,13 @@ export const Processes: React.FC = () => {
                                 </div>
 
                                 <div className="col-span-2 space-y-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase">Assunto / Objeto</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase">{t.processes.labelSubject}</label>
                                     <div className="relative">
                                         <FileText className="absolute left-3 top-3 text-slate-400" size={18} />
                                         <textarea
                                             required
                                             rows={3}
+                                            placeholder={t.processes.placeholderSubject}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-medium text-slate-600 dark:text-slate-300 resize-none"
                                             value={formData.subject}
                                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
@@ -900,12 +959,13 @@ export const Processes: React.FC = () => {
                                 </div>
 
                                 <div className="col-span-2 md:col-span-1 space-y-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase">Tribunal / Vara</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase">{t.processes.labelCourt}</label>
                                     <div className="relative">
                                         <Gavel className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                         <input
                                             type="text"
                                             required
+                                            placeholder={t.processes.placeholderCourt}
                                             className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 font-bold text-slate-700 dark:text-white"
                                             value={formData.court}
                                             onChange={(e) => setFormData({ ...formData, court: e.target.value })}
@@ -914,7 +974,7 @@ export const Processes: React.FC = () => {
                                 </div>
 
                                 <div className="col-span-2 md:col-span-1 space-y-2">
-                                    <label className="text-xs font-black text-slate-500 uppercase">Status Atual</label>
+                                    <label className="text-xs font-black text-slate-500 uppercase">{t.processes.labelStatus}</label>
                                     <div className="relative">
                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                                         <select
@@ -930,21 +990,21 @@ export const Processes: React.FC = () => {
                                 </div>
 
                                 <div className="col-span-2 pt-4 flex gap-3">
-                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                                    <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors">{t.processes.btnCancel}</button>
                                     <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-xl font-bold hover:brightness-110 shadow-lg shadow-legal-navy/20 flex items-center justify-center gap-2">
-                                        <Save size={20} /> Salvar Alterações
+                                        <Save size={20} /> {t.common.saveChanges}
                                     </button>
                                 </div>
                             </form>
                         ) : (
                             <div className="p-8 space-y-6 animate-in fade-in duration-300">
                                 <div className="flex items-center justify-between">
-                                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Cofre de Documentos</h4>
+                                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">{t.processes.docsTitle}</h4>
                                     <label className="cursor-pointer">
                                         <input type="file" className="hidden" onChange={handleUpload} disabled={isUploading} />
                                         <span className="flex items-center gap-2 px-4 py-2 bg-legal-navy text-white rounded-xl text-xs font-bold hover:bg-opacity-90 transition-all shadow-md">
                                             {isUploading ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
-                                            Subir Arquivo
+                                            {t.processes.btnUpload}
                                         </span>
                                     </label>
                                 </div>
@@ -1022,8 +1082,8 @@ export const Processes: React.FC = () => {
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-legal-bronze rounded-xl flex items-center justify-center text-white shadow-lg"><Scale size={24} /></div>
                                 <div>
-                                    <h3 className="text-2xl font-bold">Novo Processo</h3>
-                                    <p className="text-indigo-100">Cadastre um novo caso no acervo</p>
+                                    <h3 className="text-2xl font-bold">{t.processes.modalCreateTitle}</h3>
+                                    <p className="text-indigo-100">{t.processes.modalCreateSubtitle}</p>
                                 </div>
                             </div>
                         </div>
@@ -1240,7 +1300,7 @@ export const Processes: React.FC = () => {
                             {isPreviewLoading ? (
                                 <div className="flex flex-col items-center gap-4">
                                     <Loader2 className="animate-spin text-legal-navy" size={48} />
-                                    <p className="text-slate-400 font-bold animate-pulse">Gerando acesso seguro...</p>
+                                    <p className="text-slate-400 font-bold animate-pulse">{t.processes.docPreviewLoading}</p>
                                 </div>
                             ) : previewUrl ? (
                                 selectedPreviewDoc.file_type?.includes('image') ? (
@@ -1261,21 +1321,21 @@ export const Processes: React.FC = () => {
                                             {selectedPreviewDoc.file_type?.includes('spreadsheet') || selectedPreviewDoc.name.endsWith('.csv') ? <FileSpreadsheet size={64} /> : <Archive size={64} />}
                                         </div>
                                         <div>
-                                            <h5 className="text-xl font-bold">Arquivo {selectedPreviewDoc.file_type?.split('/').pop()?.toUpperCase() || 'DOCUMENTO'}</h5>
+                                            <h5 className="text-xl font-bold">{t.processes.docPreviewType} {selectedPreviewDoc.file_type?.split('/').pop()?.toUpperCase() || 'DOCUMENTO'}</h5>
                                             <p className="text-sm text-slate-400 mt-2">
-                                                Este formato não suporta visualização direta no navegador. Use o botão abaixo para baixar e abrir no seu sistema.
+                                                {t.processes.docPreviewUnsupported}
                                             </p>
                                         </div>
                                         <button 
                                             onClick={() => handleDownloadDoc(selectedPreviewDoc)}
                                             className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                         >
-                                            <Download size={20} /> Baixar para o Computador
+                                            <Download size={20} /> {t.processes.btnDownloadComputer}
                                         </button>
                                     </div>
                                 )
                             ) : (
-                                <div className="text-rose-500 font-bold">Erro ao carregar visualização.</div>
+                                <div className="text-rose-500 font-bold">{t.processes.docPreviewError}</div>
                             )}
                         </div>
                     </div>

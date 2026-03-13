@@ -19,7 +19,9 @@ import {
   Eye,
   EyeOff,
   X,
-  AlertCircle
+  AlertCircle,
+  Scale,
+  Gavel
 } from 'lucide-react';
 
 interface Webhook {
@@ -64,11 +66,57 @@ export const Settings: React.FC = () => {
     status: 'Active'
   });
 
+  const [pdpjSettings, setPdpjSettings] = useState({
+    enabled: false,
+    court: '',
+    apiKey: '',
+    clientId: '',
+    authType: 'oauth2' as 'oauth2' | 'certificate'
+  });
+
   useEffect(() => {
     if (tenantId) {
       loadApiKeys();
+      loadPdpjSettings();
     }
   }, [tenantId]);
+
+  const loadPdpjSettings = async () => {
+    try {
+      const { data } = await supabase
+        .from('integrations')
+        .select('settings')
+        .eq('tenant_id', tenantId)
+        .eq('provider', 'pdpj')
+        .single();
+      
+      if (data) setPdpjSettings(data.settings);
+    } catch (err) {
+      console.log('PDPJ settings not found yet.');
+    }
+  };
+
+  const handleSavePdpj = async () => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('integrations')
+        .upsert({
+          tenant_id: tenantId,
+          provider: 'pdpj',
+          settings: pdpjSettings,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'tenant_id,provider' });
+
+      if (error) throw error;
+      setShowFeedback({ message: 'Configurações judiciais salvas!', type: 'success' });
+    } catch (error) {
+      console.error('Error saving PDPJ settings:', error);
+      setShowFeedback({ message: 'Erro ao salvar configurações.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadApiKeys = async () => {
     try {
@@ -213,6 +261,9 @@ export const Settings: React.FC = () => {
             <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-2xl font-bold transition-all mt-1">
               <Terminal size={18} /> Webhooks
             </button>
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-amber-600 bg-amber-50 rounded-2xl font-bold transition-all mt-1 border border-amber-100">
+              <Scale size={18} /> Integração Judicial
+            </button>
           </div>
 
           <div className="bg-legal-bronze/10 rounded-3xl p-6 border border-legal-bronze/20">
@@ -229,6 +280,79 @@ export const Settings: React.FC = () => {
 
         {/* Lado Direito */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Section: PDPJ / PJe Integration */}
+          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden border-l-4 border-l-amber-500">
+            <div className="p-6 border-b border-slate-100 bg-amber-50/30 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-600 text-white rounded-xl"><Scale size={20} /></div>
+                <div>
+                  <h3 className="font-bold text-slate-800">Plataforma Digital (PDPJ-Br)</h3>
+                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider">Integração Direta com Tribunais</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500">Status:</span>
+                <button 
+                  onClick={() => setPdpjSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`w-10 h-5 rounded-full transition-all relative ${pdpjSettings.enabled ? 'bg-amber-600' : 'bg-slate-200'}`}
+                >
+                  <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${pdpjSettings.enabled ? 'left-6' : 'left-1'}`}></div>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tribunal Sugerido</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: TRT3, TJSP, TRF1"
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-amber-500/5 outline-none transition-all"
+                    value={pdpjSettings.court}
+                    onChange={(e) => setPdpjSettings({ ...pdpjSettings, court: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Tipo de Autenticação</label>
+                  <select 
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none"
+                    value={pdpjSettings.authType}
+                    onChange={(e) => setPdpjSettings({ ...pdpjSettings, authType: e.target.value as any })}
+                  >
+                    <option value="oauth2">OAuth2 (Keycloak)</option>
+                    <option value="certificate">Certificado Digital (A3)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Datajud ApiKey (CNJ)</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder="Sua chave pública do Datajud"
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-4 focus:ring-amber-500/5 outline-none transition-all pr-12"
+                    value={pdpjSettings.apiKey}
+                    onChange={(e) => setPdpjSettings({ ...pdpjSettings, apiKey: e.target.value })}
+                  />
+                  <Gavel size={18} className="absolute right-4 top-3 text-slate-300" />
+                </div>
+                <p className="text-[10px] text-slate-400">Necessária para busca automática de movimentações e espelhamento de processos.</p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={handleSavePdpj}
+                  className="px-8 py-3 bg-legal-navy text-white rounded-xl font-bold text-sm shadow-xl shadow-legal-navy/20 hover:scale-[1.02] transition-all flex items-center gap-2"
+                >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                  Salvar Configurações Judiciais
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* Section: API Key */}
           <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">

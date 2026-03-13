@@ -9,6 +9,7 @@ import {
   getIntegrations, upsertIntegration
 } from '../services/supabaseService';
 import { useTenant } from '../services/tenantContext';
+import { useLanguage } from '../services/languageContext';
 
 interface CloudApp {
   id: string;
@@ -19,23 +20,25 @@ interface CloudApp {
   category: 'Email' | 'Storage' | 'Productivity' | 'Communication' | 'Social';
 }
 
-const CLOUD_APPS: CloudApp[] = [
-  { id: 'gmail', name: 'Gmail', description: 'Sincronize e-mails de clientes diretamente nos processos.', icon: <Mail size={24} />, color: 'bg-red-500', category: 'Email' },
-  { id: 'outlook', name: 'Outlook', description: 'Integração completa com calendário e e-mails Microsoft 365.', icon: <Mail size={24} />, color: 'bg-blue-600', category: 'Email' },
-  { id: 'drive', name: 'Google Drive', description: 'Anexe documentos da nuvem aos seus cards de processos.', icon: <HardDrive size={24} />, color: 'bg-emerald-500', category: 'Storage' },
-  { id: 'gcalendar', name: 'Google Agenda', description: 'Permita que nossos Agentes de IA marquem e leiam compromissos da sua agenda.', icon: <Layout size={24} />, color: 'bg-emerald-600', category: 'Productivity' },
-  { id: 'dropbox', name: 'Dropbox', description: 'Acesso rápido a arquivos e backups externos.', icon: <FolderOpen size={24} />, color: 'bg-blue-500', category: 'Storage' },
-  { id: 'facebook', name: 'Facebook', description: 'Conecte sua página para gerenciar mensagens e comentários.', icon: <Facebook size={24} />, color: 'bg-blue-600', category: 'Social' },
-  { id: 'instagram', name: 'Instagram', description: 'Responda DMs e interaja com seus seguidores diretamente.', icon: <Instagram size={24} />, color: 'bg-pink-600', category: 'Social' },
-];
 
 export const Integrations: React.FC = React.memo(() => {
   const { tenantId } = useTenant();
+  const { t, locale } = useLanguage();
   const [connectedApps, setConnectedApps] = useState<string[]>([]);
   const [appLoading, setAppLoading] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
   const [suggestionForm, setSuggestionForm] = useState({ toolName: '', reason: '' });
+
+  const CLOUD_APPS: CloudApp[] = [
+    { id: 'gmail', name: 'Gmail', description: locale === 'en' ? 'Sync client emails directly into processes.' : locale === 'es' ? 'Sincronice correos electrónicos de clientes directamente en los procesos.' : 'Sincronize e-mails de clientes diretamente nos processos.', icon: <Mail size={24} />, color: 'bg-red-500', category: 'Email' },
+    { id: 'outlook', name: 'Outlook', description: locale === 'en' ? 'Full integration with Microsoft 365 calendar and emails.' : locale === 'es' ? 'Integración completa con el calendario y correos electrónicos de Microsoft 365.' : 'Integração completa com calendário e e-mails Microsoft 365.', icon: <Mail size={24} />, color: 'bg-blue-600', category: 'Email' },
+    { id: 'drive', name: 'Google Drive', description: locale === 'en' ? 'Attach cloud documents to your process cards.' : locale === 'es' ? 'Adjunte documentos de la nube a sus tarjetas de procesos.' : 'Anexe documentos da nuvem aos seus cards de processos.', icon: <HardDrive size={24} />, color: 'bg-emerald-500', category: 'Storage' },
+    { id: 'gcalendar', name: 'Google Agenda', description: locale === 'en' ? 'Allow our AI Agents to schedule and read appointments from your calendar.' : locale === 'es' ? 'Permita que nuestros Agentes de IA programen y lean citas de su agenda.' : 'Permita que nossos Agentes de IA marquem e leiam compromissos da sua agenda.', icon: <Layout size={24} />, color: 'bg-emerald-600', category: 'Productivity' },
+    { id: 'dropbox', name: 'Dropbox', description: locale === 'en' ? 'Quick access to files and external backups.' : locale === 'es' ? 'Acceso rápido a archivos y copias de seguridad externas.' : 'Acesso rápido a arquivos e backups externos.', icon: <FolderOpen size={24} />, color: 'bg-blue-500', category: 'Storage' },
+    { id: 'facebook', name: 'Facebook', description: locale === 'en' ? 'Connect your page to manage messages and comments.' : locale === 'es' ? 'Conecte su página para gestionar mensajes y comentarios.' : 'Conecte sua página para gerenciar mensagens e comentários.', icon: <Facebook size={24} />, color: 'bg-blue-600', category: 'Social' },
+    { id: 'instagram', name: 'Instagram', description: locale === 'en' ? 'Respond to DMs and interact with your followers directly.' : locale === 'es' ? 'Responda DMs e interactúe con sus seguidores directamente.' : 'Responda DMs e interaja com seus seguidores diretamente.', icon: <Instagram size={24} />, color: 'bg-pink-600', category: 'Social' },
+  ];
 
   useEffect(() => {
     if (tenantId) {
@@ -78,7 +81,7 @@ export const Integrations: React.FC = React.memo(() => {
     );
 
     if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador. Por favor, autorize popups para este site.");
+      setShowToast(t.integrationsApp.feedback.popupBlocked);
       return;
     }
 
@@ -100,7 +103,7 @@ export const Integrations: React.FC = React.memo(() => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
           setConnectedApps(prev => [...new Set([...prev, 'gmail', 'drive', 'gcalendar'])]);
-          setShowToast("Google Cloud conectado com sucesso! 🚀");
+          setShowToast(t.integrationsApp.feedback.googleConnected);
           window.removeEventListener('message', handleMessage);
           setAppLoading(null);
         }
@@ -119,7 +122,7 @@ export const Integrations: React.FC = React.memo(() => {
     } catch (error) {
       console.error('[OAuth-Debug] Erro no fluxo:', error);
       authWindow.close();
-      setShowToast("Erro ao iniciar conexão com Google.");
+      setShowToast(t.integrationsApp.feedback.googleError);
       setAppLoading(null);
     }
   };
@@ -139,7 +142,7 @@ export const Integrations: React.FC = React.memo(() => {
     );
 
     if (!authWindow) {
-      setShowToast("⚠️ O popup foi bloqueado pelo navegador.");
+      setShowToast(t.integrationsApp.feedback.popupBlocked);
       return;
     }
 
@@ -159,7 +162,7 @@ export const Integrations: React.FC = React.memo(() => {
       const handleMessage = (event: MessageEvent) => {
         if (event.data.type === 'MS_AUTH_SUCCESS') {
           setConnectedApps(prev => [...new Set([...prev, 'outlook'])]);
-          setShowToast("Microsoft 365 conectado com sucesso! 🚀");
+          setShowToast(t.integrationsApp.feedback.msConnected);
           window.removeEventListener('message', handleMessage);
           setAppLoading(null);
         }
@@ -168,7 +171,7 @@ export const Integrations: React.FC = React.memo(() => {
     } catch (error) {
       console.error('Microsoft OAuth error:', error);
       authWindow.close();
-      setShowToast("Erro ao iniciar conexão Microsoft.");
+      setShowToast(t.integrationsApp.feedback.msError);
       setAppLoading(null);
     }
   };
@@ -199,10 +202,10 @@ export const Integrations: React.FC = React.memo(() => {
       setConnectedApps(prev =>
         newState ? [...prev, appId] : prev.filter(id => id !== appId)
       );
-      setShowToast(newState ? "Aplicativo integrado com sucesso!" : "Aplicativo desconectado.");
+      setShowToast(newState ? t.integrationsApp.feedback.integrated : t.integrationsApp.feedback.disconnected);
     } catch (error) {
       console.error('Error toggling app:', error);
-      setShowToast("Erro ao alterar conexão do app.");
+      setShowToast(t.integrationsApp.feedback.toggleError);
     } finally {
       setAppLoading(null);
     }
@@ -215,7 +218,7 @@ export const Integrations: React.FC = React.memo(() => {
       setAppLoading(null);
       setIsSuggestModalOpen(false);
       setSuggestionForm({ toolName: '', reason: '' });
-      setShowToast("Sugestão enviada para nossa equipe de produto!");
+      setShowToast(t.integrationsApp.feedback.suggestionSent);
     }, 2000);
   };
 
@@ -231,15 +234,19 @@ export const Integrations: React.FC = React.memo(() => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Integrações & <span className="text-legal-bronze">Apps Cloud</span></h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">Conecte ferramentas de produtividade para potencializar seu escritório.</p>
+          <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">
+            {locale === 'en' ? <>Integrations & <span className="text-legal-bronze">Cloud Apps</span></> : 
+             locale === 'es' ? <>Integraciones & <span className="text-legal-bronze">Apps Cloud</span></> : 
+             <>Integrações & <span className="text-legal-bronze">Apps Cloud</span></>}
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">{t.integrationsApp.subtitle}</p>
         </div>
 
         <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <button
             className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-legal-navy text-white shadow-lg`}
           >
-            Aplicativos Cloud
+            {t.integrationsApp.cloudApps}
           </button>
         </div>
       </div>
@@ -254,11 +261,11 @@ export const Integrations: React.FC = React.memo(() => {
                 </div>
                 {connectedApps.includes(app.id) ? (
                   <span className="flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-900/30">
-                    <Check size={12} /> Ativo
+                    <Check size={12} /> {t.integrationsApp.active}
                   </span>
                 ) : (
                   <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full border border-slate-100 dark:border-slate-700">
-                    Disponível
+                    {t.integrationsApp.available}
                   </span>
                 )}
               </div>
@@ -279,9 +286,9 @@ export const Integrations: React.FC = React.memo(() => {
                 {appLoading === app.id ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : connectedApps.includes(app.id) ? (
-                  'Desconectar App'
+                  t.integrationsApp.disconnect
                 ) : (
-                  <>Conectar {app.name} <PlugZap size={16} /></>
+                  <>{t.integrationsApp.connect(app.name)} <PlugZap size={16} /></>
                 )}
               </button>
             </div>
@@ -295,15 +302,15 @@ export const Integrations: React.FC = React.memo(() => {
             <Wrench size={32} />
           </div>
           <div className="space-y-2 relative z-10">
-            <h4 className="text-2xl font-black text-legal-navy dark:text-white">Deseja integrar outra ferramenta?</h4>
-            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">Nossa equipe de engenharia pode desenvolver conectores personalizados via Webhook ou integração direta.</p>
+            <h4 className="text-2xl font-black text-legal-navy dark:text-white">{t.integrationsApp.suggestTitle}</h4>
+            <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto font-medium">{t.integrationsApp.suggestSubtitle}</p>
           </div>
           <div className="relative z-10 pt-4">
             <button
               onClick={() => setIsSuggestModalOpen(true)}
               className="px-10 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 flex items-center gap-3 mx-auto"
             >
-              Sugerir Nova Integração <ArrowRight size={20} />
+              {t.integrationsApp.suggestButton} <ArrowRight size={20} />
             </button>
           </div>
         </div>
@@ -319,42 +326,42 @@ export const Integrations: React.FC = React.memo(() => {
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Database size={28} /></div>
                 <div>
-                  <h3 className="text-2xl font-black">Sugerir Integração</h3>
-                  <p className="text-white/60 text-sm">Qual ferramenta você gostaria de ver no LexHub?</p>
+                  <h3 className="text-2xl font-black">{t.integrationsApp.modalTitle}</h3>
+                  <p className="text-white/60 text-sm">{t.integrationsApp.modalSubtitle}</p>
                 </div>
               </div>
             </div>
 
             <form onSubmit={handleSendSuggestion} className="p-10 space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Software / App</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.integrationsApp.softwareName}</label>
                 <input
                   required
                   type="text"
-                  placeholder="Ex: RD Station, Notion, ERP Interno..."
+                  placeholder={t.integrationsApp.softwarePlaceholder}
                   className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5"
                   value={suggestionForm.toolName}
                   onChange={(e) => setSuggestionForm({ ...suggestionForm, toolName: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Finalidade da Integração</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.integrationsApp.purposeLabel}</label>
                 <textarea
                   required
                   className="w-full h-32 px-6 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5 resize-none shadow-inner"
-                  placeholder="Como essa integração ajudaria o seu escritório?"
+                  placeholder={t.integrationsApp.purposePlaceholder}
                   value={suggestionForm.reason}
                   onChange={(e) => setSuggestionForm({ ...suggestionForm, reason: e.target.value })}
                 />
               </div>
               <div className="pt-4 flex gap-4">
-                <button type="button" onClick={() => setIsSuggestModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold">Cancelar</button>
+                <button type="button" onClick={() => setIsSuggestModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold">{t.common.cancel}</button>
                 <button
                   type="submit"
                   disabled={appLoading === 'suggestion'}
                   className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-legal-navy/20 flex items-center justify-center gap-3 hover:brightness-110 disabled:opacity-50"
                 >
-                  {appLoading === 'suggestion' ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} /> Enviar Sugestão</>}
+                  {appLoading === 'suggestion' ? <Loader2 size={18} className="animate-spin" /> : <><Send size={18} /> {t.integrationsApp.sendSuggestion}</>}
                 </button>
               </div>
             </form>

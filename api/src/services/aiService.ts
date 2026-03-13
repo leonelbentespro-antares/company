@@ -157,7 +157,7 @@ async function getOpenAIResponse(userMessage: string, apiKey: string) {
                 const call = toolCall.function;
                 if (call && call.name) {
                     const args = JSON.parse(call.arguments || '{}');
-                    return handleToolExecution(call.name, args);
+                    return await handleToolExecution(call.name, args, 'DEFAULT_TENANT_ID'); // tenantId precisa vir do contexto
                 }
             }
         }
@@ -189,7 +189,7 @@ async function getGeminiResponse(userMessage: string, apiKey: string) {
         if (toolCalls && toolCalls.length > 0) {
             const call = toolCalls[0];
             if (call && call.name) {
-                return handleToolExecution(call.name, call.args);
+                return await handleToolExecution(call.name, call.args, apiKey === DEFAULT_GEMINI_KEY ? 'global' : 'custom'); // tenantId viria pela chave
             }
         }
 
@@ -203,7 +203,7 @@ async function getGeminiResponse(userMessage: string, apiKey: string) {
 /**
  * Lógica comum de execução de ferramentas (Tools)
  */
-function handleToolExecution(name: string, args: any) {
+async function handleToolExecution(name: string, args: any, tenantId: string) {
     console.log(`[AI Tools] Executando: ${name}`, args);
     
     if (name === 'manage_conversation') {
@@ -215,7 +215,26 @@ function handleToolExecution(name: string, args: any) {
             return `[TAG APLICADA] Tag: ${args?.tag_name}`;
         }
     } else if (name === 'consult_process') {
-        return `Consultando sistema para o termo: ${args?.search_term}...`;
+        try {
+            const { JusticeIntegrationService } = await import('./justiceIntegrationService.js');
+            const { data: integration } = await supabase
+                .from('integrations')
+                .select('settings')
+                .eq('tenant_id', tenantId)
+                .eq('provider', 'pdpj')
+                .single();
+
+            if (integration?.settings?.apiKey) {
+                const data = await JusticeIntegrationService.consultDatajud(args.search_term, integration.settings.apiKey);
+                const lastMov = data.result?.[0]?.movimentacoes?.[0]?.descricao || 'Sem movimentações recentes.';
+                return `Consulta Judicial Realizada: O processo ${args.search_term} teve como última movimentação: "${lastMov}".`;
+            }
+            
+            return `Consultando sistema para o termo: ${args?.search_term}... (Integração PDPJ não configurada para busca externa)`;
+        } catch (err) {
+            console.error('[AI Tool Error] consult_process:', err);
+            return `Desculpe, tive um problema ao acessar o tribunal: ${args?.search_term}.`;
+        }
     }
     
     return "Ação executada com sucesso.";

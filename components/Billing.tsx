@@ -27,6 +27,7 @@ import {
   DollarSign,
   Calendar
 } from 'lucide-react';
+import { useLanguage } from '../services/languageContext.tsx';
 import { PLANS } from '../constants.ts';
 import { PlanName } from '../types.ts';
 import { useTenant } from '../services/tenantContext.tsx';
@@ -53,6 +54,7 @@ const INITIAL_CONTRACTS: ContractRecord[] = [
   { id: 'ct5', client: 'Condomínio Solar', value: 3200, status: 'Late', dueDate: '2024-06-01', category: 'Honorários' },
 ];
 export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.com.br' }) => {
+  const { t, locale } = useLanguage();
   const { tenant, subscription, user: authUser, refresh } = useTenant();
   
   // Mapear o plano do banco de dados para o PlanName do frontend
@@ -140,22 +142,22 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     e.preventDefault();
     if (editingEntry) {
       setContracts(prev => prev.map(c => c.id === editingEntry.id ? { ...c, ...entryFormData } : c));
-      setShowToast({ message: 'Lançamento atualizado com sucesso!', type: 'success' });
+      setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'Entry updated successfully!' : 'Lançamento atualizado com sucesso!', type: 'success' });
     } else {
       const newEntry: ContractRecord = {
         id: `ct_${Date.now()}`,
         ...entryFormData
       };
       setContracts([newEntry, ...contracts]);
-      setShowToast({ message: 'Novo lançamento financeiro registrado!', type: 'success' });
+      setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'New financial entry recorded!' : 'Novo lançamento financeiro registrado!', type: 'success' });
     }
     setIsEntryModalOpen(false);
   };
 
   const handleDeleteEntry = (id: string) => {
-    if (confirm("Deseja realmente excluir este lançamento?")) {
+    if (confirm(locale === 'en' ? "Are you sure you want to delete this entry?" : locale === 'es' ? "¿Está seguro de que desea eliminar este registro?" : "Deseja realmente excluir este lançamento?")) {
       setContracts(prev => prev.filter(c => c.id !== id));
-      setShowToast({ message: 'Lançamento removido.', type: 'error' });
+      setShowToast({ message: locale === 'en' ? 'Entry removed.' : locale === 'es' ? 'Registro eliminado.' : 'Lançamento removido.', type: 'error' });
     }
   };
 
@@ -171,6 +173,22 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     }));
   };
 
+  const getTranslatedCategory = (cat: string) => {
+    if (cat === 'Mensalidade') return t.billing.categoryMonthly;
+    if (cat === 'Consultoria') return t.billing.categoryConsultancy;
+    if (cat === 'Honorários') return t.billing.categoryFees;
+    if (cat === 'Êxito') return t.billing.categorySuccess;
+    if (cat === 'Custas Processuais') return t.billing.categoryCosts;
+    return cat;
+  };
+
+  const getTranslatedStatus = (status: string) => {
+    if (status === 'Paid') return t.billing.liquidated;
+    if (status === 'Regular') return t.billing.open;
+    if (status === 'Late') return t.billing.late;
+    return status;
+  };
+
   // Funções de Checkout SaaS Originais
   const handleSavePaymentMethod = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +196,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     setTimeout(() => {
       setIsSaving(false);
       setIsAddMethodModalOpen(false);
-      setShowToast({ message: 'Novo método de pagamento adicionado!', type: 'success' });
+      setShowToast({ message: locale === 'en' ? 'New payment method added!' : locale === 'es' ? '¡Nuevo método de pago añadido!' : 'Novo método de pagamento adicionado!', type: 'success' });
     }, 1500);
   };
 
@@ -248,15 +266,15 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
               <div className="p-2 bg-legal-navy dark:bg-legal-bronze text-white rounded-xl shadow-lg">
                 <TrendingUp size={24} />
               </div>
-              Recebíveis & Fluxo de Caixa
+              {t.billing.title}
             </h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Indicadores financeiros e controle de inadimplência dos clientes.</p>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">{t.billing.subtitle}</p>
           </div>
           <button 
             onClick={() => handleOpenEntryModal()}
             className="flex items-center gap-2 px-6 py-3.5 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold text-sm hover:scale-105 transition-all shadow-xl shadow-legal-navy/10"
           >
-            <Plus size={18} /> Novo Lançamento
+            <Plus size={18} /> {t.billing.newEntry}
           </button>
         </div>
 
@@ -266,13 +284,13 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
               <CheckCircle2 size={80} className="text-emerald-500" />
             </div>
-            <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Total Liquidado</p>
+            <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">{t.billing.totalLiquidated}</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {stats.paid.toLocaleString('pt-BR')}</h3>
+              <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {stats.paid.toLocaleString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}</h3>
               <span className="text-xs font-bold text-slate-400">({stats.paidCount})</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 w-fit px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800">
-              <ArrowUpRight size={12}/> Receita Confirmada
+              <ArrowUpRight size={12}/> {t.billing.revenueConfirmed}
             </div>
           </div>
 
@@ -281,13 +299,13 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
             <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
               <Users size={80} className="text-blue-500" />
             </div>
-            <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4">Clientes em Dia</p>
+            <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-4">{t.billing.onTimeClients}</p>
             <div className="flex items-baseline gap-2">
               <h3 className="text-3xl font-black text-slate-900 dark:text-white">{stats.regularCount}</h3>
-              <span className="text-xs font-bold text-slate-400">ativos regular</span>
+              <span className="text-xs font-bold text-slate-400">{t.billing.financialHealth.toLowerCase()}</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 w-fit px-3 py-1 rounded-full border border-blue-100 dark:border-blue-800">
-              <ShieldCheck size={12}/> Saúde Financeira
+              <ShieldCheck size={12}/> {t.billing.financialHealth}
             </div>
           </div>
 
@@ -298,11 +316,11 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
             </div>
             <p className="text-[10px] font-black text-rose-600 dark:text-rose-400 uppercase tracking-widest mb-4">Em Atraso (Inadimplência)</p>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {stats.late.toLocaleString('pt-BR')}</h3>
+              <h3 className="text-3xl font-black text-slate-900 dark:text-white">R$ {stats.late.toLocaleString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}</h3>
               <span className="text-xs font-bold text-slate-400">({stats.lateCount})</span>
             </div>
             <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-900/20 w-fit px-3 py-1 rounded-full border border-rose-100 dark:border-rose-800">
-              <Clock size={12}/> Ação Recomendada
+              <Clock size={12}/> {t.billing.recommendedAction}
             </div>
           </div>
         </div>
@@ -311,15 +329,15 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
           <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
              <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
-               <FileText size={18} className="text-legal-bronze" /> Livro de Recebíveis
+               <FileText size={18} className="text-legal-bronze" /> {t.billing.receivablesBook}
              </h4>
              <div className="flex items-center gap-3">
-               <span className="text-[10px] font-bold text-slate-400 uppercase">Filtro:</span>
+               <span className="text-[10px] font-bold text-slate-400 uppercase">{t.billing.filter}:</span>
                <select className="bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-lg text-[10px] font-bold py-1 px-2 outline-none dark:text-white transition-colors">
-                  <option>Todos os Status</option>
-                  <option>Pagos</option>
-                  <option>A vencer</option>
-                  <option>Atrasados</option>
+                  <option>{t.billing.allStatus}</option>
+                  <option>{t.billing.paid}</option>
+                  <option>{t.billing.toExpire}</option>
+                  <option>{t.billing.lateFilter}</option>
                </select>
              </div>
           </div>
@@ -327,12 +345,12 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-8 py-5">Cliente Beneficiário</th>
-                  <th className="px-8 py-5">Categoria</th>
-                  <th className="px-8 py-5">Valor Bruto</th>
-                  <th className="px-8 py-5">Vencimento</th>
-                  <th className="px-8 py-5">Status</th>
-                  <th className="px-8 py-5 text-center">Ações</th>
+                  <th className="px-8 py-5">{t.billing.beneficiaryClient}</th>
+                  <th className="px-8 py-5">{t.billing.category}</th>
+                  <th className="px-8 py-5">{t.billing.grossValue}</th>
+                  <th className="px-8 py-5">{t.billing.dueDate}</th>
+                  <th className="px-8 py-5">{t.billing.status}</th>
+                  <th className="px-8 py-5 text-center">{t.billing.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -347,10 +365,10 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                       </div>
                     </td>
                     <td className="px-8 py-5">
-                      <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-1 rounded-md uppercase border border-slate-200 dark:border-slate-700">{c.category}</span>
+                      <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-1 rounded-md uppercase border border-slate-200 dark:border-slate-700">{getTranslatedCategory(c.category)}</span>
                     </td>
-                    <td className="px-8 py-5 text-sm font-black text-slate-900 dark:text-white">R$ {c.value.toLocaleString('pt-BR')}</td>
-                    <td className="px-8 py-5 text-xs font-bold text-slate-400 uppercase">{new Date(c.dueDate).toLocaleDateString('pt-BR')}</td>
+                    <td className="px-8 py-5 text-sm font-black text-slate-900 dark:text-white">{locale === 'en' ? '$' : 'R$'} {c.value.toLocaleString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}</td>
+                    <td className="px-8 py-5 text-xs font-bold text-slate-400 uppercase">{new Date(c.dueDate).toLocaleDateString(locale === 'en' ? 'en-US' : locale === 'es' ? 'es-ES' : 'pt-BR')}</td>
                     <td className="px-8 py-5">
                        <button 
                         onClick={() => toggleContractStatus(c.id)}
@@ -361,7 +379,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                         }`}
                        >
                          {c.status === 'Paid' ? <CheckCircle2 size={12}/> : c.status === 'Regular' ? <Clock size={12}/> : <AlertTriangle size={12}/>}
-                         {c.status === 'Paid' ? 'Liquidado' : c.status === 'Regular' ? 'Em Aberto' : 'Em Atraso'}
+                         {getTranslatedStatus(c.status)}
                        </button>
                     </td>
                     <td className="px-8 py-5">
@@ -385,9 +403,9 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
              <div className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl">
                <Rocket size={20} />
              </div>
-             Minha Assinatura LexHub
+             {t.billing.mySubscription}
            </h2>
-           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Gerencie seu plano de acesso à plataforma SaaS.</p>
+           <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">{t.billing.subscriptionSubtitle}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -404,7 +422,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold">Plano {activePlan}</h3>
-                    <p className="text-white/60 text-sm">Sua assinatura renova em 15 de Junho, 2024</p>
+                    <p className="text-white/60 text-sm">{t.billing.planRenew.replace('{date}', t.common.saveChanges === 'Save Changes' ? 'June 15, 2024' : '15 de Junho, 2024')}</p>
                   </div>
                 </div>
                 <div className="flex items-baseline gap-2">
@@ -418,13 +436,13 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                   onClick={() => setIsPlanModalOpen(true)}
                   className="px-6 py-3 bg-white text-legal-navy rounded-2xl font-bold text-sm hover:scale-105 transition-all flex items-center gap-2 shadow-lg"
                 >
-                  Alterar Plano <ArrowUpRight size={18} />
+                  {t.billing.changePlan} <ArrowUpRight size={18} />
                 </button>
                 <button 
                   onClick={() => setIsContractModalOpen(true)}
                   className="px-6 py-3 bg-white/10 text-white rounded-2xl font-bold text-sm hover:bg-white/20 transition-all border border-white/20"
                 >
-                  Ver Detalhes do Contrato
+                  {t.billing.contractDetails}
                 </button>
               </div>
             </div>
@@ -433,12 +451,12 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
           <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 transition-colors">
             <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
               <ShieldCheck className="text-legal-bronze" size={20} />
-              Uso da Conta
+              {t.billing.accountUsage}
             </h4>
             <div className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  <span className="flex items-center gap-1"><Users size={12}/> Usuários</span>
+                  <span className="flex items-center gap-1"><Users size={12}/> {t.billing.users}</span>
                   <span className="dark:text-slate-300">12 / {PLANS.find(p => p.name === activePlan)?.limits.maxUsers === 'Unlimited' ? '∞' : PLANS.find(p => p.name === activePlan)?.limits.maxUsers}</span>
                 </div>
                 <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -447,7 +465,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  <span className="flex items-center gap-1"><HardDrive size={12}/> Armazenamento</span>
+                  <span className="flex items-center gap-1"><HardDrive size={12}/> {t.billing.storage}</span>
                   <span className="dark:text-slate-300">22.4 GB / {PLANS.find(p => p.name === activePlan)?.limits.storageGB} GB</span>
                 </div>
                 <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -469,54 +487,54 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                 <div className="flex items-center gap-4">
                    <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><DollarSign size={28} /></div>
                    <div>
-                      <h3 className="text-2xl font-black">{editingEntry ? 'Editar Lançamento' : 'Novo Lançamento'}</h3>
-                      <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Controle de Honorários e Custas</p>
+                      <h3 className="text-2xl font-black">{editingEntry ? t.billing.editEntry : t.billing.newEntryTitle}</h3>
+                      <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">{t.billing.entrySubtitle}</p>
                    </div>
                 </div>
              </div>
 
              <form onSubmit={handleSaveEntry} className="p-8 space-y-6">
                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Cliente Beneficiário</label>
-                   <input required type="text" placeholder="Nome completo do cliente" className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5" value={entryFormData.client} onChange={e => setEntryFormData({...entryFormData, client: e.target.value})} />
+                   <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{t.billing.beneficiaryClient}</label>
+                   <input required type="text" placeholder={t.common.saveChanges === 'Save Changes' ? "Client's full name" : "Nome completo do cliente"} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5" value={entryFormData.client} onChange={e => setEntryFormData({...entryFormData, client: e.target.value})} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Valor (R$)</label>
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{t.billing.grossValue} (R$)</label>
                       <input required type="number" step="0.01" className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5" value={entryFormData.value} onChange={e => setEntryFormData({...entryFormData, value: parseFloat(e.target.value)})} />
                    </div>
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Vencimento</label>
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{t.billing.dueDate}</label>
                       <input required type="date" className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5" value={entryFormData.dueDate} onChange={e => setEntryFormData({...entryFormData, dueDate: e.target.value})} />
                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Categoria</label>
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{t.billing.category}</label>
                       <select className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none" value={entryFormData.category} onChange={e => setEntryFormData({...entryFormData, category: e.target.value})}>
-                         <option>Mensalidade</option>
-                         <option>Consultoria</option>
-                         <option>Honorários</option>
-                         <option>Êxito</option>
-                         <option>Custas Processuais</option>
+                         <option>{t.billing.categoryMonthly}</option>
+                         <option>{t.billing.categoryConsultancy}</option>
+                         <option>{t.billing.categoryFees}</option>
+                         <option>{t.billing.categorySuccess}</option>
+                         <option>{t.billing.categoryCosts}</option>
                       </select>
                    </div>
                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">Status Inicial</label>
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1">{t.billing.status}</label>
                       <select className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none" value={entryFormData.status} onChange={e => setEntryFormData({...entryFormData, status: e.target.value as any})}>
-                         <option value="Regular">Em Aberto</option>
-                         <option value="Paid">Liquidado</option>
-                         <option value="Late">Em Atraso</option>
+                         <option value="Regular">{t.billing.open}</option>
+                         <option value="Paid">{t.billing.liquidated}</option>
+                         <option value="Late">{t.billing.late}</option>
                       </select>
                    </div>
                 </div>
 
                 <div className="pt-6 flex gap-4">
-                   <button type="button" onClick={() => setIsEntryModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold transition-colors">Cancelar</button>
+                   <button type="button" onClick={() => setIsEntryModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-2xl font-bold transition-colors">{t.common.cancel}</button>
                    <button type="submit" className="flex-1 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:brightness-110">
-                      <Save size={18} /> {editingEntry ? 'Salvar Alterações' : 'Criar Lançamento'}
+                      <Save size={18} /> {editingEntry ? t.common.saveChanges : t.billing.newEntryTitle}
                    </button>
                 </div>
              </form>
@@ -536,8 +554,8 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                     <div className="flex items-center gap-5">
                        <div className="w-16 h-16 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-xl"><Sparkles size={32} /></div>
                        <div>
-                          <h3 className="text-3xl font-bold">Escolha seu Upgrade</h3>
-                          <p className="text-white/60">Selecione o plano ideal para a nova fase do seu escritório.</p>
+                          <h3 className="text-3xl font-bold">{t.billing.chooseUpgrade}</h3>
+                          <p className="text-white/60">{t.billing.upgradeSubtitle}</p>
                        </div>
                     </div>
                  </div>
@@ -548,15 +566,15 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                           <div className="flex justify-between items-center mb-4">
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{plan.name}</span>
                           </div>
-                          <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-6">R$ {plan.price}<span className="text-xs font-bold text-slate-400">/mês</span></h4>
+                          <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-6">{locale === 'en' ? '$' : 'R$'} {plan.price}<span className="text-xs font-bold text-slate-400">{locale === 'en' ? '/mo' : '/mês'}</span></h4>
                           <ul className="space-y-3 mb-8">
-                            <li className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400"><Users size={14} className="text-legal-bronze"/> {plan.limits.maxUsers === 'Unlimited' ? 'Usuários Ilimitados' : `${plan.limits.maxUsers} Usuários`}</li>
+                            <li className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400"><Users size={14} className="text-legal-bronze"/> {plan.limits.maxUsers === 'Unlimited' ? (locale === 'en' ? 'Unlimited Users' : locale === 'es' ? 'Usuarios Ilimitados' : 'Usuários Ilimitados') : `${plan.limits.maxUsers} ${t.billing.users}`}</li>
                           </ul>
                         </div>
                         {activePlan === plan.name ? (
-                          <div className="w-full py-3 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-center text-xs font-bold cursor-default">Plano Atual</div>
+                          <div className="w-full py-3 bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-center text-xs font-bold cursor-default">{t.billing.currentPlan}</div>
                         ) : (
-                          <button onClick={() => handlePlanChange(plan.name)} className="w-full py-3 bg-legal-navy dark:bg-legal-bronze text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all">Selecionar</button>
+                          <button onClick={() => handlePlanChange(plan.name)} className="w-full py-3 bg-legal-navy dark:bg-legal-bronze text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all">{t.billing.select}</button>
                         )}
                       </div>
                     ))}
@@ -566,7 +584,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
              {planChangeStep === 'processing' && (
                <div className="p-20 text-center space-y-8 flex flex-col items-center justify-center min-h-[500px]">
                   <Loader2 size={80} className="text-legal-navy dark:text-legal-bronze animate-spin" />
-                  <h3 className="text-2xl font-bold text-legal-navy dark:text-white">Identificando Pagamento...</h3>
+                  <h3 className="text-2xl font-bold text-legal-navy dark:text-white">{t.billing.processingPayment}</h3>
                </div>
              )}
              {planChangeStep === 'success' && (
@@ -574,8 +592,8 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
                   <div className="w-24 h-24 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center shadow-xl animate-bounce">
                     <Check size={48} strokeWidth={3} />
                   </div>
-                  <h3 className="text-3xl font-extrabold text-legal-navy dark:text-white tracking-tight">Pagamento Confirmado!</h3>
-                  <button onClick={() => setIsPlanModalOpen(false)} className="px-12 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-2xl">Concluir</button>
+                  <h3 className="text-3xl font-extrabold text-legal-navy dark:text-white tracking-tight">{t.billing.paymentConfirmed}</h3>
+                  <button onClick={() => setIsPlanModalOpen(false)} className="px-12 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-2xl">{t.billing.finish}</button>
                </div>
              )}
           </div>

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { PlanName, Tenant, CRMStage, PipelineStage } from '../types.ts';
+import { useLanguage } from '../services/languageContext';
 import {
   getTenants,
   createTenant,
@@ -45,6 +46,7 @@ const STAGE_COLORS = [
 ];
 
 export const Tenants: React.FC = () => {
+  const { t, locale } = useLanguage();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -121,7 +123,7 @@ export const Tenants: React.FC = () => {
       ));
     } catch (err) {
       console.error('Erro ao mover estágio:', err);
-      setShowFeedback({ message: 'Erro ao mover estágio.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error moving stage.' : locale === 'es' ? 'Error al mover etapa.' : 'Erro ao mover estágio.', type: 'error' });
     }
   };
 
@@ -178,7 +180,7 @@ export const Tenants: React.FC = () => {
       console.error('Erro ao mover card:', err);
       // Revert on error
       setTenants(previousTenants);
-      setShowFeedback({ message: 'Erro ao mover card.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error moving card.' : locale === 'es' ? 'Error al mover tarjeta.' : 'Erro ao mover card.', type: 'error' });
     }
   };
 
@@ -194,7 +196,7 @@ export const Tenants: React.FC = () => {
         setKanbanStages(prev => prev.map(s =>
           s.id === selectedStage.id ? { ...s, label: stageFormData.label, color: stageFormData.color } : s
         ));
-        setShowFeedback({ message: 'Estágio atualizado!', type: 'success' });
+        setShowFeedback({ message: locale === 'en' ? 'Stage updated!' : locale === 'es' ? '¡Etapa actualizada!' : 'Estágio atualizado!', type: 'success' });
       } else {
         // Create
         const newStage = await createPipelineStage({
@@ -203,14 +205,14 @@ export const Tenants: React.FC = () => {
           position: kanbanStages.length
         });
         setKanbanStages([...kanbanStages, newStage]);
-        setShowFeedback({ message: 'Estágio criado com sucesso!', type: 'success' });
+        setShowFeedback({ message: locale === 'en' ? 'Stage created successfully!' : locale === 'es' ? '¡Etapa creada con éxito!' : 'Estágio criado com sucesso!', type: 'success' });
       }
       setIsStageModalOpen(false);
       setStageFormData({ label: '', color: STAGE_COLORS[0] });
       setSelectedStage(null);
     } catch (err) {
       console.error('Erro ao salvar estágio:', err);
-      setShowFeedback({ message: 'Erro ao salvar estágio.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error saving stage.' : locale === 'es' ? 'Error al guardar etapa.' : 'Erro ao salvar estágio.', type: 'error' });
     }
   };
 
@@ -219,7 +221,7 @@ export const Tenants: React.FC = () => {
 
     // Check if stage has tenants
     if (tenants.some(t => t.crmStage === selectedStage.id)) {
-      setShowFeedback({ message: 'Não é possível excluir estágio com leads ativos.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Cannot delete stage with active leads.' : locale === 'es' ? 'No se puede eliminar una etapa com leads activos.' : 'Não é possível excluir estágio com leads ativos.', type: 'error' });
       return;
     }
 
@@ -228,10 +230,10 @@ export const Tenants: React.FC = () => {
       setKanbanStages(prev => prev.filter(s => s.id !== selectedStage.id));
       setIsStageModalOpen(false);
       setSelectedStage(null);
-      setShowFeedback({ message: 'Estágio removido.', type: 'success' });
+      setShowFeedback({ message: locale === 'en' ? 'Stage removed.' : locale === 'es' ? 'Etapa eliminada.' : 'Estágio removido.', type: 'success' });
     } catch (err) {
       console.error('Erro ao excluir estágio:', err);
-      setShowFeedback({ message: 'Erro ao excluir estágio.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error deleting stage.' : locale === 'es' ? 'Error al eliminar etapa.' : 'Erro ao excluir estágio.', type: 'error' });
     }
   };
 
@@ -242,7 +244,7 @@ export const Tenants: React.FC = () => {
     const domain = formData.domain.trim();
 
     if (!name || !domain) {
-      setShowFeedback({ message: 'Por favor, preencha todos os campos.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Please fill in all fields.' : locale === 'es' ? 'Por favor, complete todos los campos.' : 'Por favor, preencha todos os campos.', type: 'error' });
       return;
     }
 
@@ -259,14 +261,14 @@ export const Tenants: React.FC = () => {
       });
       setTenants([newTenant, ...tenants]);
       setIsCreateModalOpen(false);
-      setShowFeedback({ message: 'Lead adicionado ao pipeline!', type: 'success' });
+      setShowFeedback({ message: locale === 'en' ? 'Lead added to pipeline!' : locale === 'es' ? 'Lead añadido al pipeline!' : 'Lead adicionado ao pipeline!', type: 'success' });
       setFormData({ name: '', domain: '', plan: PlanName.Starter, status: 'Active' });
     } catch (err: any) {
       console.error('Erro ao criar tenant:', err);
       if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
-        setShowFeedback({ message: 'Este domínio já está em uso. Escolha outro.', type: 'error' });
+        setShowFeedback({ message: locale === 'en' ? 'This domain is already in use. Choose another.' : locale === 'es' ? 'Este dominio ya está en uso. Elija otro.' : 'Este domínio já está em uso. Escolha outro.', type: 'error' });
       } else {
-        setShowFeedback({ message: 'Erro ao criar tenant. Tente novamente.', type: 'error' });
+        setShowFeedback({ message: locale === 'en' ? 'Error creating tenant. Try again.' : locale === 'es' ? 'Error al crear la organización. Intente de nuevo.' : 'Erro ao criar tenant. Tente novamente.', type: 'error' });
       }
     }
   };
@@ -280,10 +282,10 @@ export const Tenants: React.FC = () => {
         t.id === selectedTenant.id ? { ...t, name: formData.name, domain: formData.domain } : t
       ));
       setIsEditModalOpen(false);
-      setShowFeedback({ message: 'Tenant atualizado com sucesso!', type: 'success' });
+      setShowFeedback({ message: locale === 'en' ? 'Organization updated successfully!' : locale === 'es' ? '¡Organización actualizada con éxito!' : 'Tenant atualizado com sucesso!', type: 'success' });
     } catch (err) {
       console.error('Erro ao atualizar tenant:', err);
-      setShowFeedback({ message: 'Erro ao atualizar tenant.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error updating organization.' : locale === 'es' ? 'Error al actualizar organización.' : 'Erro ao atualizar tenant.', type: 'error' });
     }
   };
 
@@ -293,10 +295,10 @@ export const Tenants: React.FC = () => {
       await deleteTenant(selectedTenant.id);
       setTenants(prev => prev.filter(t => t.id !== selectedTenant.id));
       setIsDeleteConfirmOpen(false);
-      setShowFeedback({ message: 'Tenant removido do sistema.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Organization removed from system.' : locale === 'es' ? 'Organización eliminada del sistema.' : 'Tenant removido do sistema.', type: 'error' });
     } catch (err) {
       console.error('Erro ao deletar tenant:', err);
-      setShowFeedback({ message: 'Erro ao remover tenant.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error removing organization.' : locale === 'es' ? 'Error al eliminar organización.' : 'Erro ao remover tenant.', type: 'error' });
     }
   };
 
@@ -309,19 +311,30 @@ export const Tenants: React.FC = () => {
         t.id === selectedTenant.id ? { ...t, plan: formData.plan } : t
       ));
       setIsUpgradeModalOpen(false);
-      setShowFeedback({ message: `Upgrade para o plano ${formData.plan} realizado!`, type: 'success' });
+      setShowFeedback({ message: locale === 'en' ? `Upgrade to ${formData.plan} plan completed!` : locale === 'es' ? `¡Upgrade al plan ${formData.plan} realizado!` : `Upgrade para o plano ${formData.plan} realizado!`, type: 'success' });
     } catch (err) {
       console.error('Erro ao fazer upgrade:', err);
-      setShowFeedback({ message: 'Erro ao atualizar plano.', type: 'error' });
+      setShowFeedback({ message: locale === 'en' ? 'Error updating plan.' : locale === 'es' ? 'Error al actualizar plan.' : 'Erro ao atualizar plano.', type: 'error' });
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'Active': return <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><Check size={10} /> Ativo</span>;
-      case 'Suspended': return <span className="flex items-center gap-1 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><ShieldAlert size={10} /> Suspenso</span>;
-      default: return <span className="flex items-center gap-1 text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><Clock size={10} /> Pendente</span>;
+      case 'Active': return <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><Check size={10} /> {t.tenants.active}</span>;
+      case 'Suspended': return <span className="flex items-center gap-1 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><ShieldAlert size={10} /> {t.tenants.suspended}</span>;
+      case 'Inactive': return <span className="flex items-center gap-1 text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><ShieldAlert size={10} /> {t.tenants.inactive}</span>;
+      default: return <span className="flex items-center gap-1 text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest"><Clock size={10} /> {t.tenants.pending}</span>;
     }
+  };
+
+  const getTranslatedStage = (label: string) => {
+    if (label === 'Prospecção') return t.tenants.columnProspect;
+    if (label === 'Qualificação') return t.tenants.columnQualification;
+    if (label === 'Proposta') return t.tenants.columnProposal;
+    if (label === 'Negociação') return t.tenants.columnNegotiation;
+    if (label === 'Fechado') return t.tenants.columnClosed;
+    if (label === 'Inadimplente') return t.tenants.columnOverdue;
+    return label;
   };
 
   return (
@@ -337,9 +350,9 @@ export const Tenants: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-legal-navy dark:text-white flex items-center gap-2">
-            <Building2 className="text-legal-bronze" /> Gestão de Tenants & CRM
+            <Building2 className="text-legal-bronze" /> {t.tenants.title}
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Controle de instâncias e pipeline de vendas do ecossistema.</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">{t.tenants.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -348,13 +361,13 @@ export const Tenants: React.FC = () => {
               onClick={() => setViewMode('Table')}
               className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${viewMode === 'Table' ? 'bg-legal-navy text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'}`}
             >
-              <List size={14} /> Lista
+              <List size={14} /> {t.nav.listView === 'List View' ? 'List' : 'Lista'}
             </button>
             <button
               onClick={() => setViewMode('Kanban')}
               className={`px-3 py-1.5 rounded-lg flex items-center gap-2 text-xs font-bold transition-all ${viewMode === 'Kanban' ? 'bg-legal-bronze text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:text-slate-500'}`}
             >
-              <LayoutGrid size={14} /> Kanban CRM
+              <LayoutGrid size={14} /> {t.nav.kanban}
             </button>
           </div>
 
@@ -367,7 +380,7 @@ export const Tenants: React.FC = () => {
             }}
             className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-all font-bold text-xs"
           >
-            <Plus size={14} /> Nova Coluna
+            <Plus size={14} /> {t.tenants.newColumn}
           </button>
 
           <button
@@ -377,7 +390,7 @@ export const Tenants: React.FC = () => {
             }}
             className="flex items-center gap-2 px-5 py-2.5 bg-legal-navy text-white rounded-xl hover:bg-opacity-90 transition-all font-bold shadow-lg shadow-legal-navy/20 dark:bg-legal-bronze dark:shadow-legal-bronze/20"
           >
-            <Plus size={20} /> Novo Tenant
+            <Plus size={20} /> {t.tenants.newTenant}
           </button>
         </div>
       </div>
@@ -388,7 +401,7 @@ export const Tenants: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Buscar organização ou domínio..."
+              placeholder={t.tenants.searchPlaceholder}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-legal-navy/10 dark:text-white text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -399,10 +412,10 @@ export const Tenants: React.FC = () => {
             onChange={(e) => setStatusFilter(e.target.value as TenantStatus)}
             className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-legal-navy/10 cursor-pointer min-w-[160px] dark:text-white"
           >
-            <option value="All">Todos Status</option>
-            <option value="Active">Ativos</option>
-            <option value="Suspended">Suspenso</option>
-            <option value="Pending">Pendente</option>
+            <option value="All">{t.tenants.allStatus}</option>
+            <option value="Active">{t.tenants.active}</option>
+            <option value="Suspended">{t.tenants.suspended}</option>
+            <option value="Pending">{t.tenants.pending}</option>
           </select>
         </div>
 
@@ -411,11 +424,11 @@ export const Tenants: React.FC = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-[0.1em] border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-6 py-4">Organização</th>
-                  <th className="px-6 py-4">Acesso (Domínio)</th>
-                  <th className="px-6 py-4">Plano</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-center">Ações</th>
+                  <th className="px-6 py-4">{t.tenants.organization}</th>
+                  <th className="px-6 py-4">{t.tenants.accessDomain}</th>
+                  <th className="px-6 py-4">{t.tenants.plan}</th>
+                  <th className="px-6 py-4">{t.tenants.status}</th>
+                  <th className="px-6 py-4 text-center">{t.tenants.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -428,7 +441,7 @@ export const Tenants: React.FC = () => {
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 dark:text-slate-100 leading-none mb-1">{tenant.name}</p>
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">DESDE {new Date(tenant.joinDate).toLocaleDateString()}</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{t.tenants.since} {new Date(tenant.joinDate).toLocaleDateString()}</p>
                         </div>
                       </div>
                     </td>
@@ -469,7 +482,7 @@ export const Tenants: React.FC = () => {
                         <div className="flex items-center justify-between px-2 py-1 group/header">
                           <div className="flex items-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${stage.color}`}></div>
-                            <h3 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wider">{stage.label}</h3>
+                            <h3 className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wider">{getTranslatedStage(stage.label)}</h3>
                           </div>
 
                           <div className="flex items-center gap-1 opacity-0 group-hover/header:opacity-100 transition-opacity">
@@ -562,25 +575,25 @@ export const Tenants: React.FC = () => {
                   <Edit2 size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">Editar Tenant</h3>
-                  <p className="text-white/60 text-xs">Atualize os dados da organização.</p>
+                  <h3 className="text-xl font-bold">{t.tenants.editTenant}</h3>
+                  <p className="text-white/60 text-xs">{t.tenants.editSubtitle}</p>
                 </div>
               </div>
             </div>
             <form onSubmit={handleUpdateTenant} className="p-8 space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome da Organização</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.tenants.organizationName}</label>
                 <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 dark:text-white"
                   value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Domínio de Acesso</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.tenants.accessDomain}</label>
                 <input required type="text" className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 dark:text-white"
                   value={formData.domain} onChange={(e) => setFormData({ ...formData, domain: e.target.value })} />
               </div>
               <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold">Salvar Alterações</button>
+                <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">{t.common.cancel === 'Cancel' ? 'Cancel' : 'Cancelar'}</button>
+                <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold">{t.common.saveChanges === 'Save Changes' ? 'Save Changes' : 'Salvar Alterações'}</button>
               </div>
             </form>
           </div>
@@ -599,8 +612,8 @@ export const Tenants: React.FC = () => {
                   <Zap size={24} />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold">Alterar Plano</h3>
-                  <p className="text-white/80 text-xs">Selecione o novo nível de serviço para {selectedTenant.name}.</p>
+                  <h3 className="text-xl font-bold">{t.tenants.upgradeTitle}</h3>
+                  <p className="text-white/80 text-xs">{t.tenants.upgradeSubtitle.replace('{name}', selectedTenant.name)}</p>
                 </div>
               </div>
             </div>
@@ -619,8 +632,8 @@ export const Tenants: React.FC = () => {
                 ))}
               </div>
               <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setIsUpgradeModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-xl shadow-amber-500/20">Efetivar Upgrade</button>
+                <button type="button" onClick={() => setIsUpgradeModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">{t.common.cancel}</button>
+                <button type="submit" className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-bold shadow-xl shadow-amber-500/20">{t.tenants.confirmUpgrade}</button>
               </div>
             </form>
           </div>
@@ -637,12 +650,12 @@ export const Tenants: React.FC = () => {
                 <Trash2 size={40} />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Remover Tenant?</h3>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">Esta ação é irreversível. Todos os dados de <strong>{selectedTenant.name}</strong> serão permanentemente excluídos.</p>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t.tenants.deleteTitle}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">{t.tenants.deleteSubtitle.replace('<strong>{selectedTenant.name}</strong>', `<strong>${selectedTenant.name}</strong>`)}</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setIsDeleteConfirmOpen(false)} className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">Manter</button>
-                <button onClick={handleDeleteTenant} className="flex-1 py-3.5 bg-rose-500 text-white rounded-2xl font-bold shadow-lg shadow-rose-500/20">Remover</button>
+                <button onClick={() => setIsDeleteConfirmOpen(false)} className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-2xl font-bold">{t.common.keep}</button>
+                <button onClick={handleDeleteTenant} className="flex-1 py-3.5 bg-rose-500 text-white rounded-2xl font-bold shadow-lg shadow-rose-500/20">{t.common.remove}</button>
               </div>
             </div>
           </div>
@@ -658,21 +671,21 @@ export const Tenants: React.FC = () => {
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Plus size={32} /></div>
                 <div>
-                  <h3 className="text-2xl font-bold">Adicionar Prospect</h3>
-                  <p className="text-white/60 text-sm">Insira uma nova banca no seu pipeline de vendas.</p>
+                  <h3 className="text-2xl font-bold">{t.tenants.addProspect}</h3>
+                  <p className="text-white/60 text-sm">{t.tenants.addProspectSubtitle}</p>
                 </div>
               </div>
             </div>
             <form onSubmit={handleCreateTenant} className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Organização</label>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{t.tenants.organization}</label>
                   <input required type="text" placeholder="Ex: Almeida Advocacia"
                     className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-legal-navy/10 dark:text-white text-sm font-medium"
                     value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Subdomínio</label>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{locale === 'en' ? 'Subdomain' : locale === 'es' ? 'Subdominio' : 'Subdomínio'}</label>
                   <input required type="text" placeholder="almeida"
                     className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:ring-2 focus:ring-legal-navy/10 dark:text-white text-sm font-medium"
                     value={formData.domain} onChange={(e) => setFormData({ ...formData, domain: e.target.value })} />
@@ -680,7 +693,7 @@ export const Tenants: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 gap-6">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Plano Pretendido</label>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{t.tenants.plan}</label>
                   <select className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white"
                     value={formData.plan} onChange={(e) => setFormData({ ...formData, plan: e.target.value as PlanName })}>
                     <option value={PlanName.Starter}>Starter (R$ 297)</option>
@@ -690,8 +703,8 @@ export const Tenants: React.FC = () => {
                 </div>
               </div>
               <div className="pt-4 flex gap-4">
-                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold hover:brightness-110 shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20">Iniciar Pipeline</button>
+                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="flex-1 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-2xl font-bold">{t.common.cancel}</button>
+                <button type="submit" className="flex-1 py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold hover:brightness-110 shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20">{t.tenants.startPipeline}</button>
               </div>
             </form>
           </div>
@@ -705,12 +718,12 @@ export const Tenants: React.FC = () => {
           <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 transition-colors">
             <div className={`${selectedStage ? selectedStage.color : 'bg-legal-navy'} p-6 text-white relative transition-colors`}>
               <button onClick={() => setIsStageModalOpen(false)} className="absolute top-4 right-4 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={20} /></button>
-              <h3 className="text-lg font-bold">{selectedStage ? 'Editar Coluna' : 'Nova Coluna'}</h3>
+              <h3 className="text-lg font-bold">{selectedStage ? t.tenants.editColumn : t.tenants.newColumn}</h3>
             </div>
 
             <form onSubmit={handleSaveStage} className="p-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome da Etapa</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.tenants.columnName}</label>
                 <input
                   type="text"
                   required
@@ -721,7 +734,7 @@ export const Tenants: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Cor de Identificação</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.tenants.columnColor}</label>
                 <div className="flex flex-wrap gap-2">
                   {STAGE_COLORS.map(color => (
                     <button
@@ -744,8 +757,8 @@ export const Tenants: React.FC = () => {
                     <Trash2 size={18} />
                   </button>
                 )}
-                <button type="button" onClick={() => setIsStageModalOpen(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl font-bold">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 bg-legal-navy text-white rounded-xl font-bold">Salvar</button>
+                <button type="button" onClick={() => setIsStageModalOpen(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded-xl font-bold">{t.common.cancel}</button>
+                <button type="submit" className="flex-1 py-3 bg-legal-navy text-white rounded-xl font-bold">{t.common.save}</button>
               </div>
             </form>
           </div>

@@ -1154,7 +1154,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   const renderQuickReplyModal = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[200]">
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg w-full max-w-md">
-        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.quickReplies}</h3>
+        <h3 className="text-xl font-bold mb-4 text-legal-navy dark:text-white">{t.chat.quickRepliesTitle}</h3>
         {/* Quick reply management UI would go here */}
         <button onClick={() => setIsQuickReplyModalOpen(false)} className="mt-4 px-4 py-2 bg-legal-navy text-white rounded-xl">
           {t.common.close}
@@ -1217,7 +1217,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               </button>
               <button
                 onClick={() => setIsQuickReplyModalOpen(true)}
-                title={t.chat.quickReplies}
+                title={t.chat.quickRepliesTitle}
                 className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm hover:bg-legal-navy hover:text-white text-slate-500 transition-all"
               >
                 <Zap size={16} />
@@ -1237,18 +1237,18 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               onClick={() => { setMainTab('pending'); setSelectedChat(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Clock size={16} /> {t.nav.kanban === 'Kanban Board' ? 'Pending' : 'Pendentes'}
+              <Clock size={16} /> {t.chat.pending}
             </button>
             <button
               onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Archive size={16} /> {t.nav.kanban === 'Kanban Board' ? 'Inbox' : 'Entrada'}
+              <Archive size={16} /> {t.chat.inbox}
             </button>
             <button
               onClick={() => setIsWhatsAppModalOpen(true)}
               className="p-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-              title={t.nav.dashboard === 'Dashboard' ? 'Connect WhatsApp' : 'Conectar WhatsApp'}
+              title={t.whatsapp.startConnection}
             >
               <QrCode size={18} />
             </button>
@@ -1259,13 +1259,13 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               onClick={() => { setChatTab('external'); setSelectedChat(null); setFilterTagId(null); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${chatTab === 'external' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <MessageCircle size={12} /> WhatsApp
+              <MessageCircle size={12} /> {t.chat.external}
             </button>
             <button
               onClick={() => { setChatTab('internal'); setSelectedChat(null); setFilterTagId(null); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${chatTab === 'internal' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
-              <Users size={12} /> Equipe
+              <Users size={12} /> {t.chat.internal}
             </button>
           </div>
 
@@ -1274,7 +1274,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               onClick={() => setFilterTagId(null)}
               className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border transition-all shrink-0 ${!filterTagId ? 'bg-legal-navy text-white border-legal-navy' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'}`}
             >
-              Todos
+              {t.common.all}
             </button>
             {tags.map(tag => (
               <button
@@ -2153,7 +2153,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                   <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Tag size={32} /></div>
                   <div>
                     <h3 className="text-2xl font-bold">Gerenciar Etiquetas</h3>
-                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Organização por Categorias</p>
+                    <p className="text-white/60 text-xs font-bold uppercase tracking-widest">{t.chat.organizationTitle}</p>
                   </div>
                 </div>
               </div>

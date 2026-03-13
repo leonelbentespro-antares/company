@@ -84,6 +84,7 @@ import { integrationsRouter } from './routes/integrations.js';
 import { apiKeysRouter } from './routes/apiKeys.js';
 import { messagesRouter } from './routes/messages.js';
 import { teamRouter } from './routes/team.js';
+import { justiceRouter } from './routes/justice.js';
 import { subscriptionGuard } from './middleware/subscriptionGuard.js';
 import { authMiddleware } from './middleware/auth.js';
 import { initSocketIO } from './socket/index.js';
@@ -101,6 +102,7 @@ app.use('/api/integrations', authMiddleware, subscriptionGuard, integrationsRout
 app.use('/api/api-keys', authMiddleware, subscriptionGuard, apiKeysRouter);
 app.use('/api/messages', authMiddleware, subscriptionGuard, messagesRouter);
 app.use('/api/team', authMiddleware, subscriptionGuard, teamRouter);
+app.use('/api/justice', authMiddleware, subscriptionGuard, justiceRouter);
 app.use('/api', authMiddleware, subscriptionGuard, aiRouter); // Rotas de IA (/documents/generate)
 
 // Rota de admin para visualizar alertas de segurança (uso interno)

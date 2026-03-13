@@ -96,15 +96,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
   }, [tenantId, myTenant]);
 
   const [widgets, setWidgets] = useState<WidgetConfig[]>([
-    { id: 'mrr', label: 'Métrica: MRR Realizado', category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <CreditCard size={14} /> },
-    { id: 'arr', label: 'Métrica: ARR Projetado', category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Zap size={14} /> },
-    { id: 'churn', label: 'Métrica: Churn Rate', category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Layers size={14} /> },
-    { id: 'ltv', label: 'Métrica: LTV', category: 'metric', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <TrendingUp size={14} /> },
-    { id: 'tenants_count', label: 'Métrica: Total de Tenants', category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Briefcase size={14} /> },
-    { id: 'processes_count', label: 'Métrica: Processos Ativos', category: 'metric', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <Scale size={14} /> },
-    { id: 'revenue_chart', label: 'Gráfico: Performance de Receita', category: 'chart', roles: [UserRole.Admin], enabled: true, icon: <TrendingUp size={14} /> },
-    { id: 'retention_chart', label: 'Gráfico: Retenção (Churn)', category: 'chart', roles: [UserRole.Admin], enabled: true, icon: <Layers size={14} /> },
-    { id: 'infra_status', label: 'Status: Infraestrutura', category: 'list', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <Zap size={14} /> },
+    { id: 'mrr', label: t.dashboard.mrr, category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <CreditCard size={14} /> },
+    { id: 'arr', label: t.dashboard.arr, category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Zap size={14} /> },
+    { id: 'churn', label: t.dashboard.churn, category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Layers size={14} /> },
+    { id: 'ltv', label: t.dashboard.ltv, category: 'metric', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <TrendingUp size={14} /> },
+    { id: 'tenants_count', label: t.dashboard.tenants, category: 'metric', roles: [UserRole.Admin], enabled: true, icon: <Briefcase size={14} /> },
+    { id: 'processes_count', label: t.dashboard.processes, category: 'metric', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <Scale size={14} /> },
+    { id: 'revenue_chart', label: t.dashboard.growth, category: 'chart', roles: [UserRole.Admin], enabled: true, icon: <TrendingUp size={14} /> },
+    { id: 'retention_chart', label: t.dashboard.retention, category: 'chart', roles: [UserRole.Admin], enabled: true, icon: <Layers size={14} /> },
+    { id: 'infra_status', label: 'Infrastructure Status', category: 'list', roles: [UserRole.Admin, UserRole.Lawyer], enabled: true, icon: <Zap size={14} /> },
   ]);
 
   const [newMetricForm, setNewMetricForm] = useState({
@@ -239,7 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
         <div>
           <h1 className="text-4xl font-black text-legal-navy dark:text-white tracking-tight">Overview <span className="text-slate-300 dark:text-slate-600 font-light">LexHub</span></h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
-            {t.nav.dashboard === 'Dashboard' ? 'Hello' : 'Olá'}, {currentUser?.name}. {t.settings.subtitle}
+            {currentUser?.name}. {t.settings.subtitle}
           </p>
         </div>
 
@@ -264,7 +264,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {filteredWidgets.filter(w => (w.category === 'metric' || w.category === 'custom') && w.enabled).map(widget => {
           const locale = t.nav.dashboard === 'Dashboard' ? 'en-US' : 'pt-BR';
-          const currency = t.nav.dashboard === 'Dashboard' ? 'USD' : 'BRL';
           const symbol = t.nav.dashboard === 'Dashboard' ? '$' : 'R$';
 
           if (widget.category === 'custom') {
@@ -273,13 +272,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
             return <MetricCard key={widget.id} label={widget.label} value={displayVal} percentage={0} trend="up" icon={widget.icon} />;
           }
 
+          const getLabel = (id: string) => {
+            switch (id) {
+              case 'mrr': return t.dashboard.mrr;
+              case 'arr': return t.dashboard.arr;
+              case 'tenants_count': return t.dashboard.tenants;
+              case 'processes_count': return t.dashboard.processes;
+              case 'churn': return t.dashboard.churn;
+              case 'ltv': return t.dashboard.ltv;
+              default: return widget.label;
+            }
+          };
+
+          const label = getLabel(widget.id);
+
           switch (widget.id) {
-            case 'mrr': return <MetricCard key={widget.id} label={t.dashboard.mrr} value={`${symbol} ${totalMRR.toLocaleString(locale)}`} percentage={12.5} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'arr': return <MetricCard key={widget.id} label={t.dashboard.arr} value={`${symbol} ${(totalMRR * 12).toLocaleString(locale)}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'tenants_count': return <MetricCard key={widget.id} label={t.dashboard.tenants} value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
-            case 'processes_count': return <MetricCard key={widget.id} label={t.dashboard.processes} value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
-            case 'churn': return <MetricCard key={widget.id} label={t.dashboard.churn} value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
-            case 'ltv': return <MetricCard key={widget.id} label={t.dashboard.ltv} value={`${symbol} 0`} percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
+            case 'mrr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${totalMRR.toLocaleString(locale)}`} percentage={12.5} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'arr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${(totalMRR * 12).toLocaleString(locale)}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'tenants_count': return <MetricCard key={widget.id} label={label} value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
+            case 'processes_count': return <MetricCard key={widget.id} label={label} value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
+            case 'churn': return <MetricCard key={widget.id} label={label} value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
+            case 'ltv': return <MetricCard key={widget.id} label={label} value={`${symbol} 0`} percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
             default: return null;
           }
         })}
@@ -420,7 +433,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                       <input
                         required
                         type="text"
-                        placeholder="Ex: Total de Ganhos"
+                        placeholder={t.dashboard.metricNamePlaceholder}
                         className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none focus:ring-2 focus:ring-legal-navy/10"
                         value={newMetricForm.label}
                         onChange={(e) => setNewMetricForm({ ...newMetricForm, label: e.target.value })}
@@ -441,13 +454,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cálculo</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.dashboard.operation}</label>
                       <select
                         className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold dark:text-white outline-none"
                         value={newMetricForm.operation}
                         onChange={(e) => setNewMetricForm({ ...newMetricForm, operation: e.target.value as any })}
                       >
-                        <option value="count">Contagem Total</option>
+                        <option value="count">{t.dashboard.countOp}</option>
                         <option value="sum">{t.dashboard.sumOp}</option>
                         <option value="avg">{t.dashboard.avgOp}</option>
                       </select>

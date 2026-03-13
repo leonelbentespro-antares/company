@@ -10,9 +10,11 @@ import {
 import { AIAgent } from '../types.ts';
 import { getAIAgents, createAIAgent, updateAIAgent, getIntegrations, upsertIntegration } from '../services/supabaseService.ts';
 import { useTenant } from '../services/tenantContext.tsx';
+import { useLanguage } from '../services/languageContext.tsx';
 
 export const AIAgents: React.FC = () => {
   const { tenantId } = useTenant();
+  const { t, locale } = useLanguage();
   const [agents, setAgents] = useState<AIAgent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'agents' | 'integrations'>('agents');
@@ -62,7 +64,7 @@ export const AIAgents: React.FC = () => {
     reader.onload = (event) => {
       const content = event.target?.result as string;
       setFormData(prev => ({ ...prev, skills: content }));
-      setShowFeedback('Skills importadas com sucesso!');
+      setShowFeedback(t.aiAgents.feedback.importSuccess);
     };
     reader.readAsText(file);
   };
@@ -83,10 +85,10 @@ export const AIAgents: React.FC = () => {
           skills: formData.skills
         } : a));
         setIsModalOpen(false);
-        setShowFeedback('Agente atualizado com segurança!');
+        setShowFeedback(t.aiAgents.feedback.updateSuccess);
       } catch (err) {
         console.error('Erro ao atualizar agente:', err);
-        setShowFeedback('Erro ao atualizar agente.');
+        setShowFeedback(t.aiAgents.feedback.updateError);
       }
     } else {
       setModalStep('pairing');
@@ -100,10 +102,10 @@ export const AIAgents: React.FC = () => {
     try {
       await updateAIAgent(id, tenantId, { status: newStatus });
       setAgents(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
-      setShowFeedback(`Agente ${newStatus === 'Active' ? 'ativado' : 'desativado'} com sucesso!`);
+      setShowFeedback(t.aiAgents.feedback.statusSuccess(newStatus));
     } catch (err) {
       console.error('Erro ao alterar status do agente:', err);
-      setShowFeedback('Erro ao alterar status.');
+      setShowFeedback(t.aiAgents.feedback.statusError);
     }
   };
 
@@ -130,18 +132,18 @@ export const AIAgents: React.FC = () => {
       const data = await res.json();
 
       if (data.status === 'QR_READY' && data.qr) {
-        setConnectionStatus('Aguardando escaneamento do QR Code...');
+        setConnectionStatus(t.aiAgents.feedback.awaitingQr);
         setQrCodeData(data.qr);
         setPairCodeData(null);
         setLoading(false);
       } else if (data.status === 'PAIR_CODE_READY' && data.paircode) {
-        setConnectionStatus('Utilize o código abaixo no seu WhatsApp...');
+        setConnectionStatus(t.aiAgents.feedback.useCode);
         setPairCodeData(data.paircode);
         setQrCodeData(null);
         setLoading(false);
       } else if (data.status === 'Connected') {
-        setConnectionStatus('Criptografia Estabelecida. Conectado!');
-        setShowFeedback('WhatsApp Conectado com Sucesso!');
+        setConnectionStatus(t.aiAgents.feedback.connected);
+        setShowFeedback(t.aiAgents.feedback.whatsappConnected);
 
         try {
           const newAgent = await createAIAgent(tenantId, {
@@ -159,7 +161,7 @@ export const AIAgents: React.FC = () => {
         setQrCodeData(null);
         return;
       } else {
-        setConnectionStatus('Iniciando Sessão Segura com WhatsApp...');
+        setConnectionStatus(t.aiAgents.feedback.startingSession);
       }
 
       if (modalStep === 'pairing' && data.status !== 'Connected') {
@@ -185,7 +187,7 @@ export const AIAgents: React.FC = () => {
       pollStatus();
     } catch (err) {
       console.error(err);
-      setShowFeedback('Erro ao iniciar pareamento com o backend.');
+      setShowFeedback(t.aiAgents.feedback.pairingError);
       setLoading(false);
     }
   };
@@ -195,10 +197,10 @@ export const AIAgents: React.FC = () => {
       const { supabase } = await import('../services/supabaseClient.ts');
       await supabase.from('ai_agents').delete().eq('id', id).eq('tenant_id', tenantId);
       setAgents(agents.filter(a => a.id !== id));
-      setShowFeedback('Agente removido.');
+      setShowFeedback(t.aiAgents.feedback.agentRemoved);
     } catch (err) {
       console.error('Erro ao deletar agente:', err);
-      setShowFeedback('Erro ao remover agente.');
+      setShowFeedback(t.aiAgents.feedback.removeError);
     }
   };
 
@@ -246,10 +248,10 @@ export const AIAgents: React.FC = () => {
       });
       const newKeys = { ...apiKeys, [provider]: key };
       setApiKeys(newKeys);
-      setShowFeedback(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API Key salva!`);
+      setShowFeedback(t.aiAgents.feedback.apiKeySaved(provider.charAt(0).toUpperCase() + provider.slice(1)));
     } catch (error) {
       console.error('Error saving API key:', error);
-      setShowFeedback('Erro ao salvar API Key.');
+      setShowFeedback(t.aiAgents.feedback.apiKeyError);
     }
   };
 
@@ -267,14 +269,14 @@ export const AIAgents: React.FC = () => {
         <div>
           <h2 className="text-3xl font-bold text-legal-navy dark:text-white flex items-center gap-3">
             <div className="p-2 bg-legal-navy text-white rounded-xl shadow-lg"><MessageSquare size={24} /></div>
-            Agentes de IA
+            {t.aiAgents.title}
           </h2>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">Gerencie seus agentes e integrações de IA.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">{t.aiAgents.subtitle}</p>
         </div>
 
         {activeTab === 'agents' && (
           <button onClick={handleOpenCreate} className="px-6 py-3 bg-legal-navy text-white rounded-2xl font-bold hover:brightness-110 shadow-xl transition-all flex items-center gap-2">
-            <Plus size={20} /> Criar Novo Agente
+            <Plus size={20} /> {t.aiAgents.newAgent}
           </button>
         )}
       </div>
@@ -288,7 +290,7 @@ export const AIAgents: React.FC = () => {
             : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
-          Meus Agentes
+          {t.aiAgents.myAgents}
         </button>
         <button
           onClick={() => setActiveTab('integrations')}
@@ -297,7 +299,7 @@ export const AIAgents: React.FC = () => {
             : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
         >
-          <Globe size={16} /> Integrações
+          <Globe size={16} /> {t.aiAgents.integrations}
         </button>
       </div>
 
@@ -309,7 +311,7 @@ export const AIAgents: React.FC = () => {
               <div className="absolute top-0 right-0 p-8">
                 <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${agent.status === 'Active' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400'}`}>
                   <div className={`w-2 h-2 rounded-full ${agent.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-                  {agent.status === 'Active' ? 'Conectado' : 'Desconectado'}
+                  {agent.status === 'Active' ? t.aiAgents.connected : t.aiAgents.disconnected}
                 </div>
               </div>
               <div className="flex items-start gap-6 mb-8">
@@ -318,7 +320,9 @@ export const AIAgents: React.FC = () => {
                 </div>
                 <div className="space-y-1 pr-24">
                   <h3 className={`text-xl font-bold transition-colors ${agent.status === 'Active' ? 'text-slate-900 dark:text-white' : 'text-slate-400 dark:text-slate-500'}`}>{agent.name}</h3>
-                  <p className="text-xs text-slate-400 font-bold uppercase">Criado em {new Date(agent.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-slate-400 font-bold uppercase">
+                    {locale === 'en' ? 'Created on' : locale === 'es' ? 'Creado en' : 'Criado em'} {new Date(agent.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
               <div className="space-y-4 mb-8">
@@ -326,7 +330,7 @@ export const AIAgents: React.FC = () => {
                   <p className="text-sm text-slate-600 dark:text-slate-400 font-medium italic">"{agent.personality}"</p>
                   {agent.skills && (
                     <div className="mt-4 pt-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Skills & Instruções</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{t.aiAgents.skillsLabel}</p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-3 font-mono leading-relaxed">{agent.skills}</p>
                     </div>
                   )}
@@ -340,7 +344,7 @@ export const AIAgents: React.FC = () => {
                     : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400'
                     }`}
                 >
-                  {agent.status === 'Active' ? <><PowerOff size={16} /> Desativar Agente</> : <><Power size={16} /> Ativar Agente</>}
+                  {agent.status === 'Active' ? <><PowerOff size={16} /> {t.aiAgents.deactivate}</> : <><Power size={16} /> {t.aiAgents.activate}</>}
                 </button>
                 <button onClick={() => handleOpenEdit(agent)} className="p-3 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-sm">
                   <Settings2 size={16} />
@@ -366,7 +370,7 @@ export const AIAgents: React.FC = () => {
                 </div>
                 <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${apiKeys[integration.id] ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
                   <div className={`w-2 h-2 rounded-full ${apiKeys[integration.id] ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-                  {apiKeys[integration.id] ? 'Conectado' : 'Não Configurado'}
+                  {apiKeys[integration.id] ? t.aiAgents.connected : (locale === 'en' ? 'Not Configured' : locale === 'es' ? 'No Configurado' : 'Não Configurado')}
                 </div>
               </div>
 
@@ -376,7 +380,7 @@ export const AIAgents: React.FC = () => {
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input
                     type="password"
-                    placeholder={`Insira sua chave ${integration.name}`}
+                    placeholder={(locale === 'en' ? 'Insert your key ' : locale === 'es' ? 'Inserte su clave ' : 'Insira sua chave ') + integration.name}
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl font-medium dark:text-white outline-none focus:ring-4 focus:ring-legal-navy/5 text-sm"
                     value={apiKeys[integration.id] || ''}
                     onChange={(e) => setApiKeys({ ...apiKeys, [integration.id]: e.target.value })}
@@ -390,7 +394,7 @@ export const AIAgents: React.FC = () => {
                   disabled={!apiKeys[integration.id]}
                   className="w-full py-3 bg-legal-navy text-white rounded-xl font-bold shadow-lg shadow-legal-navy/20 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm"
                 >
-                  <Save size={16} /> Salvar Integração
+                  <Save size={16} /> {t.aiAgents.saveIntegration}
                 </button>
               </div>
             </div>
@@ -408,18 +412,18 @@ export const AIAgents: React.FC = () => {
                   <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-legal-bronze rounded-2xl flex items-center justify-center shadow-lg"><Plus size={32} /></div>
-                    <h3 className="text-2xl font-bold">Configurar Agente</h3>
+                    <h3 className="text-2xl font-bold">{t.aiAgents.configTitle}</h3>
                   </div>
                 </div>
                 <form onSubmit={handleSaveAgent} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nome</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.aiAgents.nameLabel}</label>
                       <input required type="text" className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-legal-navy/10" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Personalidade</label>
-                      <textarea required placeholder="Descreva como o agente deve se comportar..." className="w-full h-24 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium dark:text-white outline-none resize-none focus:ring-2 focus:ring-legal-navy/10" value={formData.personality} onChange={(e) => setFormData({ ...formData, personality: e.target.value })} />
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t.aiAgents.personalityLabel}</label>
+                      <textarea required placeholder={t.aiAgents.personalityPlaceholder} className="w-full h-24 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-medium dark:text-white outline-none resize-none focus:ring-2 focus:ring-legal-navy/10" value={formData.personality} onChange={(e) => setFormData({ ...formData, personality: e.target.value })} />
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
@@ -429,7 +433,7 @@ export const AIAgents: React.FC = () => {
                           onClick={() => fileInputRef.current?.click()}
                           className="text-[10px] font-bold text-legal-bronze hover:underline flex items-center gap-1"
                         >
-                          <Plus size={12} /> Importar Arquivo (.txt)
+                          <Plus size={12} /> {t.aiAgents.importFile}
                         </button>
                         <input
                           type="file"
@@ -441,30 +445,30 @@ export const AIAgents: React.FC = () => {
                       </div>
                       <textarea
                         className="w-full h-32 px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-mono dark:text-teal-400 outline-none resize-none focus:ring-2 focus:ring-legal-navy/10"
-                        placeholder="Cole aqui ou importe as instruções e habilidades do agente..."
+                        placeholder={t.aiAgents.skillsPlaceholder}
                         value={formData.skills}
                         onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
                       />
                     </div>
                   </div>
                   <div className="pt-4 flex gap-4 bg-white dark:bg-slate-900 sticky bottom-0">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">Cancelar</button>
-                    <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl">{editingAgent ? 'Salvar Alterações' : 'Próximo Passo'}</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-bold">{t.aiAgents.cancel}</button>
+                    <button type="submit" className="flex-1 py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl">{editingAgent ? t.aiAgents.saveChanges : t.aiAgents.nextStep}</button>
                   </div>
                 </form>
               </>
             ) : (
               <div className="p-12 text-center space-y-8">
-                <h3 className="text-3xl font-bold text-legal-navy dark:text-white tracking-tight">Pareamento WhatsApp</h3>
+                <h3 className="text-3xl font-bold text-legal-navy dark:text-white tracking-tight">{t.aiAgents.pairingTitle}</h3>
                 <div className="relative group max-w-[340px] mx-auto p-2 bg-white border-4 border-legal-navy rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
-                  {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-[2.5rem]"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-[10px] font-bold text-slate-400 uppercase">Validando...</p></div> :
+                  {loading ? <div className="aspect-square flex flex-col items-center justify-center gap-4 bg-slate-50 rounded-[2.5rem]"><RefreshCw size={48} className="text-legal-bronze animate-spin" /><p className="text-[10px] font-bold text-slate-400 uppercase">{t.aiAgents.validating}</p></div> :
                     pairCodeData ? (
                       <div className="aspect-square bg-slate-50 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-center p-8 transition-all">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Código de Pareamento</p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.aiAgents.pairingCode}</p>
                         <div className="text-5xl font-black text-legal-navy tracking-[0.2em] bg-white px-8 py-6 rounded-3xl shadow-inner border border-slate-100">
                           {pairCodeData}
                         </div>
-                        <p className="text-[10px] text-slate-500 font-medium mt-4">Digite este código no seu WhatsApp em "Conectar com número de telefone".</p>
+                        <p className="text-[10px] text-slate-500 font-medium mt-4">{t.aiAgents.pairingInstructions}</p>
                       </div>
                     ) : qrCodeData ? (
                       <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-0 relative overflow-hidden">
@@ -489,12 +493,12 @@ export const AIAgents: React.FC = () => {
                       </div>
                     ) : (
                       <div className="aspect-square bg-white rounded-[2.5rem] flex flex-col items-center justify-center p-4 relative overflow-hidden"><QrCode size={180} className="text-legal-navy opacity-20" />
-                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={startRealConnection} className="bg-legal-navy text-white px-8 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-all">Gerar QR Code</button></div>
+                        <div className="absolute inset-0 bg-white/40 flex items-center justify-center backdrop-blur-[1px]"><button onClick={startRealConnection} className="bg-legal-navy text-white px-8 py-4 rounded-full font-bold shadow-xl hover:scale-105 transition-all">{t.aiAgents.generateQr}</button></div>
                       </div>
                     )}
                 </div>
                 {connectionStatus && <p className="text-sm font-bold text-legal-bronze mt-4">{connectionStatus}</p>}
-                <button onClick={() => setModalStep('config')} className="text-slate-400 font-bold text-sm hover:underline">Voltar</button>
+                <button onClick={() => setModalStep('config')} className="text-slate-400 font-bold text-sm hover:underline">{t.aiAgents.back}</button>
               </div>
             )}
           </div>

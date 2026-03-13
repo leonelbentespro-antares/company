@@ -154,6 +154,29 @@ export interface Integration {
   createdAt: string;
 }
 
+export interface JusticeIntegration extends Integration {
+  provider: 'pje' | 'pdpj';
+  settings: {
+    enabled?: boolean;
+    court?: string; // Ex: 'TRT3', 'TJMG'
+    apiKey?: string;
+    clientId?: string;
+    clientSecret?: string;
+    redirectUri?: string;
+    authType: 'oauth2' | 'certificate';
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: string;
+  };
+}
+
+export interface JusticeMovement {
+  id: string;
+  date: string;
+  description: string;
+  details?: string;
+}
+
 export interface WhatsAppDevice {
   id: string;
   tenantId?: string;
