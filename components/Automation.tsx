@@ -81,135 +81,13 @@ export const Automation: React.FC = () => {
   };
   const save = (key: string, d: any) => localStorage.setItem(key, JSON.stringify(d));
 
-  const PRE_BUILT_FLOWS: AutomationFlow[] = [
-    {
-      id: 'f1_mat',
-      name: 'Salário Maternidade',
-      description: 'Triagem inicial para mães interessadas em benefícios de Salário Maternidade.',
-      trigger: 'MATERNIDADE, BEBE, GRAVIDA, LICENCA',
-      active: true,
-      blocks: [
-        { id: 'b1', type: 'text', content: 'Olá! Sou a assistente virtual da LexHub especializada em Direitos Previdenciários.' },
-        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
-        { id: 'b3', type: 'text', content: 'Vi que você tem interesse no Salário Maternidade. O processo é rápido e seguro conosco.' },
-        {
-          id: 'b4', type: 'menu', content: 'Qual a sua situação atual?',
-          metadata: {
-            options: [
-              { id: 'opt1', label: 'Estou Gestante', targetTag: 'Salário Maternidade', reply: 'Excelente! Vamos iniciar a análise de documentos.' },
-              { id: 'opt2', label: 'Bebê já nasceu', targetTag: 'Salário Maternidade', reply: 'Maravilha! Vamos solicitar a Certidão para avaliar.' },
-              { id: 'opt3', label: 'Falar com Atendente', targetTag: 'Atendimento Humano', reply: 'Ok, transferindo para nosso(a) consultor(a)...' }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      id: 'f2_tea',
-      name: 'TEA (Autismo) - BPC/LOAS',
-      description: 'Atendimento inicial para leads buscando benefícios assistenciais e laudos TEA.',
-      trigger: 'TEA, AUTISMO, BPC, LOAS',
-      active: true,
-      blocks: [
-        { id: 'b1', type: 'text', content: 'Olá, me chamo Ana. Aqui na LexHub somos especialistas em assegurar os direitos do Autista (TEA).' },
-        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
-        {
-          id: 'b3', type: 'menu', content: 'Como posso te direcionar da melhor forma?',
-          metadata: {
-            options: [
-              { id: 'opt1', label: 'Benefício BPC/LOAS', targetTag: 'TEA (Autismo)', reply: 'Vamos avaliar a elegibilidade e requisitos para o BPC.' },
-              { id: 'opt2', label: 'Direitos na Escola', targetTag: 'TEA (Autismo)', reply: 'Certo, a educação inclusiva é direito garantido!' },
-              { id: 'opt3', label: 'Convênio Médico', targetTag: 'TEA (Autismo)', reply: 'Iremos analisar as negativas do seu plano de saúde.' }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      id: 'f3_con',
-      name: 'Defesa do Consumidor',
-      description: 'Fluxo para problemas com voos, bancos, cobranças indevidas e inclusão no SPC/Serasa.',
-      trigger: 'CONSUMIDOR, VOO, BANCO, NOME SUJO',
-      active: true,
-      blocks: [
-        { id: 'b1', type: 'text', content: 'Seja bem-vindo(a)! Se os seus direitos como consumidor foram violados, você está no lugar certo.' },
-        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
-        {
-          id: 'b3', type: 'menu', content: 'Selecione abaixo o serviço principal que você procura:',
-          metadata: {
-            options: [
-              { id: 'opt1', label: 'Voo Cancelado/Atraso', targetTag: 'Consumidor', reply: 'Precisaremos dos comprovantes de passagens e gastos extras.' },
-              { id: 'opt2', label: 'Nome Negativado', targetTag: 'Consumidor', reply: 'Cobrança indevida gera dano moral. Vamos investigar!' },
-              { id: 'opt3', label: 'Problemas com Bancos', targetTag: 'Consumidor', reply: 'Entendi. Fraudes ou empréstimos não reconhecidos?' }
-            ]
-          }
-        }
-      ]
-    },
-    {
-      id: 'f4_tra',
-      name: 'Direito Trabalhista',
-      description: 'Rescisão, horas extras, acidente de trabalho ou demissão sem justa causa.',
-      trigger: 'TRABALHO, EMPRESA, DEMISSAO, JUSTA CAUSA',
-      active: true,
-      blocks: [
-        { id: 'b1', type: 'text', content: 'Olá! Sou especialista em Direitos do Trabalhador na LexHub.' },
-        { id: 'b2', type: 'wait', content: '2', metadata: { duration: 2 } },
-        {
-          id: 'b3', type: 'menu', content: 'Qual problema ocorreu com seu empregador?',
-          metadata: {
-            options: [
-              { id: 'opt1', label: 'Demissão S/ Justa Causa', targetTag: 'Trabalhista', reply: 'Vamos conferir se as verbas foram pagas corretamente.' },
-              { id: 'opt2', label: 'Horas Extras/Assédio', targetTag: 'Trabalhista', reply: 'Certo, isso é grave. Precisa de testemunhas?' },
-              { id: 'opt3', label: 'Não tem Carteira Assinada', targetTag: 'Trabalhista', reply: 'Iremos buscar o reconhecimento do vínculo.' }
-            ]
-          }
-        }
-      ]
-    }
-  ];
+  const PRE_BUILT_FLOWS: AutomationFlow[] = [];
 
   const [flows, setFlows] = useState<AutomationFlow[]>(() => load('lex_flows', PRE_BUILT_FLOWS));
 
-  const [broadcasts, setBroadcasts] = useState<BroadcastCampaign[]>(() => load('lex_broadcasts', [
-    {
-      id: 'b1',
-      name: 'Informativo Mensal de Prazos',
-      status: 'Completed',
-      sentCount: 1240,
-      totalCount: 1240,
-      date: '12/05/2024',
-      message: 'Olá, informamos que seus prazos estão sendo monitorados conforme o planejado.',
-      targetTags: ['Prioridade'],
-      targetSectors: [],
-      sendType: 'immediate'
-    }
-  ]));
+  const [broadcasts, setBroadcasts] = useState<BroadcastCampaign[]>(() => load('lex_broadcasts', []));
 
-  const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>(() => load('lex_followups', [
-    {
-      id: 'fu1',
-      name: 'Follow-up de Boas-vindas (3 dias)',
-      sector: 'Comercial',
-      delayValue: 3,
-      delayUnit: 'days',
-      message: 'Olá! Vimos que você ainda não enviou os documentos. Podemos ajudar em algo?',
-      active: true,
-      targetTags: ['Novo Lead'],
-      stats: { sent: 142, replied: 85 }
-    },
-    {
-      id: 'fu2',
-      name: 'Lembrete de Sentença (7 dias)',
-      sector: 'Acompanhamento',
-      delayValue: 7,
-      delayUnit: 'days',
-      message: 'Olá! Passando para informar que estamos aguardando a publicação do acórdão. Alguma dúvida?',
-      active: true,
-      targetTags: ['Sentença'],
-      stats: { sent: 56, replied: 12 }
-    }
-  ]));
+  const [followUpRules, setFollowUpRules] = useState<FollowUpRule[]>(() => load('lex_followups', []));
 
   useEffect(() => save('lex_flows', flows), [flows]);
   useEffect(() => save('lex_broadcasts', broadcasts), [broadcasts]);

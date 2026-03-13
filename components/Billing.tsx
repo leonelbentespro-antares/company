@@ -46,13 +46,7 @@ interface ContractRecord {
   category: string;
 }
 
-const INITIAL_CONTRACTS: ContractRecord[] = [
-  { id: 'ct1', client: 'Carlos Eduardo Oliveira', value: 2500, status: 'Paid', dueDate: '2024-06-10', category: 'Mensalidade' },
-  { id: 'ct2', client: 'Maria Helena Souza', value: 1800, status: 'Regular', dueDate: '2024-06-20', category: 'Consultoria' },
-  { id: 'ct3', client: 'TecnoLogic LTDA', value: 5000, status: 'Late', dueDate: '2024-06-05', category: 'Êxito' },
-  { id: 'ct4', client: 'Roberto J. Pereira', value: 1200, status: 'Paid', dueDate: '2024-05-12', category: 'Mensalidade' },
-  { id: 'ct5', client: 'Condomínio Solar', value: 3200, status: 'Late', dueDate: '2024-06-01', category: 'Honorários' },
-];
+const INITIAL_CONTRACTS: ContractRecord[] = [];
 export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.com.br' }) => {
   const { t, locale } = useLanguage();
   const { tenant, subscription, user: authUser, refresh } = useTenant();

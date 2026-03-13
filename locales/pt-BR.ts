@@ -208,6 +208,8 @@ export interface Translations {
     closePanel: string;
     generatingCode: string;
     giveNameInstructions: string;
+    confirmDisconnect: string;
+    disconnectedSuccess: string;
   };
   tenants: {
     title: string;
@@ -676,6 +678,8 @@ export const ptBR: Translations = {
     closePanel: 'Fechar Painel',
     generatingCode: 'Gerando Código...',
     giveNameInstructions: 'Dê um nome para esta conexão (ex: "Recepção Principal") e clique em iniciar.',
+    confirmDisconnect: 'Tem certeza que deseja desconectar o WhatsApp? Isso interromperá o envio e recebimento de mensagens.',
+    disconnectedSuccess: 'WhatsApp desconectado com sucesso!',
   },
   tenants: {
     title: 'Gestão de Organizações & CRM',

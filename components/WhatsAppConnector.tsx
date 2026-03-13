@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { QrCode, Loader2, CheckCircle2, Phone, X, RefreshCw, Smartphone } from 'lucide-react';
+import { QrCode, Loader2, CheckCircle2, Phone, X, RefreshCw, Smartphone, Info, MessageCircle } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { supabase } from '../services/supabaseClient';
 import { useTenant } from '../services/tenantContext';
@@ -15,7 +15,8 @@ interface WhatsAppConnectorProps {
 export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess, variant = 'modal', onClose }) => {
   const { tenantId } = useTenant();
   const { t } = useLanguage();
-  const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success'>('naming');
+  const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success' | 'connected'>('naming');
+  const [connectedDevice, setConnectedDevice] = useState<any>(null);
   const [sessionForm, setSessionForm] = useState({ name: '', phone: '' });
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [pairCode, setPairCode] = useState<string | null>(null);
@@ -24,12 +25,66 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
+    checkConnection();
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
     };
-  }, []);
+  }, [tenantId]);
+
+  const checkConnection = async () => {
+    if (!tenantId) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/devices`, {
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
+      if (response.ok) {
+        const devices = await response.json();
+        const activeDevice = devices.find((d: any) => d.status === 'connected');
+        if (activeDevice) {
+          setConnectedDevice(activeDevice);
+          setQrStep('connected');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking WhatsApp connection:', err);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!window.confirm(t.whatsapp.confirmDisconnect || 'Tem certeza que deseja desconectar o WhatsApp?')) return;
+    
+    setIsConnecting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      // Chamar o endpoint de desconexão (assumindo DELETE /api/whatsapp/devices/:id ou similar)
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/devices/${connectedDevice.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
+
+      if (response.ok) {
+        setQrStep('naming');
+        setConnectedDevice(null);
+        setShowToast(t.whatsapp.disconnectedSuccess || 'WhatsApp desconectado com sucesso.');
+      } else {
+        setShowToast('Erro ao desconectar.');
+      }
+    } catch (err) {
+      console.error('Error disconnecting WhatsApp:', err);
+      setShowToast('Erro de rede ao desconectar.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   const connectSocket = (sessionName: string) => {
     if (!tenantId) return;
@@ -160,20 +215,50 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
       );
     }
 
-    if (qrStep === 'success') {
+    if (qrStep === 'success' || qrStep === 'connected') {
+      const device = connectedDevice || sessionForm;
       return (
-        <div className="py-8 flex flex-col items-center text-center animate-in zoom-in-95">
-          <div className="w-24 h-24 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/30 mb-6">
-            <CheckCircle2 size={48} />
+        <div className="py-2 flex flex-col items-center text-center animate-in zoom-in-95">
+          <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-2xl shadow-emerald-500/30 mb-6">
+            <CheckCircle2 size={40} />
           </div>
-          <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-2">{t.whatsapp.connectingSuccess}</h2>
-          <p className="text-slate-500 font-medium mb-8">{t.whatsapp.connectingSuccessDesc}</p>
-          <button
-            onClick={onClose}
-            className="px-8 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-          >
-            {t.whatsapp.closePanel}
-          </button>
+          <h2 className="text-xl font-black text-legal-navy dark:text-white mb-1">
+            {qrStep === 'success' ? t.whatsapp.connectingSuccess : 'WhatsApp Conectado'}
+          </h2>
+          <div className="mb-8 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 w-full">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dispositivo</span>
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Ativo
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-left">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                <Smartphone size={18} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{device.name || 'Meu WhatsApp'}</p>
+                <p className="text-[10px] text-slate-400 font-medium">{device.phone || 'Sessão Ativa'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 transition-colors text-sm"
+            >
+              {t.whatsapp.closePanel}
+            </button>
+            <button
+              onClick={handleDisconnect}
+              disabled={isConnecting}
+              className="flex-1 py-3 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-colors text-sm border border-rose-100/50 flex items-center justify-center gap-2"
+            >
+              {isConnecting ? <Loader2 className="animate-spin" size={16} /> : <X size={16} />}
+              Desconectar
+            </button>
+          </div>
         </div>
       );
     }
@@ -207,4 +292,4 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
   );
 };
 
-import { Info, MessageCircle } from 'lucide-react';
+

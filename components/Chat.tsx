@@ -175,6 +175,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
 
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
@@ -329,7 +330,27 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   };
 
   useEffect(() => {
+    const checkWhatsAppStatus = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+        const res = await fetch(`${apiUrl}/api/whatsapp/devices`, {
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            'x-tenant-id': tenantId || ''
+          }
+        });
+        if (res.ok) {
+          const devices = await res.json();
+          setIsWhatsAppConnected(devices.some((d: any) => d.status === 'connected'));
+        }
+      } catch (err) {
+        console.error('Erro ao verificar status do WhatsApp:', err);
+      }
+    };
+
     loadConversations();
+    checkWhatsAppStatus();
 
     // Configurar Socket.io para tempo real
     let socketInstance: any = null;
@@ -422,8 +443,15 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
         }
       });
 
+      socket.on('whatsapp:connected', (data: any) => {
+        console.log('[Chat] 🟢 WhatsApp conectado via Socket', data);
+        setIsWhatsAppConnected(true);
+        loadConversations();
+      });
+
       socket.on('whatsapp:disconnected', () => {
         console.log('[Chat] 🛑 WhatsApp desconectado via Socket');
+        setIsWhatsAppConnected(false);
         setExternalConversations([]);
         setSelectedChat(null);
         setShowToast('WhatsApp desconectado. Conecte novamente para ver as conversas.');
@@ -1236,22 +1264,32 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
           <div className="flex gap-2">
             <button
               onClick={() => { setMainTab('pending'); setSelectedChat(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Clock size={16} /> {t.chat.pending}
+              <Clock size={14} /> {t.chat.pending}
             </button>
             <button
               onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Archive size={16} /> {t.chat.inbox}
+              <Archive size={14} /> {t.chat.inbox}
             </button>
             <button
               onClick={() => setIsWhatsAppModalOpen(true)}
-              className="p-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
-              title={t.whatsapp.startConnection}
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl transition-all shadow-lg ${isWhatsAppConnected 
+                ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600 shadow-slate-200/20 dark:shadow-none'}`}
+              title={isWhatsAppConnected ? 'WhatsApp Conectado' : t.whatsapp.startConnection}
             >
-              <QrCode size={18} />
+              <div className="relative">
+                <QrCode size={14} />
+                {isWhatsAppConnected && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full animate-pulse border-2 border-emerald-500"></span>
+                )}
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-widest leading-none">
+                {isWhatsAppConnected ? 'Conectado' : 'Conectar'}
+              </span>
             </button>
           </div>
 

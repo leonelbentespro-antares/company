@@ -287,10 +287,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate, currentUser })
           const label = getLabel(widget.id);
 
           switch (widget.id) {
-            case 'mrr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${totalMRR.toLocaleString(locale)}`} percentage={12.5} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'arr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${(totalMRR * 12).toLocaleString(locale)}`} percentage={8.2} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
-            case 'tenants_count': return <MetricCard key={widget.id} label={label} value={totalTenants} percentage={5.4} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
-            case 'processes_count': return <MetricCard key={widget.id} label={label} value={activeProcesses} percentage={10.1} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
+            case 'mrr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${totalMRR.toLocaleString(locale)}`} percentage={0} trend="up" icon={<CreditCard size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'arr': return <MetricCard key={widget.id} label={label} value={`${symbol} ${(totalMRR * 12).toLocaleString(locale)}`} percentage={0} trend="up" icon={<Zap size={20} />} onClick={() => onNavigate?.('billing')} />;
+            case 'tenants_count': return <MetricCard key={widget.id} label={label} value={totalTenants} percentage={0} trend="up" icon={<Briefcase size={20} />} onClick={() => onNavigate?.('tenants')} />;
+            case 'processes_count': return <MetricCard key={widget.id} label={label} value={activeProcesses} percentage={0} trend="up" icon={<Scale size={20} />} onClick={() => onNavigate?.('processes')} />;
             case 'churn': return <MetricCard key={widget.id} label={label} value="0%" percentage={0} trend="down" icon={<Layers size={20} />} onClick={() => onNavigate?.('security')} />;
             case 'ltv': return <MetricCard key={widget.id} label={label} value={`${symbol} 0`} percentage={0} trend="up" icon={<TrendingUp size={20} />} />;
             default: return null;
