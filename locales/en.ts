@@ -63,6 +63,13 @@ export const en: Translations = {
        acordo: 'The opposing party sent a settlement proposal. Would you like to schedule a brief meeting to discuss?',
     },
   },
+  auth: {
+    loginCerts: 'Login with Digital Certificate (PJe)',
+    pjeOfficeNotFoundTitle: 'PJeOffice not detected',
+    pjeOfficeNotFoundDesc: 'Please open the PJeOffice application on your computer and try again.',
+    pjeOfficeWaiting: 'Waiting for PJeOffice signature...',
+    pjeOfficeSuccess: 'Certificate validated successfully!',
+  },
   header: {
     search: 'Search...',
     lightMode: 'Activate Light Mode',
@@ -206,6 +213,8 @@ export const en: Translations = {
     closePanel: 'Close Panel',
     generatingCode: 'Generating Code...',
     giveNameInstructions: 'Give a name to this connection (ex: "Main Reception") and click start.',
+    confirmDisconnect: 'Confirm Disconnect',
+    disconnectedSuccess: 'Disconnected Successfully',
   },
   tenants: {
     title: 'Organizations & CRM Management',
@@ -374,6 +383,15 @@ export const en: Translations = {
     docPreviewUnsupported: 'This format does not support direct preview in the browser. Use the button below to download and open on your system.',
     btnDownloadComputer: 'Download to Computer',
     docPreviewError: 'Error loading preview.',
+    pjeSyncBtn: 'PJe Sync',
+    pjeSyncSuccess: 'PJeOffice connection validated. Sync started!',
+    pjeSyncFailed: 'Certificate signature was rejected or failed.',
+    pjeNotFoundTitle: 'PJeOffice not detected',
+    pjeNotFoundDesc: 'Please open the PJeOffice application on your computer and try again to sync your cases.',
+    pjeNotFoundIn1: 'Ensure PJeOffice is installed.',
+    pjeNotFoundIn2: 'Open the application on your computer.',
+    pjeNotFoundIn3: 'Check if the PJeOffice icon is green (active) in the system tray.',
+    pjeUnderstood: 'Understood',
   },
   aiAgents: {
     title: 'AI Agents',

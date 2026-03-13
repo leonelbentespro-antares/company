@@ -36,7 +36,8 @@ import {
     FileText,
     Database,
     Eye,
-    RefreshCw
+    RefreshCw,
+    Server
 } from 'lucide-react';
 import { Process, ProcessStage, ProcessDocument } from '../types.ts';
 import { getProcesses, createProcess, updateProcess, deleteProcess, getProcessDocuments, uploadProcessDocument, deleteProcessDocument, getProcessDocumentSignedUrl } from '../services/supabaseService.ts';
@@ -105,6 +106,10 @@ export const Processes: React.FC = () => {
     const [selectedPreviewDoc, setSelectedPreviewDoc] = useState<ProcessDocument | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+    
+    // Estados do PJeOffice
+    const [isPjeSyncing, setIsPjeSyncing] = useState(false);
+    const [showPjeError, setShowPjeError] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -548,6 +553,58 @@ export const Processes: React.FC = () => {
         }
     };
 
+    const handlePjeSync = async () => {
+        setIsPjeSyncing(true);
+        setShowPjeError(false);
+        try {
+            // 1. Tentar conectar com o PJeOffice local (porta padrão 8800)
+            const pjeUrl = 'http://127.0.0.1:8800/pjeOffice/';
+            const checkRes = await fetch(pjeUrl, { mode: 'no-cors' }).catch(() => null);
+
+            if (!checkRes) {
+                throw new Error('PJE_NOT_FOUND');
+            }
+
+            // 2. Se respondeu, tentar disparar "assinatura" (Mock local)
+            const payload = {
+                tarefa: "assinarDados",
+                servidor: window.location.origin,
+                codigoPerfil: "lexhub-auth",
+                dados: [
+                    {
+                        idDado: "sync-challenge",
+                        tipoDado: "TEXTO_PURO",
+                        dado: btoa("lexhub-sync-" + Date.now())
+                    }
+                ]
+            };
+
+            const signRes = await fetch('http://127.0.0.1:8800/pjeOffice/requisicao', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            }).catch(() => null);
+
+            if (!signRes || !signRes.ok) {
+                throw new Error('PJE_REJECTED');
+            }
+
+            // Sucesso na assinatura (sincronia do token)
+            setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
+            
+        } catch (err: any) {
+            if (err.message === 'PJE_NOT_FOUND') {
+                setShowPjeError(true);
+            } else {
+                setShowFeedback({ message: t.processes.pjeSyncFailed, type: 'error' });
+            }
+        } finally {
+            setIsPjeSyncing(false);
+        }
+    };
+
     const handleDeleteProcess = async () => {
         if (!selectedProcess) return;
         try {
@@ -634,16 +691,26 @@ export const Processes: React.FC = () => {
                         </button>
                     </div>
 
-                    <button
-                        onClick={() => {
-                            setFormData({ number: '', clientName: '', subject: '', court: '', status: 'Active', stage: kanbanStages[0].id });
-                            setIsAddingNewClient(false);
-                            setIsCreateModalOpen(true);
-                        }}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-legal-navy text-white rounded-xl hover:bg-opacity-90 transition-all font-bold shadow-lg shadow-legal-navy/20 dark:bg-legal-bronze dark:shadow-legal-bronze/20"
-                    >
-                        <Plus size={20} /> {t.processes.newProcess}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={handlePjeSync}
+                            disabled={isPjeSyncing}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 rounded-xl hover:bg-emerald-600 hover:text-white transition-all font-bold disabled:opacity-70 group"
+                        >
+                            {isPjeSyncing ? <Loader2 size={20} className="animate-spin" /> : <Server size={20} className="group-hover:scale-110 transition-transform" />}
+                            <span className="hidden sm:inline">{t.processes.pjeSyncBtn}</span>
+                        </button>
+                        <button
+                            onClick={() => {
+                                setFormData({ number: '', clientName: '', subject: '', court: '', status: 'Active', stage: kanbanStages[0].id });
+                                setIsAddingNewClient(false);
+                                setIsCreateModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-legal-navy text-white rounded-xl hover:bg-opacity-90 transition-all font-bold shadow-lg shadow-legal-navy/20 dark:bg-legal-bronze dark:shadow-legal-bronze/20"
+                        >
+                            <Plus size={20} /> {t.processes.newProcess}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1338,6 +1405,35 @@ export const Processes: React.FC = () => {
                                 <div className="text-rose-500 font-bold">{t.processes.docPreviewError}</div>
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Popup Erro PJeOffice */}
+            {showPjeError && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setShowPjeError(false)}></div>
+                    <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 border border-white/10">
+                        <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-600 shadow-xl shadow-rose-500/10">
+                            <Server size={40} className="animate-pulse" />
+                        </div>
+                        <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-4">{t.processes.pjeNotFoundTitle}</h2>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                            {t.processes.pjeNotFoundDesc}
+                        </p>
+                        <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-left border border-slate-100 dark:border-slate-700 mb-8">
+                            <ul className="text-xs text-slate-500 font-medium space-y-2 list-disc pl-4">
+                                <li>{t.processes.pjeNotFoundIn1}</li>
+                                <li>{t.processes.pjeNotFoundIn2}</li>
+                                <li>{t.processes.pjeNotFoundIn3}</li>
+                            </ul>
+                        </div>
+                        <button
+                            onClick={() => setShowPjeError(false)}
+                            className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-white rounded-2xl font-bold transition-all"
+                        >
+                            {t.processes.pjeUnderstood}
+                        </button>
                     </div>
                 </div>
             )}

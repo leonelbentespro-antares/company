@@ -385,6 +385,15 @@ export interface Translations {
     docPreviewUnsupported: string;
     btnDownloadComputer: string;
     docPreviewError: string;
+    pjeSyncBtn: string;
+    pjeSyncSuccess: string;
+    pjeSyncFailed: string;
+    pjeNotFoundTitle: string;
+    pjeNotFoundDesc: string;
+    pjeNotFoundIn1: string;
+    pjeNotFoundIn2: string;
+    pjeNotFoundIn3: string;
+    pjeUnderstood: string;
   };
   aiAgents: {
     title: string;
@@ -860,8 +869,17 @@ export const ptBR: Translations = {
     docPreviewLoading: 'Gerando acesso seguro...',
     docPreviewType: 'Arquivo',
     docPreviewUnsupported: 'Este formato não suporta visualização direta no navegador. Use o botão abaixo para baixar e abrir no seu sistema.',
-    btnDownloadComputer: 'Baixar para o Computador',
+    btnDownloadComputer: 'Baixar no Computador',
     docPreviewError: 'Erro ao carregar visualização.',
+    pjeSyncBtn: 'PJe Sync',
+    pjeSyncSuccess: 'Conexão com PJeOffice validada. Sincronização iniciada!',
+    pjeSyncFailed: 'A assinatura do certificado foi rejeitada ou falhou.',
+    pjeNotFoundTitle: 'PJeOffice não detectado',
+    pjeNotFoundDesc: 'Por favor, abra o programa PJeOffice em seu computador e tente novamente para sincronizar seus processos.',
+    pjeNotFoundIn1: 'Certifique-se de que o PJeOffice está instalado.',
+    pjeNotFoundIn2: 'Abra o aplicativo no seu computador.',
+    pjeNotFoundIn3: 'Verifique se o ícone do PJeOffice está verde (ativo) na bandeja do sistema.',
+    pjeUnderstood: 'Entendi',
   },
   aiAgents: {
     title: 'Agentes de IA',
