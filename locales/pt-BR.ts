@@ -162,6 +162,13 @@ export interface Translations {
     webhookDeleted: string;
     lastTriggered: string;
   };
+  auth: {
+    loginCerts: string;
+    pjeOfficeNotFoundTitle: string;
+    pjeOfficeNotFoundDesc: string;
+    pjeOfficeWaiting: string;
+    pjeOfficeSuccess: string;
+  };
   dashboard: {
     overview: string;
     mrr: string;
@@ -631,6 +638,13 @@ export const ptBR: Translations = {
     webhookSaved: 'Webhook configurado com sucesso!',
     webhookDeleted: 'Webhook removido.',
     lastTriggered: 'Último disparo:',
+  },
+  auth: {
+    loginCerts: 'Entrar com Certificado Digital (PJe)',
+    pjeOfficeNotFoundTitle: 'PJeOffice não detectado',
+    pjeOfficeNotFoundDesc: 'Por favor, abra o programa PJeOffice em seu computador e tente novamente.',
+    pjeOfficeWaiting: 'Aguardando assinatura no PJeOffice...',
+    pjeOfficeSuccess: 'Certificado validado com sucesso!',
   },
   dashboard: {
     overview: 'Visão Geral',

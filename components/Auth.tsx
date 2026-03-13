@@ -13,11 +13,14 @@ import {
   AlertCircle,
   Hash,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2,
+  Server
 } from 'lucide-react';
 import { UserRole } from '../types.ts';
 import { supabase } from '../services/supabaseClient.ts';
 import { Turnstile } from '@marsidev/react-turnstile';
+import { useLanguage } from '../services/languageContext';
 
 interface AuthProps {
   onLogin: (userData: any) => void;
@@ -42,6 +45,70 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, initialView = 'auth' }) => 
     confirmPassword: ''
   });
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  
+  const { t } = useLanguage();
+  const [isPjeLoading, setIsPjeLoading] = useState(false);
+  const [showPjeError, setShowPjeError] = useState(false);
+
+  const handlePjeLogin = async () => {
+    setIsPjeLoading(true);
+    setShowPjeError(false);
+    setError(null);
+    try {
+      // 1. Tentar conectar com o PJeOffice local (porta padrão 8800)
+      const pjeUrl = 'http://127.0.0.1:8800/pjeOffice/';
+      const checkRes = await fetch(pjeUrl, { mode: 'no-cors' }).catch(() => null);
+
+      if (!checkRes) {
+        throw new Error('PJE_NOT_FOUND');
+      }
+
+      // Se respondeu, tentar disparar "assinatura" (Mock local)
+      const payload = {
+        tarefa: "assinarDados",
+        servidor: window.location.origin,
+        codigoPerfil: "lexhub-auth",
+        dados: [
+          {
+            idDado: "login-challenge",
+            tipoDado: "TEXTO_PURO",
+            dado: btoa("lexhub-login-" + Date.now())
+          }
+        ]
+      };
+
+      // Dispara a requisicao de assinatura para o PJeOffice
+      const signRes = await fetch('http://127.0.0.1:8800/pjeOffice/requisicao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }).catch(() => null);
+
+      if (!signRes || !signRes.ok) {
+        throw new Error('PJE_REJECTED');
+      }
+
+      // Se passou por tudo, simula login como Admin local
+      onLogin({
+        id: 'pje-auth-user',
+        registrationId: 'OAB-123456',
+        name: 'Advogado (PJe)',
+        email: 'pje@lexhub.com.br',
+        role: UserRole.Admin
+      });
+
+    } catch (err: any) {
+      if (err.message === 'PJE_NOT_FOUND') {
+        setShowPjeError(true);
+      } else {
+        setError('A assinatura do certificado foi rejeitada ou falhou.');
+      }
+    } finally {
+      setIsPjeLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,10 +393,31 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, initialView = 'auth' }) => 
                   {view === 'forgot-password' ? 'Enviar Link' :
                    view === 'update-password' ? 'Salvar Nova Senha' :
                    isLogin ? 'Entrar no Portal' : 'Finalizar Cadastro'}
-                  <ArrowRight size={18} />
+                   <ArrowRight size={18} />
                 </>
               )}
             </button>
+
+            {isLogin && view === 'auth' && authType === 'professional' && (
+              <button
+                type="button"
+                onClick={handlePjeLogin}
+                disabled={isPjeLoading}
+                className="w-full py-4 mt-3 bg-white border-2 border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-70 group"
+              >
+                {isPjeLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-legal-bronze" />
+                    {t.auth.pjeOfficeWaiting}
+                  </>
+                ) : (
+                  <>
+                    <Server size={18} className="text-legal-bronze group-hover:scale-110 transition-transform" />
+                    {t.auth.loginCerts}
+                  </>
+                )}
+              </button>
+            )}
 
             {view !== 'auth' && !updateSuccess && !resetSuccess && (
               <button
@@ -421,6 +509,35 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, initialView = 'auth' }) => 
                   className="w-full py-4 bg-legal-navy dark:bg-legal-bronze text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 dark:shadow-legal-bronze/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   Entendi, vou verificar!
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Popup Erro PJeOffice */}
+          {showPjeError && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setShowPjeError(false)}></div>
+              <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-md p-10 text-center animate-in zoom-in-95 border border-white/10">
+                <div className="w-20 h-20 bg-rose-100 dark:bg-rose-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-rose-600 shadow-xl shadow-rose-500/10">
+                  <Server size={40} className="animate-pulse" />
+                </div>
+                <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-4">{t.auth.pjeOfficeNotFoundTitle}</h2>
+                <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                  {t.auth.pjeOfficeNotFoundDesc}
+                </p>
+                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-left border border-slate-100 dark:border-slate-700 mb-8">
+                  <ul className="text-xs text-slate-500 font-medium space-y-2 list-disc pl-4">
+                    <li>Certifique-se de que o <strong>PJeOffice</strong> está instalado.</li>
+                    <li>Abra o aplicativo no seu computador.</li>
+                    <li>Verifique se o ícone do PJeOffice está verde (ativo) na bandeja do sistema.</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={() => setShowPjeError(false)}
+                  className="w-full py-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-white rounded-2xl font-bold transition-all"
+                >
+                  Entendi
                 </button>
               </div>
             </div>
