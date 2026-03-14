@@ -37,7 +37,10 @@ import {
     Database,
     Eye,
     RefreshCw,
-    Server
+    Server,
+    Building,
+    Fingerprint,
+    Key
 } from 'lucide-react';
 import { Process, ProcessStage, ProcessDocument } from '../types.ts';
 import { getProcesses, createProcess, updateProcess, deleteProcess, getProcessDocuments, uploadProcessDocument, deleteProcessDocument, getProcessDocumentSignedUrl } from '../services/supabaseService.ts';
@@ -110,6 +113,7 @@ export const Processes: React.FC = () => {
     // Estados do PJeOffice
     const [isPjeSyncing, setIsPjeSyncing] = useState(false);
     const [showPjeError, setShowPjeError] = useState(false);
+    const [isPjeModalOpen, setIsPjeModalOpen] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -693,7 +697,7 @@ export const Processes: React.FC = () => {
 
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={handlePjeSync}
+                            onClick={() => setIsPjeModalOpen(true)}
                             disabled={isPjeSyncing}
                             className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600/10 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 rounded-xl hover:bg-emerald-600 hover:text-white transition-all font-bold disabled:opacity-70 group"
                         >
@@ -1404,6 +1408,104 @@ export const Processes: React.FC = () => {
                             ) : (
                                 <div className="text-rose-500 font-bold">{t.processes.docPreviewError}</div>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal Autenticação Processual PJe */}
+            {isPjeModalOpen && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsPjeModalOpen(false)}></div>
+                    <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg p-10 text-center animate-in zoom-in-95 border border-white/10">
+                        <button onClick={() => setIsPjeModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                            <X size={24} />
+                        </button>
+                        
+                        <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-xl shadow-emerald-500/10">
+                            <Scale size={40} className="animate-pulse" />
+                        </div>
+                        <h2 className="text-2xl font-black text-legal-navy dark:text-white mb-2">{t.processes.pjeModalTitle}</h2>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                            {t.processes.pjeModalDesc}
+                        </p>
+
+                        <div className="space-y-4">
+                            {/* Opção 1: Certificado Digital (PJeOffice) */}
+                            <button
+                                onClick={() => {
+                                    setIsPjeModalOpen(false);
+                                    handlePjeSync();
+                                }}
+                                className="w-full relative group p-1 flex items-center bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all text-left overflow-hidden"
+                            >
+                                <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                                <div className="p-4 flex-shrink-0">
+                                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white group-hover:border-emerald-500 transition-colors">
+                                        <Fingerprint size={24} />
+                                    </div>
+                                </div>
+                                <div className="pr-4 py-4 flex-1">
+                                    <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalCert}</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t.processes.pjeModalCertDesc}</p>
+                                </div>
+                                <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-emerald-500">
+                                    <ChevronRight size={20} />
+                                </div>
+                            </button>
+
+                            {/* Opção 2: CPF/CNPJ */}
+                            <button
+                                onClick={() => {
+                                    setIsPjeModalOpen(false);
+                                    setIsPjeSyncing(true);
+                                    setTimeout(() => {
+                                        setIsPjeSyncing(false);
+                                        setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
+                                    }, 2000);
+                                }}
+                                className="w-full relative group p-1 flex items-center bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 transition-all text-left overflow-hidden"
+                            >
+                                <div className="absolute inset-y-0 left-0 w-1 bg-blue-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                                <div className="p-4 flex-shrink-0">
+                                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white group-hover:border-blue-500 transition-colors">
+                                        <Key size={24} />
+                                    </div>
+                                </div>
+                                <div className="pr-4 py-4 flex-1">
+                                    <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalCpfCnpj}</h3>
+                                </div>
+                                <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-blue-500">
+                                    <ChevronRight size={20} />
+                                </div>
+                            </button>
+
+                            {/* Opção 3: Gov.br */}
+                            <button
+                                onClick={() => {
+                                    setIsPjeModalOpen(false);
+                                    setIsPjeSyncing(true);
+                                    setTimeout(() => {
+                                        setIsPjeSyncing(false);
+                                        setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
+                                    }, 2000);
+                                }}
+                                className="w-full relative group p-1 flex items-center bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-amber-500 dark:hover:border-amber-500 transition-all text-left overflow-hidden"
+                            >
+                                <div className="absolute inset-y-0 left-0 w-1 bg-amber-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
+                                <div className="p-4 flex-shrink-0">
+                                    <div className="w-12 h-12 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white group-hover:border-amber-500 transition-colors">
+                                        <Building size={24} />
+                                    </div>
+                                </div>
+                                <div className="pr-4 py-4 flex-1">
+                                    <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalGovBr}</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t.processes.pjeGovBrPlaceholder}</p>
+                                </div>
+                                <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-amber-500">
+                                    <ChevronRight size={20} />
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>

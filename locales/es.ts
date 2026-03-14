@@ -392,6 +392,13 @@ export const es: Translations = {
     pjeNotFoundIn2: 'Abra la aplicación en su computadora.',
     pjeNotFoundIn3: 'Verifique si el ícono de PJeOffice está verde (activo) en la bandeja del sistema.',
     pjeUnderstood: 'Entendido',
+    pjeModalTitle: 'Autenticación Procesal (PJe)',
+    pjeModalDesc: 'Seleccione el método de autenticación para sincronizar sus procesos.',
+    pjeModalCpfCnpj: 'Entrar con CPF/CNPJ',
+    pjeModalGovBr: 'Entrar con gov.br',
+    pjeModalCert: 'Entrar con Certificado Digital',
+    pjeModalCertDesc: 'Requiere la aplicación PJeOffice ejecutándose en la máquina.',
+    pjeGovBrPlaceholder: 'Sincronización vía gov.br en desarrollo.',
   },
   aiAgents: {
     title: 'Agentes de IA',

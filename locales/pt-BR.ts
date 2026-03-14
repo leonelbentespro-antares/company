@@ -394,6 +394,13 @@ export interface Translations {
     pjeNotFoundIn2: string;
     pjeNotFoundIn3: string;
     pjeUnderstood: string;
+    pjeModalTitle: string;
+    pjeModalDesc: string;
+    pjeModalCpfCnpj: string;
+    pjeModalGovBr: string;
+    pjeModalCert: string;
+    pjeModalCertDesc: string;
+    pjeGovBrPlaceholder: string;
   };
   aiAgents: {
     title: string;
@@ -880,6 +887,13 @@ export const ptBR: Translations = {
     pjeNotFoundIn2: 'Abra o aplicativo no seu computador.',
     pjeNotFoundIn3: 'Verifique se o ícone do PJeOffice está verde (ativo) na bandeja do sistema.',
     pjeUnderstood: 'Entendi',
+    pjeModalTitle: 'Autenticação Processual (PJe)',
+    pjeModalDesc: 'Selecione a forma de autenticação para sincronizar seus processos.',
+    pjeModalCpfCnpj: 'Entrar com CPF/CNPJ',
+    pjeModalGovBr: 'Entrar com gov.br',
+    pjeModalCert: 'Entrar com Certificado Digital',
+    pjeModalCertDesc: 'Requer aplicativo PJeOffice rodando na máquina.',
+    pjeGovBrPlaceholder: 'Sincronização via gov.br em desenvolvimento.',
   },
   aiAgents: {
     title: 'Agentes de IA',

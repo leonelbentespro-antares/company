@@ -392,6 +392,13 @@ export const en: Translations = {
     pjeNotFoundIn2: 'Open the application on your computer.',
     pjeNotFoundIn3: 'Check if the PJeOffice icon is green (active) in the system tray.',
     pjeUnderstood: 'Understood',
+    pjeModalTitle: 'Case Authentication (PJe)',
+    pjeModalDesc: 'Select the authentication method to sync your cases.',
+    pjeModalCpfCnpj: 'Login with CPF/CNPJ',
+    pjeModalGovBr: 'Login with gov.br',
+    pjeModalCert: 'Login with Digital Certificate',
+    pjeModalCertDesc: 'Requires PJeOffice app running on the machine.',
+    pjeGovBrPlaceholder: 'Sync via gov.br is under development.',
   },
   aiAgents: {
     title: 'AI Agents',
