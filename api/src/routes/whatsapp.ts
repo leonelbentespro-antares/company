@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
-import { startWhatsAppSession, getSession, getQR, logoutSession, getInstanceStatus, qrCodes } from '../services/whatsappService.js';
+import { 
+    startWhatsAppSession, getSession, getQR, logoutSession, 
+    getInstanceStatus, qrCodes, clearTenantChatHistory 
+} from '../services/whatsappService.js';
 import { emitToTenant } from '../socket/index.js';
 import { verifySupabaseJWT, extractTenant } from '../middleware/security.js';
 
@@ -101,8 +104,15 @@ whatsappRouter.post('/logout', async (req, res) => {
     const tenantId = req.body.tenantId;
     if (!tenantId) return res.status(401).json({ error: 'Não autorizado.' });
 
-    await logoutSession(tenantId);
-    res.json({ success: true, message: 'Desconectado com sucesso.' });
+    try {
+        await logoutSession(tenantId);
+        await clearTenantChatHistory(tenantId);
+
+        res.json({ success: true, message: 'Desconectado e histórico removido com sucesso.' });
+    } catch (err: any) {
+        console.error('[WhatsApp Logout] Erro durante limpeza:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ============================================================
@@ -188,7 +198,11 @@ whatsappRouter.delete('/devices/:id', authMiddleware, async (req, res) => {
             .eq('id', id)
             .eq('tenant_id', tenantId);
         if (error) throw error;
-        res.json({ success: true });
+
+        // Limpar histórico de conversas ao remover o dispositivo (requisito de privacidade)
+        await clearTenantChatHistory(tenantId);
+
+        res.json({ success: true, message: 'Dispositivo removido e histórico limpo.' });
     } catch (err: any) {
         res.status(500).json({ error: err.message });
     }

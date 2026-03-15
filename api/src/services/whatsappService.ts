@@ -460,6 +460,40 @@ export async function handleConnectionEvent(tenantId: string, status: string, ph
              await supabaseAdmin.from('whatsapp_devices')
                 .update({ status: 'disconnected' })
                 .eq('tenant_id', tenantId);
+
+             // Requisito de privacidade: Limpar histórico ao desconectar
+             console.log(`[WhatsAppService] Status disconnected detectado. Limpando histórico para ${tenantId}...`);
+             await clearTenantChatHistory(tenantId);
          } catch(e) {}
+    }
+}
+
+/**
+ * Limpa todo o histórico de conversas e mensagens de um tenant.
+ * Requisito de privacidade: ao desconectar o WhatsApp, os dados devem sumir.
+ */
+export async function clearTenantChatHistory(tenantId: string) {
+    try {
+        console.log(`[WhatsApp Cleanup] Iniciando limpeza total de histórico para tenant: ${tenantId}`);
+        
+        // 1. Buscar IDs das conversas
+        const { data: convs } = await supabaseAdmin
+            .from('chat_conversations')
+            .select('id')
+            .eq('tenant_id', tenantId);
+
+        if (convs && convs.length > 0) {
+            const convIds = convs.map(c => c.id);
+            // 2. Deletar mensagens ( cascade manual )
+            await supabaseAdmin.from('chat_messages').delete().in('conversation_id', convIds);
+            // 3. Deletar conversas
+            await supabaseAdmin.from('chat_conversations').delete().eq('tenant_id', tenantId);
+        }
+        
+        console.log(`[WhatsApp Cleanup] ✅ Histórico limpo com sucesso para tenant: ${tenantId}`);
+        return { success: true };
+    } catch (err: any) {
+        console.error(`[WhatsApp Cleanup] ❌ Erro ao limpar histórico para ${tenantId}:`, err.message);
+        throw err;
     }
 }
