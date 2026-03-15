@@ -15,9 +15,15 @@ interface WhatsAppConnectorProps {
 export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess, variant = 'modal', onClose }) => {
   const { tenantId } = useTenant();
   const { t } = useLanguage();
-  const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success' | 'connected'>('naming');
+  const [qrStep, setQrStep] = useState<'naming' | 'scanning' | 'success' | 'connected' | 'official_config'>('naming');
+  const [connectionType, setConnectionType] = useState<'qr' | 'official'>('qr');
   const [connectedDevice, setConnectedDevice] = useState<any>(null);
   const [sessionForm, setSessionForm] = useState({ name: '', phone: '' });
+  const [officialForm, setOfficialForm] = useState({ 
+    api_token: '', 
+    phone_number_id: '', 
+    waba_id: '' 
+  });
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [pairCode, setPairCode] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -81,6 +87,46 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
     } catch (err) {
       console.error('Error disconnecting WhatsApp:', err);
       setShowToast('Erro de rede ao desconectar.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleSaveOfficial = async () => {
+    if (!sessionForm.name || !officialForm.api_token || !officialForm.phone_number_id) return;
+    
+    setIsConnecting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/devices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        },
+        body: JSON.stringify({
+          name: sessionForm.name,
+          phone: 'Official API',
+          status: 'connected',
+          type: 'official',
+          api_token: officialForm.api_token,
+          phone_number_id: officialForm.phone_number_id,
+          waba_id: officialForm.waba_id,
+          lastActive: new Date().toISOString()
+        })
+      });
+
+      if (response.ok) {
+        setQrStep('success');
+        setShowToast('Conexão Oficial configurada com sucesso!');
+        if (onSuccess) onSuccess();
+      } else {
+        setShowToast('Erro ao salvar configuração oficial.');
+      }
+    } catch (err) {
+      console.error(err);
+      setShowToast('Erro de conexão ao salvar.');
     } finally {
       setIsConnecting(false);
     }
@@ -158,12 +204,30 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
     if (qrStep === 'naming') {
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
+            <button
+              onClick={() => setConnectionType('qr')}
+              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${connectionType === 'qr' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400'}`}
+            >
+              WhatsApp Web (QR)
+            </button>
+            <button
+              onClick={() => setConnectionType('official')}
+              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${connectionType === 'official' ? 'bg-white dark:bg-slate-700 text-legal-navy dark:text-white shadow-sm' : 'text-slate-400'}`}
+            >
+              API Oficial (Meta)
+            </button>
+          </div>
+
           <div className="p-4 bg-legal-bronze/5 border border-legal-bronze/10 rounded-2xl flex items-start gap-4">
             <Info className="text-legal-bronze shrink-0 mt-0.5" size={18} />
             <p className="text-sm text-slate-600 dark:text-slate-400 font-medium leading-relaxed">
-              {t.whatsapp.giveNameInstructions}
+              {connectionType === 'qr' 
+                ? t.whatsapp.giveNameInstructions 
+                : 'Insira as credenciais da sua conta de desenvolvedor Meta para conectar via API Oficial.'}
             </p>
           </div>
+
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t.whatsapp.connectionName}</label>
@@ -175,14 +239,52 @@ export const WhatsAppConnector: React.FC<WhatsAppConnectorProps> = ({ onSuccess,
                 onChange={(e) => setSessionForm({ ...sessionForm, name: e.target.value })}
               />
             </div>
+
+            {connectionType === 'official' && (
+              <div className="space-y-4 animate-in slide-in-from-top-2">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Token (Meta)</label>
+                  <input
+                    type="password"
+                    placeholder="EAA..."
+                    className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none transition-all dark:text-white"
+                    value={officialForm.api_token}
+                    onChange={(e) => setOfficialForm({ ...officialForm, api_token: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number ID</label>
+                    <input
+                      type="text"
+                      placeholder="123456789..."
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none transition-all dark:text-white"
+                      value={officialForm.phone_number_id}
+                      onChange={(e) => setOfficialForm({ ...officialForm, phone_number_id: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WABA ID (Opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="987654321..."
+                      className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-legal-navy/5 outline-none transition-all dark:text-white"
+                      value={officialForm.waba_id}
+                      onChange={(e) => setOfficialForm({ ...officialForm, waba_id: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
           <button
-            onClick={handleStart}
-            disabled={!sessionForm.name.trim() || isConnecting}
+            onClick={connectionType === 'qr' ? handleStart : handleSaveOfficial}
+            disabled={!sessionForm.name.trim() || isConnecting || (connectionType === 'official' && (!officialForm.api_token || !officialForm.phone_number_id))}
             className="w-full py-4 bg-legal-navy text-white rounded-2xl font-bold shadow-xl shadow-legal-navy/20 flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            {isConnecting ? <Loader2 className="animate-spin" size={20} /> : <QrCode size={20} />}
-            {t.whatsapp.startConnection}
+            {isConnecting ? <Loader2 className="animate-spin" size={20} /> : connectionType === 'qr' ? <QrCode size={20} /> : <CheckCircle2 size={20} />}
+            {connectionType === 'qr' ? t.whatsapp.startConnection : 'Confirmar Configuração'}
           </button>
         </div>
       );

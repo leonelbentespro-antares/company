@@ -3,13 +3,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Mail, FolderOpen, Layout, Check, Globe, Loader2, ArrowRight,
   PlugZap, X, Lock, Info, Database, HardDrive, Send, Wrench, AlertCircle,
-  Facebook, Instagram
+  Facebook, Instagram, MessageCircle
 } from 'lucide-react';
 import {
   getIntegrations, upsertIntegration
 } from '../services/supabaseService';
 import { useTenant } from '../services/tenantContext';
 import { useLanguage } from '../services/languageContext';
+import { WhatsAppConnector } from './WhatsAppConnector';
 
 interface CloudApp {
   id: string;
@@ -28,6 +29,7 @@ export const Integrations: React.FC = React.memo(() => {
   const [appLoading, setAppLoading] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [isSuggestModalOpen, setIsSuggestModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [suggestionForm, setSuggestionForm] = useState({ toolName: '', reason: '' });
 
   const CLOUD_APPS: CloudApp[] = [
@@ -38,6 +40,7 @@ export const Integrations: React.FC = React.memo(() => {
     { id: 'dropbox', name: 'Dropbox', description: locale === 'en' ? 'Quick access to files and external backups.' : locale === 'es' ? 'Acceso rápido a archivos y copias de seguridad externas.' : 'Acesso rápido a arquivos e backups externos.', icon: <FolderOpen size={24} />, color: 'bg-blue-500', category: 'Storage' },
     { id: 'facebook', name: 'Facebook', description: locale === 'en' ? 'Connect your page to manage messages and comments.' : locale === 'es' ? 'Conecte su página para gestionar mensajes y comentarios.' : 'Conecte sua página para gerenciar mensagens e comentários.', icon: <Facebook size={24} />, color: 'bg-blue-600', category: 'Social' },
     { id: 'instagram', name: 'Instagram', description: locale === 'en' ? 'Respond to DMs and interact with your followers directly.' : locale === 'es' ? 'Responda DMs e interactúe con sus seguidores directamente.' : 'Responda DMs e interaja com seus seguidores diretamente.', icon: <Instagram size={24} />, color: 'bg-pink-600', category: 'Social' },
+    { id: 'whatsapp_official', name: 'WhatsApp Oficial', description: locale === 'en' ? 'Direct integration with Meta Business API for enterprise scale.' : locale === 'es' ? 'Integración directa con Meta Business API para escala empresarial.' : 'Integração direta com Meta Business API para escala empresarial.', icon: <MessageCircle size={24} />, color: 'bg-emerald-500', category: 'Communication' },
   ];
 
   useEffect(() => {
@@ -184,6 +187,11 @@ export const Integrations: React.FC = React.memo(() => {
 
     if (appId === 'outlook' && !connectedApps.includes('outlook')) {
       handleConnectMicrosoft();
+      return;
+    }
+
+    if (appId === 'whatsapp_official') {
+      setIsWhatsAppModalOpen(true);
       return;
     }
 
@@ -367,6 +375,16 @@ export const Integrations: React.FC = React.memo(() => {
             </form>
           </div>
         </div>
+      )}
+
+      {isWhatsAppModalOpen && (
+        <WhatsAppConnector 
+          onClose={() => setIsWhatsAppModalOpen(false)} 
+          onSuccess={() => {
+            setIsWhatsAppModalOpen(false);
+            loadData();
+          }}
+        />
       )}
     </div>
   );

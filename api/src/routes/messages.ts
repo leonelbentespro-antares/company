@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { whatsappOutgoingQueue } from '../queues/whatsapp.js';
 import { supabaseAdmin as supabase } from '../config/supabase.js';
 import { sendTextMessage, sendMediaMessage, sendMediaMessageBase64, sessions, getOrRestoreSession } from '../services/whatsappService.js';
+import { metaWhatsAppService } from '../services/metaWhatsAppService.js';
 import { uploadMediaToSupabase } from '../services/storage/supabaseStorageService.js';
 import { normalizePhone, formatTimestampManaus } from '../utils/phoneUtils.js';
 import multer from 'multer';
@@ -34,19 +35,46 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
         
-        const session = await getOrRestoreSession(tenantId);
-        if (!session) {
-             return res.status(400).json({ error: 'WhatsApp não conectado neste tenant. Reconecte o dispositivo na aba Dispositivos.' });
+        // 1. Buscar dispositivo conectado neste tenant
+        const { data: devices } = await supabase
+            .from('whatsapp_devices')
+            .select('*')
+            .eq('tenant_id', tenantId)
+            .eq('status', 'connected')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        const activeDevice = devices?.[0];
+        if (!activeDevice) {
+            return res.status(400).json({ error: 'WhatsApp não conectado neste tenant. Reconecte o dispositivo na aba Dispositivos.' });
         }
 
-        // Normalização automática: remove JID suffixes e garante formato correto
+        // Normalização automática
         const number = normalizePhone(to);
-        console.log(`[Messages] Enviando texto para: "${number}" (original: "${to}", tenant: ${tenantId})`);
-        
-        // 1. Enviar via UAZAPI
-        const waRes = await sendTextMessage(session.token, number, text);
-        const waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid;
-        console.log(`[Messages Router] ✅ Mensagem enviada para ${number}. ID UAZAPI: ${waMessageId}`);
+        let waMessageId = '';
+
+        if (activeDevice.type === 'official' && activeDevice.phone_number_id && activeDevice.api_token) {
+            // ENVIO VIA META
+            console.log(`[Messages] Enviando via META para: ${number}`);
+            const metaRes = await metaWhatsAppService.sendTextMessage(
+                activeDevice.phone_number_id,
+                activeDevice.api_token,
+                number,
+                text
+            );
+            waMessageId = metaRes.messages?.[0]?.id;
+        } else {
+            // ENVIO VIA UAZAPI (LEGACY/QR)
+            const session = await getOrRestoreSession(tenantId);
+            if (!session) {
+                return res.status(400).json({ error: 'Sessão WhatsApp (QR) expirada. Reconecte o dispositivo.' });
+            }
+            console.log(`[Messages] Enviando via UAZAPI para: ${number}`);
+            const waRes = await sendTextMessage(session.token, number, text);
+            waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid;
+        }
+
+        console.log(`[Messages Router] ✅ Mensagem enviada para ${number}. ID Provedor: ${waMessageId}`);
 
         // 2. Gravar no Banco de Dados
         let conversationId = '';
