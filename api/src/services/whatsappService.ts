@@ -476,24 +476,16 @@ export async function clearTenantChatHistory(tenantId: string) {
     try {
         console.log(`[WhatsApp Cleanup] Iniciando limpeza total de histórico para tenant: ${tenantId}`);
         
-        // 1. Buscar IDs das conversas
-        const { data: convs } = await supabaseAdmin
-            .from('chat_conversations')
-            .select('id')
-            .eq('tenant_id', tenantId);
+        // 1. Deletar mensagens e conversas vinculadas ao tenant
+        await supabaseAdmin.from('chat_messages').delete().eq('tenant_id', tenantId);
+        await supabaseAdmin.from('chat_conversations').delete().eq('tenant_id', tenantId);
 
-        if (convs && convs.length > 0) {
-            const convIds = convs.map(c => c.id);
-            // 2. Deletar mensagens ( cascade manual )
-            await supabaseAdmin.from('chat_messages').delete().in('conversation_id', convIds);
-            // 3. Deletar conversas
-            await supabaseAdmin.from('chat_conversations').delete().eq('tenant_id', tenantId);
-        }
+
         
-        console.log(`[WhatsApp Cleanup] ✅ Histórico limpo com sucesso para tenant: ${tenantId}`);
+        console.log(`[WhatsApp Cleanup] Historico limpo com sucesso para tenant: ${tenantId}`);
         return { success: true };
     } catch (err: any) {
-        console.error(`[WhatsApp Cleanup] ❌ Erro ao limpar histórico para ${tenantId}:`, err.message);
+        console.error(`[WhatsApp Cleanup] Erro ao limpar historico para ${tenantId}:`, err.message);
         throw err;
     }
 }
