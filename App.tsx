@@ -426,7 +426,7 @@ const App: React.FC = () => {
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'agenda': return <AgendaView />;
-      case 'clients': return <ClientsView />;
+      case 'clients': return <ClientsView onNavigate={setActiveTab} />;
       case 'settings': return <Settings />;
       case 'security': return <Security />;
       default: return <Dashboard onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;

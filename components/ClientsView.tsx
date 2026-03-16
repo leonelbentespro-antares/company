@@ -34,7 +34,11 @@ interface Client {
   notes?: string;
 }
 
-export const ClientsView: React.FC = () => {
+interface ClientsViewProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('1');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -174,7 +178,10 @@ export const ClientsView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <button className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+                <button 
+                  onClick={() => onNavigate?.('agenda')}
+                  className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+                >
                   Agendar
                 </button>
                 <button 
@@ -194,7 +201,12 @@ export const ClientsView: React.FC = () => {
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
                   <div className="flex items-center justify-between mb-8">
                     <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">Histórico de Processos</h3>
-                    <button className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors">Ver todos</button>
+                    <button 
+                      onClick={() => onNavigate?.('processes')}
+                      className="text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors"
+                    >
+                      Ver todos
+                    </button>
                   </div>
                   
                   <div className="relative p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-3xl border border-slate-50 dark:border-slate-800 group hover:border-rose-100 dark:hover:border-rose-900/30 transition-all">
@@ -240,9 +252,15 @@ export const ClientsView: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-colors bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800">
-                  <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter mb-2">Snapshot</h3>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-50 dark:border-slate-800 pb-2">Controle Financeiro</p>
+                <div 
+                  onClick={() => onNavigate?.('billing')}
+                  className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-all bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 cursor-pointer hover:shadow-md group"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">Resumo Financeiro</h3>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-rose-500 transition-colors" />
+                  </div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-50 dark:border-slate-800 pb-2">Conectado ao Faturamento</p>
                   <div className="space-y-6">
                     <div className="flex items-center gap-4">
                       <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 rounded-2xl">
