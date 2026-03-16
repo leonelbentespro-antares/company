@@ -32,6 +32,10 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
     const { tenantId, subscription, user: currentUser } = useTenant();
     const currentPlan = (subscription?.plan as PlanName) || PlanName.Starter;
 
+    useEffect(() => {
+        console.log('[LexHub] Team Build Version: 2026-03-16_1155');
+    }, []);
+
     const [loading, setLoading] = useState(true);
     const [members, setMembers] = useState<TeamMember[]>([]);
     const [searchTerm, setSearchTerm] = useState('');

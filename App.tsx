@@ -113,6 +113,10 @@ const App: React.FC = () => {
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [superviseMember, setSuperviseMember] = useState<{ id: string; name: string } | null>(null);
 
+  useEffect(() => {
+    console.log('[LexHub] App Build Version: 2026-03-16_1155');
+  }, []);
+
   // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
   useEffect(() => {
     if (contextUser) {
