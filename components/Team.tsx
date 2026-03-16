@@ -377,7 +377,7 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
                                     <span className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : member.status === 'pending' ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
                                     {member.status === 'active' ? 'Ativo' : member.status === 'pending' ? 'Convite Enviado' : 'Inativo'}
                                 </span>
-                                {member.status === 'active' && (
+                                {member.status?.toString().toLowerCase() === 'active' && (
                                     <div className="flex flex-col items-end gap-1">
                                         <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
                                             <CheckCircle size={10} className="text-emerald-500" /> Verificado
