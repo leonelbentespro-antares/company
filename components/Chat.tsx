@@ -48,7 +48,6 @@ import {
   FileSpreadsheet,
   ArrowRightLeft,
   Building2,
-  KanbanSquare,
   Mic,
   Square,
   Circle,
@@ -166,12 +165,11 @@ const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '�
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];
 
 interface ChatProps {
-  initialViewMode?: 'list' | 'kanban';
   superviseMember?: { id: string; name: string } | null;
   onClearSupervision?: () => void;
 }
 
-export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseMember, onClearSupervision }) => {
+export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision }) => {
   const { tenantId, user, tenant } = useTenant();
   const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,11 +180,6 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseM
 
   const [chatTab, setChatTab] = useState<'external' | 'internal'>('external');
   const [mainTab, setMainTab] = useState<'inbox' | 'pending'>('pending');
-  const [chatViewMode, setChatViewMode] = useState<'list' | 'kanban'>(initialViewMode);
-
-  useEffect(() => {
-    setChatViewMode(initialViewMode);
-  }, [initialViewMode]);
   const [externalConversations, setExternalConversations] = useState<ChatConversation[]>([]);
   const [internalConversations, setInternalConversations] = useState<ChatConversation[]>(MOCK_INTERNAL_CONVERSATIONS);
   const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; avatar?: string; role: string }[]>([]);
@@ -1206,37 +1199,6 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseM
     qr.command.toLowerCase().includes(newMessage.toLowerCase().substring(1))
   );
 
-  // --- KANBAN LOGIC ---
-  const handleDragStart = (e: React.DragEvent, chatId: string) => {
-    e.dataTransfer.setData('chatId', chatId);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent, targetTagId: string | null) => {
-    e.preventDefault();
-    const chatId = e.dataTransfer.getData('chatId');
-    if (!chatId) return;
-
-    const currentTags = chatTagRelations[chatId] || [];
-
-    // Se "targetTagId" for null, significa que soltou na coluna "Sem Tag"
-    // Removemos todas as outras tags de serviço principais para este exemplo simplificado,
-    // ou mantemos o controle de trocar a tag do card.
-
-    // Simplificando o Kanban: quando arrasta para uma coluna, ele SETA a tag da coluna 
-    // e remove de outras tags do "Kanban" se for exclusivo. 
-    // Para simplificar: apenas add a "targetTagId" e remove o resto.
-    if (targetTagId === null) {
-      setChatTagRelations({ ...chatTagRelations, [chatId]: [] });
-      setShowToast('Card movido para "Sem Tag"');
-    } else {
-      setChatTagRelations({ ...chatTagRelations, [chatId]: [targetTagId] });
-      setShowToast('Tag atualizada via Kanban!');
-    }
-  };
 
   // Placeholder for modals that are not fully defined in the provided snippet
   const renderTagsModal = () => (
@@ -1304,22 +1266,6 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseM
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter">{t.chat.messages}</h2>
             <div className="flex gap-2">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mr-2">
-                <button
-                  onClick={() => setChatViewMode('list')}
-                  title={t.chat.listView}
-                  className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'list' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <List size={14} />
-                </button>
-                <button
-                  onClick={() => setChatViewMode('kanban')}
-                  title={t.chat.kanbanView}
-                  className={`p-1.5 rounded-lg transition-all ${chatViewMode === 'kanban' ? 'bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  <KanbanSquare size={14} />
-                </button>
-              </div>
               <button
                 onClick={() => setIsTagsModalOpen(true)}
                 title={t.chat.manageTags}
@@ -1548,7 +1494,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseM
 
       {/* Área Principal de Chat / Kanban */}
       <div className={`flex-1 flex flex-col bg-white dark:bg-slate-900 ${isSidebarOpen && 'hidden md:flex'}`}>
-        {selectedChat && chatViewMode === 'list' ? (
+        {selectedChat ? (
           <>
             <div className="p-4 md:p-6 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3 md:gap-4">
@@ -1894,125 +1840,6 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseM
               </form>
             </div>
           </>
-        ) : chatViewMode === 'kanban' ? (
-          <div className="flex-1 flex flex-col bg-slate-50 dark:bg-slate-900/50 min-w-0 overflow-hidden">
-            <div className="p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-900 shrink-0">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setIsSidebarOpen(true)}
-                  className="md:hidden p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl"
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                <div>
-                  <h3 className="text-xl md:text-2xl font-black text-legal-navy dark:text-white flex items-center gap-3">
-                    <KanbanSquare size={24} className="text-legal-bronze" />
-                    Kanban de Atendimentos
-                  </h3>
-                  <p className="text-slate-500 text-[10px] md:text-xs font-medium mt-1">Organize atendimentos arrastando entre as colunas.</p>
-                </div>
-              </div>
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                <button
-                  onClick={() => setChatViewMode('list')}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 transition-all"
-                  title="Voltar para Lista"
-                >
-                  <List size={16} />
-                </button>
-                <div className="p-1.5 bg-white dark:bg-slate-700 shadow-sm text-legal-navy dark:text-white rounded-lg">
-                  <KanbanSquare size={16} />
-                </div>
-              </div>
-            </div>
-            <div className="flex-1 relative min-h-0 bg-slate-50 dark:bg-slate-900/50">
-              <div className="absolute inset-0 overflow-x-auto pb-12 p-6 custom-scrollbar snap-x snap-proximity flex gap-6 items-start">
-                {/* Coluna Sem Tag (Caixa de Entrada) */}
-                <div
-                  className="min-w-[320px] w-80 shrink-0 flex flex-col h-full snap-center"
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, null)}
-                >
-                  <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-slate-300"></span>
-                      <h4 className="font-bold text-sm text-slate-800 dark:text-white">Sem Etiqueta</h4>
-                    </div>
-                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
-                      {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).length}
-                    </span>
-                  </div>
-                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
-                    {currentConversations.filter(c => !chatTagRelations[c.id] || chatTagRelations[c.id].length === 0).map(chat => (
-                      <div
-                        key={chat.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, chat.id)}
-                        onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
-                        className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
-                      >
-                        <div className="flex items-center gap-3 mb-3">
-                          <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
-                          <div className="flex-1 min-w-0">
-                            <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
-                            <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-slate-500 line-clamp-2 italic">"{chat.lastMessage}"</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Colunas por Tag */}
-                {tags.map(tag => {
-                  const chatsInTag = currentConversations.filter(c => chatTagRelations[c.id]?.includes(tag.id));
-                  return (
-                    <div
-                      key={tag.id}
-                      className="min-w-[320px] w-80 shrink-0 flex flex-col h-full snap-center"
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, tag.id)}
-                    >
-                      <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm" style={{ borderTop: `4px solid ${tag.color}` }}>
-                        <div className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color }}></span>
-                          <h4 className="font-bold text-sm text-slate-800 dark:text-white">{tag.label}</h4>
-                        </div>
-                        <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-black text-[10px] px-2 py-0.5 rounded-full">
-                          {chatsInTag.length}
-                        </span>
-                      </div>
-                      <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar pb-4 min-h-[300px]">
-                        {chatsInTag.map(chat => (
-                          <div
-                            key={chat.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, chat.id)}
-                            onClick={() => { setSelectedChat(chat); setChatViewMode('list'); }}
-                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm cursor-grab active:cursor-grabbing hover:border-legal-bronze transition-all group"
-                          >
-                            <div className="flex items-center gap-3 mb-3">
-                              <img src={chat.avatar} alt="" className="w-8 h-8 rounded-xl" />
-                              <div className="flex-1 min-w-0">
-                                <h5 className="font-black text-xs text-slate-800 dark:text-white truncate">{chat.contactName}</h5>
-                                <p className="text-[9px] font-bold text-slate-400">{chat.timestamp}</p>
-                              </div>
-                              {chat.unreadCount > 0 && <span className="bg-legal-bronze text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">{chat.unreadCount}</span>}
-                            </div>
-                            <p className="text-xs text-slate-500 line-clamp-2 italic mb-3">"{chat.lastMessage}"</p>
-                            <div className="flex justify-end gap-1">
-                              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded text-white" style={{ backgroundColor: tag.color }}>{tag.label}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-6">
             <MessageCircle size={64} className="text-slate-200" />

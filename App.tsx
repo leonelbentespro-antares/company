@@ -422,7 +422,6 @@ const App: React.FC = () => {
       case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} onSupervise={(member) => { setSuperviseMember(member); setActiveTab('chat'); }} />;
       case 'integrations': return <Integrations />;
       case 'chat': return <Chat superviseMember={superviseMember} onClearSupervision={() => setSuperviseMember(null)} />;
-      case 'kanban': return <Chat initialViewMode="kanban" superviseMember={superviseMember} onClearSupervision={() => setSuperviseMember(null)} />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'agenda': return <AgendaView />;
@@ -703,8 +702,8 @@ const App: React.FC = () => {
         <SidebarItem
           icon={<MessageSquare size={20} />}
           label={t.nav.chat}
-          active={activeTab === 'kanban' || activeTab === 'chat'}
-          onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
+          active={activeTab === 'chat'}
+          onClick={() => { setActiveTab('chat'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Calendar size={20} />}
@@ -942,7 +941,7 @@ const App: React.FC = () => {
         </header>
         
         {/* Content Area */}
-        <div className={`p-4 lg:p-8 w-full transition-colors ${(['chat', 'processes', 'kanban'].includes(activeTab)) ? '' : 'max-w-7xl mx-auto'}`}>
+        <div className={`p-4 lg:p-8 w-full transition-colors ${(['chat', 'processes'].includes(activeTab)) ? '' : 'max-w-7xl mx-auto'}`}>
           <React.Suspense fallback={<div className="flex h-[50vh] items-center justify-center p-12 text-slate-400 font-bold tracking-widest uppercase text-xs">Carregando painel...</div>}>
             <SubscriptionShield>
                 {renderContent()}
