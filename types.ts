@@ -131,6 +131,8 @@ export interface ChatConversation {
   unreadCount: number;
   online: boolean;
   avatar?: string;
+  assignedTo?: string;
+  internalType?: 'external' | 'internal';
   messages: ChatMessage[];
 }
 

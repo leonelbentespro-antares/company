@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
+import { authMiddleware } from '../middleware/auth.js';
 import { emailService } from '../services/emailService.js';
 import { supabaseAdmin } from '../config/supabase.js';
 
@@ -69,5 +70,43 @@ teamRouter.post('/invite', async (req: Request, res: Response) => {
     } catch (err) {
         console.error('[Team API] Erro crítico ao processar envio de convite:', err);
         res.status(500).json({ error: 'Erro interno do servidor ao gerar convite.' });
+    }
+});
+
+/**
+ * GET /api/team/members
+ * Lista todos os membros do time no tenant logado.
+ */
+teamRouter.get('/members', authMiddleware, async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.tenantId!;
+
+        const { data, error } = await supabaseAdmin
+            .from('tenant_users')
+            .select(`
+                user_id,
+                role,
+                profiles:user_id (
+                    id,
+                    name,
+                    email,
+                    avatar_url
+                )
+            `)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        const members = data?.map((m: any) => ({
+            id: m.user_id,
+            name: (m.profiles as any)?.name || (m.profiles as any)?.email || 'Membro',
+            role: m.role,
+            avatar: (m.profiles as any)?.avatar_url
+        })) || [];
+
+        res.json(members);
+    } catch (err) {
+        console.error('[Team API] Erro ao listar membros:', err);
+        res.status(500).json({ error: 'Erro ao listar membros da equipe.' });
     }
 });

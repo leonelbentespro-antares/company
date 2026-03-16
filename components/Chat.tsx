@@ -186,6 +186,8 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   }, [initialViewMode]);
   const [externalConversations, setExternalConversations] = useState<ChatConversation[]>([]);
   const [internalConversations, setInternalConversations] = useState<ChatConversation[]>(MOCK_INTERNAL_CONVERSATIONS);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; avatar?: string; role: string }[]>([]);
+  const [oversightFilter, setOversightFilter] = useState<'all' | 'mine' | 'unassigned'>('all');
 
   const [chatAssignments, setChatAssignments] = useState<Record<string, { departmentId: string; departmentName: string; agentId: string; agentName: string; color: string }>>(() => {
     const saved = localStorage.getItem('lexhub_chat_assignments');
@@ -310,11 +312,11 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
   }, [internalConversations, tags, chatTagRelations, contacts, chatAssignments]);
 
 
-  const loadConversations = async () => {
+  const loadConversations = async (filter: string = oversightFilter, type: 'external' | 'internal' = chatTab) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
-      const res = await fetch(`${apiUrl}/api/messages/conversations`, {
+      const res = await fetch(`${apiUrl}/api/messages/conversations?view=${filter}&type=${type}`, {
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
           'x-tenant-id': tenantId || ''
@@ -322,12 +324,64 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
       });
       if (res.ok) {
         const data = await res.json();
-        setExternalConversations(data);
+        if (type === 'external') {
+          setExternalConversations(data);
+        } else {
+          setInternalConversations(data);
+        }
       }
     } catch (err) {
-      console.error('Erro ao carregar conversas:', err);
+      console.error(`Erro ao carregar conversas (${type}):`, err);
     }
   };
+
+  const loadTeamMembers = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const res = await fetch(`${apiUrl}/api/team/members`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeamMembers(data);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar membros do time:', err);
+    }
+  };
+
+  const assignConversation = async (conversationId: string, assignedTo: string | null) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const res = await fetch(`${apiUrl}/api/messages/conversations/${conversationId}/assign`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+          'x-tenant-id': tenantId || ''
+        },
+        body: JSON.stringify({ assignedTo })
+      });
+      if (res.ok) {
+        setExternalConversations(prev => 
+          prev.map(c => c.id === conversationId ? { ...c, assignedTo: assignedTo || undefined } : c)
+        );
+      }
+    } catch (err) {
+      console.error('Erro ao atribuir conversa:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (tenantId) {
+      loadConversations(oversightFilter, chatTab);
+    }
+  }, [oversightFilter, tenantId, chatTab]);
 
   useEffect(() => {
     const checkWhatsAppStatus = async () => {
@@ -349,8 +403,10 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
       }
     };
 
-    loadConversations();
-    checkWhatsAppStatus();
+    if (tenantId) {
+      checkWhatsAppStatus();
+      loadTeamMembers();
+    }
 
     // Configurar Socket.io para tempo real
     let socketInstance: any = null;
@@ -397,43 +453,66 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               return prev;
             }
 
+            // DEDUPLICAÇÃO REFORÇADA:
             const messageExists = conversation.messages?.some(m => m.id === newMsg.id);
-            // Tenta encontrar uma mensagem temporária equivalente (mesmo texto e enviada por mim)
-            const tempMessage = !messageExists && newMsg.fromMe
-              ? conversation.messages?.find(m => m.fromMe && m.text?.trim() === newMsg.text?.trim() && (String(m.id).startsWith('temp-') || m.id === newMsg.id))
+            
+            // Busca mensagens temporárias que podem ser a mesma que acabou de chegar
+            // Critérios: mesmo texto (sem espaços extras) e enviada por mim
+            const tempMatch = !messageExists && newMsg.fromMe
+              ? conversation.messages?.find(m => 
+                  m.fromMe && 
+                  String(m.id).startsWith('temp-') && 
+                  m.text?.trim() === newMsg.text?.trim()
+                )
               : null;
 
-            const messages = messageExists
-              ? conversation.messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m)
-              : tempMessage
-                ? conversation.messages.map(m => (m.id === tempMessage.id || m.id === newMsg.id) ? { ...m, ...newMsg, id: newMsg.id } : m)
-                : [...(conversation.messages || []), newMsg];
+            let messages = conversation.messages || [];
+
+            if (messageExists) {
+              // Apenas atualiza se já existir
+              messages = messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m);
+            } else if (tempMatch) {
+              // RECONCILIAÇÃO: Substitui a temporária pela real, mantendo a ordem mas usando o ID final
+              console.log(`[Chat] Reconciliando mensagem temporária ${tempMatch.id} com ID real ${newMsg.id}`);
+              messages = messages.map(m => m.id === tempMatch.id ? { ...m, ...newMsg, id: newMsg.id } : m);
+            } else {
+              // NOVA MENSAGEM: Adiciona ao final
+              messages = [...messages, newMsg];
+            }
 
             return prev.map(c => c.id === data.conversationId ? {
               ...c,
               messages,
-              lastMessage: msg.text || newMsg.text,
-              unreadCount: (c.unreadCount || 0) + (msg.from_me ? 0 : 1)
+              lastMessage: newMsg.text,
+              unreadCount: (c.unreadCount || 0) + (newMsg.fromMe ? 0 : 1),
+              timestamp: 'Agora'
             } : c);
           });
 
           setSelectedChat(prev => {
             if (prev && prev.id === data.conversationId) {
               const messageExists = prev.messages?.some(m => m.id === newMsg.id);
-              const tempMessage = !messageExists && newMsg.fromMe
-                ? prev.messages?.find(m => m.fromMe && m.text?.trim() === newMsg.text?.trim() && String(m.id).startsWith('temp-'))
+              const tempMatch = !messageExists && newMsg.fromMe
+                ? prev.messages?.find(m => 
+                    m.fromMe && 
+                    String(m.id).startsWith('temp-') && 
+                    m.text?.trim() === newMsg.text?.trim()
+                  )
                 : null;
 
-              const messages = messageExists
-                ? prev.messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m)
-                : tempMessage
-                  ? prev.messages.map(m => m.id === tempMessage.id ? { ...m, ...newMsg, id: newMsg.id } : m)
-                  : [...(prev.messages || []), newMsg];
+              let messages = prev.messages || [];
+              if (messageExists) {
+                messages = messages.map(m => m.id === newMsg.id ? { ...m, ...newMsg } : m);
+              } else if (tempMatch) {
+                messages = messages.map(m => m.id === tempMatch.id ? { ...m, ...newMsg, id: newMsg.id } : m);
+              } else {
+                messages = [...messages, newMsg];
+              }
 
               return {
                 ...prev,
                 messages,
-                lastMessage: msg.text || newMsg.text
+                lastMessage: newMsg.text
               };
             }
             return prev;
@@ -1308,6 +1387,29 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
             </button>
           </div>
 
+          {user?.role === 'Admin' && (
+            <div className="flex gap-1 bg-slate-100/30 dark:bg-slate-800/30 p-1 rounded-xl">
+              <button
+                onClick={() => setOversightFilter('all')}
+                className={`flex-1 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${oversightFilter === 'all' ? 'bg-legal-navy text-white' : 'text-slate-400'}`}
+              >
+                Todas
+              </button>
+              <button
+                onClick={() => setOversightFilter('mine')}
+                className={`flex-1 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${oversightFilter === 'mine' ? 'bg-legal-navy text-white' : 'text-slate-400'}`}
+              >
+                Minhas
+              </button>
+              <button
+                onClick={() => setOversightFilter('unassigned')}
+                className={`flex-1 py-1 rounded-lg text-[8px] font-black uppercase transition-all ${oversightFilter === 'unassigned' ? 'bg-legal-navy text-white' : 'text-slate-400'}`}
+              >
+                Não Atribuídas
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
             <button
               onClick={() => setFilterTagId(null)}
@@ -1382,6 +1484,16 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                           ))}
                         </div>
                       )}
+                      {chat.assignedTo && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <div className="w-3.5 h-3.5 rounded-full bg-legal-navy/10 flex items-center justify-center text-[7px] text-legal-navy font-black">
+                            {teamMembers.find(m => m.id === chat.assignedTo)?.name?.charAt(0) || '?'}
+                          </div>
+                          <span className="text-[8px] font-bold text-slate-400 uppercase">
+                            {teamMembers.find(m => m.id === chat.assignedTo)?.name || 'Atribuído'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </button>
                   {/* Botão de Excluir — aparece no hover */}
@@ -1429,10 +1541,36 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
                       {chatTab === 'external' ? 'WhatsApp' : 'Online'}
                     </p>
-                    {chatAssignments[selectedChat.id] && (
+                    {user?.role === 'Admin' && chatTab === 'external' && (
+                      <div className="relative group ml-2">
+                        <select
+                          className="appearance-none bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 pl-3 pr-8 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest text-slate-500 outline-none focus:ring-2 focus:ring-legal-navy/10"
+                          value={selectedChat?.assignedTo || ''}
+                          onChange={(e) => assignConversation(selectedChat.id, e.target.value || null)}
+                        >
+                          <option value="">Não Atribuído</option>
+                          {teamMembers.map(member => (
+                            <option key={member.id} value={member.id}>{member.name}</option>
+                          ))}
+                        </select>
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                          <User size={10} />
+                        </div>
+                      </div>
+                    )}
+                    {selectedChat.assignedTo && user?.role !== 'Admin' && (
+                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg ml-2">
+                        <User size={10} className="text-slate-400" />
+                        <span className="text-[9px] font-black text-slate-500 uppercase">
+                          Responsável: {teamMembers.find(m => m.id === selectedChat.assignedTo)?.name || '...'}
+                        </span>
+                      </div>
+                    )}
+                    {/* Display legacy assignment if exists and no DB assignment */}
+                    {!selectedChat.assignedTo && chatAssignments[selectedChat.id] && (
                       <button
                         onClick={handleOpenTransfer}
-                        className="flex items-center gap-1 text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-white transition-opacity hover:opacity-80"
+                        className="flex items-center gap-1 text-[8px] font-black uppercase px-2 py-0.5 rounded-full text-white transition-opacity hover:opacity-80 ml-2"
                         style={{ backgroundColor: chatAssignments[selectedChat.id].color }}
                         title={`Responsável: ${chatAssignments[selectedChat.id].agentName} — clique para transferir`}
                       >

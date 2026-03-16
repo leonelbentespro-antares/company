@@ -62,6 +62,7 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
                 number,
                 text
             );
+            // Na Meta, o ID vem em messages[0].id
             waMessageId = metaRes.messages?.[0]?.id;
         } else {
             // ENVIO VIA UAZAPI (LEGACY/QR)
@@ -71,10 +72,15 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
             }
             console.log(`[Messages] Enviando via UAZAPI para: ${number}`);
             const waRes = await sendTextMessage(session.token, number, text);
-            waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid;
+            
+            // UAZAPI V2 Debug: Log da resposta para garantir extração correta
+            console.log(`[Messages Router] Resposta da UAZAPI:`, JSON.stringify(waRes));
+            
+            // Tenta extrair o ID de diversas formas comuns na UAZAPI V2
+            waMessageId = waRes?.message?.id || waRes?.id || waRes?.messageid || waRes?.data?.id || waRes?.key?.id;
         }
 
-        console.log(`[Messages Router] ✅ Mensagem enviada para ${number}. ID Provedor: ${waMessageId}`);
+        console.log(`[Messages Router] ✅ Mensagem enviada para ${number}. ID Provedor Extraído: ${waMessageId}`);
 
         // 2. Gravar no Banco de Dados
         let conversationId = '';
@@ -105,14 +111,28 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
             if (newConvo) conversationId = newConvo.id;
         }
 
-        if (conversationId) {
-            const safeId = waMessageId ? uuidv5(waMessageId, UUID_NAMESPACE) : uuidv4();
+        /**
+         * EVITANDO DUPLICAÇÃO:
+         * Se conseguimos o waMessageId do provedor, geramos o UUIDv5 determinístico (mesmo usado no Webhook).
+         * Se NÃO conseguimos (fallback), NÃO salvamos no banco agora. 
+         * O front-end já fez o update otimista e o Webhook irá processar a mensagem real em instantes 
+         * com o ID correto, evitando "órfãos" com ID aleatório.
+         */
+        if (conversationId && waMessageId) {
+            const safeId = uuidv5(waMessageId, UUID_NAMESPACE);
+            console.log(`[Messages Router] Persistindo mensagem com SafeId: ${safeId}`);
+            
             await supabase.from('chat_messages').upsert([{
                 id: safeId,
                 conversation_id: conversationId,
+                tenant_id: tenantId, // Importante para RLS e consistência
                 text: text,
-                from_me: true
+                from_me: true,
+                status: 'sent',
+                created_at: new Date().toISOString()
             }], { onConflict: 'id' });
+        } else if (conversationId) {
+            console.warn(`[Messages Router] waMessageId não obtido. Ignorando persistência imediata para evitar duplicação.`);
         }
 
         res.json({
@@ -239,16 +259,30 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
 messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
+        const userId = req.userId;
+        const { view, type } = req.query; // 'all', 'mine', 'unassigned' and 'external', 'internal'
 
-        // Validação: Só retorna conversas se o WhatsApp estiver conectado ou aberto
+        // 1. Buscar o papel do usuário no tenant
+        const { data: tenantUser } = await supabase
+            .from('tenant_users')
+            .select('role')
+            .eq('tenant_id', tenantId)
+            .eq('user_id', userId)
+            .single();
+
+        const userRole = tenantUser?.role || 'member';
+
+        // Validação: Só retorna conversas se o WhatsApp estiver conectado ou aberto (apenas para tipo external)
         const session = await getOrRestoreSession(tenantId);
         const status = session?.status?.toLowerCase();
-        if (!session || (status !== 'connected' && status !== 'open')) {
-            console.log(`[Messages Router] Tenant ${tenantId} desconectado (status: ${status}). Retornando lista vazia.`);
+        
+        // Se for tipo external, exige sessão. Se for internal, não exige.
+        if ((!type || type === 'external') && (!session || (status !== 'connected' && status !== 'open'))) {
+            console.log(`[Messages Router] Tenant ${tenantId} desconectado (status: ${status}). Retornando lista vazia para conversas externas.`);
             return res.json([]);
         }
 
-        const { data: conversations, error } = await supabase
+        let query = supabase
             .from('chat_conversations')
             .select(`
                 id,
@@ -258,9 +292,34 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
                 unread_count,
                 online,
                 avatar_url,
-                updated_at
+                updated_at,
+                assigned_to,
+                internal_type
             `)
-            .eq('tenant_id', tenantId)
+            .eq('tenant_id', tenantId);
+
+        if (type) {
+            query = query.eq('internal_type', type);
+        } else {
+            query = query.eq('internal_type', 'external');
+        }
+
+        // Lógica de Filtro por Role e View
+        if (userRole === 'admin') {
+            if (view === 'mine') {
+                query = query.eq('assigned_to', userId);
+            } else if (view === 'unassigned') {
+                query = query.is('assigned_to', null);
+            }
+            // else view === 'all' (default para admin) -> não aplica filtro extra de assigned_to
+        } else {
+            // Se for Lawyer/Member, por padrão só vê as suas se o filtro mine estiver ativo
+            if (view === 'mine') {
+                query = query.eq('assigned_to', userId);
+            }
+        }
+
+        const { data: conversations, error } = await query
             .order('updated_at', { ascending: false });
 
         if (error) throw error;
@@ -277,6 +336,8 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
             unreadCount: c.unread_count,
             online: c.online,
             avatar: c.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.contact_name)}&background=002B49&color=fff`,
+            assignedTo: c.assigned_to,
+            internalType: c.internal_type,
             messages: []
         })) || [];
 
@@ -284,6 +345,31 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     } catch (err) {
         console.error('[Messages Router] Erro ao listar conversas:', err);
         res.status(500).json({ error: 'Erro ao listar conversas' });
+    }
+});
+
+/**
+ * POST /api/messages/conversations/:id/assign
+ * Atribui uma conversa a um usuário da equipe.
+ */
+messagesRouter.post('/conversations/:id/assign', authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { assignedTo } = req.body; // UUID do usuário ou null
+        const tenantId = req.tenantId!;
+
+        const { error } = await supabase
+            .from('chat_conversations')
+            .update({ assigned_to: assignedTo })
+            .eq('id', id)
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        res.json({ success: true });
+    } catch (err: any) {
+        console.error('[Messages] Erro ao atribuir conversa:', err);
+        res.status(500).json({ error: 'Erro ao atribuir conversa.' });
     }
 });
 

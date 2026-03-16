@@ -438,12 +438,16 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         const messageData = {
             id: safeMessageId,
             conversation_id: conversationId,
+            tenant_id: tenantId, // Crucial para RLS e consistência
             text: textBody,
             from_me: isFromMe,
             media_url: mediaUrl || null,
             media_type: mediaType || null,
+            status: 'received', // Webhook geralmente é recebimento ou confirmação
             created_at: new Date().toISOString()
         };
+
+        console.log(`[MessageProcessor] Upserting message SafeId: ${safeMessageId} for Tenant: ${tenantId}`);
 
         const { data: newMsg, error: errM } = await supabase
             .from('chat_messages')
