@@ -20,6 +20,8 @@ export const es: Translations = {
     security: 'Seguridad & Logs',
     referrals: 'Indicaciones',
     logout: 'Cerrar Sesión',
+    agenda: 'Agenda',
+    clients: 'Clientes',
   },
   chat: {
     messages: 'Mensajes',

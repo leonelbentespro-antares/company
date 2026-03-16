@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   Users,
+  Calendar,
+  Contact2,
   CreditCard,
   Settings as SettingsIcon,
   BrainCircuit,
@@ -421,6 +423,8 @@ const App: React.FC = () => {
       case 'kanban': return <Chat initialViewMode="kanban" superviseMember={superviseMember} onClearSupervision={() => setSuperviseMember(null)} />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
+      case 'agenda': return <div className="p-10 text-center text-slate-500">Módulo de Agenda (Em Breve)</div>;
+      case 'clients': return <div className="p-10 text-center text-slate-500">Módulo de Clientes (Em Breve)</div>;
       case 'settings': return <Settings />;
       case 'security': return <Security />;
       default: return <Dashboard onNavigate={(tab) => setActiveTab(tab)} currentUser={currentUser} />;
@@ -699,6 +703,18 @@ const App: React.FC = () => {
           label={t.nav.chat}
           active={activeTab === 'kanban' || activeTab === 'chat'}
           onClick={() => { setActiveTab('kanban'); setIsSidebarOpen(false); }}
+        />
+        <SidebarItem
+          icon={<Calendar size={20} />}
+          label={t.nav.agenda}
+          active={activeTab === 'agenda'}
+          onClick={() => { setActiveTab('agenda'); setIsSidebarOpen(false); }}
+        />
+        <SidebarItem
+          icon={<Contact2 size={20} />}
+          label={t.nav.clients}
+          active={activeTab === 'clients'}
+          onClick={() => { setActiveTab('clients'); setIsSidebarOpen(false); }}
         />
         <SidebarItem
           icon={<Users size={20} />}

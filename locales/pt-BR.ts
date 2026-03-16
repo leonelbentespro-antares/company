@@ -22,6 +22,8 @@ export interface Translations {
     security: string;
     referrals: string;
     logout: string;
+    agenda: string;
+    clients: string;
   };
   chat: {
     messages: string;
@@ -515,6 +517,8 @@ export const ptBR: Translations = {
     security: 'Segurança & Logs',
     referrals: 'Indicações',
     logout: 'Sair do Painel',
+    agenda: 'Agenda',
+    clients: 'Clientes',
   },
   chat: {
     messages: 'Mensagens',
