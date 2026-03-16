@@ -116,7 +116,8 @@ const App: React.FC = () => {
   const [superviseMember, setSuperviseMember] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
-    console.log('[LexHub] App Build Version: 2026-03-16_1155');
+    console.log('[LexHub] App Build Version: 2026-03-16_1900');
+    // Unique build marker: 44def89-v2
   }, []);
 
   // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
