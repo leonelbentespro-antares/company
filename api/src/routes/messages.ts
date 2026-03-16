@@ -260,7 +260,7 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
     try {
         const tenantId = req.tenantId!;
         const userId = req.userId;
-        const { view, type } = req.query; // 'all', 'mine', 'unassigned' and 'external', 'internal'
+        const { view, type, targetUserId } = req.query; // 'all', 'mine', 'unassigned' and 'external', 'internal'
 
         // 1. Buscar o papel do usuário no tenant
         const { data: tenantUser } = await supabase
@@ -306,7 +306,10 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
 
         // Lógica de Filtro por Role e View
         if (userRole === 'admin') {
-            if (view === 'mine') {
+            if (targetUserId) {
+                // Modo Supervisão: Filtra conversas atribuídas ao usuário alvo
+                query = query.eq('assigned_to', targetUserId);
+            } else if (view === 'mine') {
                 query = query.eq('assigned_to', userId);
             } else if (view === 'unassigned') {
                 query = query.is('assigned_to', null);

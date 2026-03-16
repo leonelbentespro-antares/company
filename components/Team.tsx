@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import {
     Users, UserPlus, Search, MoreVertical, Mail, Phone, Calendar,
     MapPin, Briefcase, Clock, Star, Trash2, Edit2, X, Save, CheckCircle2, Lock, Rocket,
-    MailQuestion, CheckCircle, Clock3, AlertCircle
+    MailQuestion, CheckCircle, Clock3, AlertCircle, Eye
 } from 'lucide-react';
 import { PLANS } from '../constants.ts';
-import { PlanName } from '../types.ts';
+import { PlanName, UserRole } from '../types.ts';
 import { supabase } from '../services/supabaseClient.ts';
 import { useTenant } from '../services/tenantContext.tsx';
 
 interface TeamProps {
     onNavigate?: (tab: string) => void;
+    onSupervise?: (member: { id: string; name: string }) => void;
 }
 
 interface TeamMember {
@@ -27,7 +28,7 @@ interface TeamMember {
     isInvite?: boolean;
 }
 
-export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
+export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
     const { tenantId, subscription, user: currentUser } = useTenant();
     const currentPlan = (subscription?.plan as PlanName) || PlanName.Starter;
 
@@ -377,9 +378,19 @@ export const Team: React.FC<TeamProps> = ({ onNavigate }) => {
                                     {member.status === 'active' ? 'Ativo' : member.status === 'pending' ? 'Convite Enviado' : 'Inativo'}
                                 </span>
                                 {member.status === 'active' && (
-                                    <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
-                                        <CheckCircle size={10} className="text-emerald-500" /> Verificado
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                                            <CheckCircle size={10} className="text-emerald-500" /> Verificado
+                                        </span>
+                                        {currentUser?.role === UserRole.Admin && onSupervise && (
+                                            <button 
+                                                onClick={() => onSupervise({ id: member.id, name: member.name })}
+                                                className="mt-1 text-[10px] font-black text-legal-bronze hover:text-legal-navy uppercase tracking-widest flex items-center gap-1 transition-colors"
+                                            >
+                                                <Eye size={12} /> Acompanhar
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>

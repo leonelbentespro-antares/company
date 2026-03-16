@@ -23,6 +23,7 @@ import {
   UserCircle,
   Archive,
   Ban,
+  Eye,
   Clock,
   Check,
   Calendar,
@@ -166,9 +167,11 @@ const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4
 
 interface ChatProps {
   initialViewMode?: 'list' | 'kanban';
+  superviseMember?: { id: string; name: string } | null;
+  onClearSupervision?: () => void;
 }
 
-export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
+export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list', superviseMember, onClearSupervision }) => {
   const { tenantId, user, tenant } = useTenant();
   const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -316,7 +319,8 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
-      const res = await fetch(`${apiUrl}/api/messages/conversations?view=${filter}&type=${type}`, {
+      const targetParam = superviseMember ? `&targetUserId=${superviseMember.id}` : '';
+      const res = await fetch(`${apiUrl}/api/messages/conversations?view=${filter}&type=${type}${targetParam}`, {
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
           'x-tenant-id': tenantId || ''
@@ -381,7 +385,7 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
     if (tenantId) {
       loadConversations(oversightFilter, chatTab);
     }
-  }, [oversightFilter, tenantId, chatTab]);
+  }, [oversightFilter, tenantId, chatTab, superviseMember]);
 
   useEffect(() => {
     const checkWhatsAppStatus = async () => {
@@ -1339,6 +1343,27 @@ export const Chat: React.FC<ChatProps> = ({ initialViewMode = 'list' }) => {
               </button>
             </div>
           </div>
+
+          {superviseMember && (
+            <div className="mb-4 p-3 bg-legal-bronze/10 border border-legal-bronze/20 rounded-2xl flex items-center justify-between animate-in slide-in-from-top-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-legal-bronze text-white rounded-lg flex items-center justify-center">
+                  <Eye size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-legal-bronze uppercase tracking-widest leading-none">Monitorando</p>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{superviseMember.name}</p>
+                </div>
+              </div>
+              <button 
+                onClick={onClearSupervision}
+                className="p-2 hover:bg-legal-bronze/20 text-legal-bronze rounded-xl transition-colors"
+                title="Sair da supervisão"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
 
           <div className="flex gap-2">
             <button

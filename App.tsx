@@ -111,6 +111,7 @@ const App: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [showProfileFeedback, setShowProfileFeedback] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [superviseMember, setSuperviseMember] = useState<{ id: string; name: string } | null>(null);
 
   // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
   useEffect(() => {
@@ -410,10 +411,10 @@ const App: React.FC = () => {
       case 'ai': return <LegalAI />;
       case 'agents': return <AIAgents />;
       case 'automation': return <Automation />;
-      case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} />;
+      case 'team': return <Team onNavigate={(tab) => setActiveTab(tab)} onSupervise={(member) => { setSuperviseMember(member); setActiveTab('chat'); }} />;
       case 'integrations': return <Integrations />;
-      case 'chat': return <Chat />;
-      case 'kanban': return <Chat initialViewMode="kanban" />;
+      case 'chat': return <Chat superviseMember={superviseMember} onClearSupervision={() => setSuperviseMember(null)} />;
+      case 'kanban': return <Chat initialViewMode="kanban" superviseMember={superviseMember} onClearSupervision={() => setSuperviseMember(null)} />;
       case 'billing': return <Billing userEmail={currentUser?.email} />;
       case 'plans': return <Plans userEmail={currentUser?.email} />;
       case 'settings': return <Settings />;
