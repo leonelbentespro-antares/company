@@ -382,7 +382,7 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
                                         <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
                                             <CheckCircle size={10} className="text-emerald-500" /> Verificado
                                         </span>
-                                        {currentUser?.role === UserRole.Admin && onSupervise && (
+                                        {(currentUser?.role?.toString().toLowerCase() === 'admin') && onSupervise && (
                                             <button 
                                                 onClick={() => onSupervise({ id: member.id, name: member.name })}
                                                 className="mt-1 text-[10px] font-black text-legal-bronze hover:text-legal-navy uppercase tracking-widest flex items-center gap-1 transition-colors"
