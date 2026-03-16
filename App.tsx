@@ -116,8 +116,8 @@ const App: React.FC = () => {
   const [superviseMember, setSuperviseMember] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
-    console.log('[LexHub] App Build Version: 2026-03-16_1900');
-    // Unique build marker: 44def89-v2
+    console.log('[LexHub] App Build Version: 2026-03-16_1905_DEPLOY_DEBUG');
+    // Unique build marker: 81ffe66-v3
   }, []);
 
   // Sincronizar currentUser local com o do contexto (para compatibilidade com os forms legados)
@@ -939,6 +939,15 @@ const App: React.FC = () => {
             </button>
           </div>
         </header>
+        
+        {/* DEBUG BANNER - FORÇAR VISUALIZAÇÃO DE DEPLOY */}
+        <div className="bg-rose-600 text-white px-4 py-1 text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-between z-[100]">
+          <span>LexHub Debug Mode ACTIVE (V.1905)</span>
+          <div className="flex gap-4">
+             <span>LOCALES_OK</span>
+             <span>MENUS_INJECTED: YES</span>
+          </div>
+        </div>
 
         {/* Content Area */}
         <div className={`p-4 lg:p-8 w-full transition-colors ${(['chat', 'processes', 'kanban'].includes(activeTab)) ? '' : 'max-w-7xl mx-auto'}`}>
