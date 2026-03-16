@@ -297,6 +297,16 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
                 </div>
             </div>
 
+            {/* Debug Info (Somente Desenvolvedor) */}
+            <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-2xl flex items-center justify-between text-[10px] font-mono text-slate-500">
+                <div className="flex gap-4">
+                    <span>ROLE: {currentUser?.role || 'null'}</span>
+                    <span>ADMIN: {currentUser?.role?.toString().toLowerCase().includes('admin') ? 'SIM' : 'NÃO'}</span>
+                    <span>PROPS: {onSupervise ? 'OK' : 'MISSING'}</span>
+                </div>
+                <div className="text-slate-300">LexHub Debug Mode</div>
+            </div>
+
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[1, 2, 3, 4].map(i => (
@@ -382,7 +392,7 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
                                         <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
                                             <CheckCircle size={10} className="text-emerald-500" /> Verificado
                                         </span>
-                                        {(currentUser?.role?.toString().toLowerCase() === 'admin') && onSupervise && (
+                                        {(currentUser?.role?.toString().toLowerCase().includes('admin')) && onSupervise && (
                                             <button 
                                                 onClick={() => onSupervise({ id: member.id, name: member.name })}
                                                 className="mt-1 text-[10px] font-black text-legal-bronze hover:text-legal-navy uppercase tracking-widest flex items-center gap-1 transition-colors"
