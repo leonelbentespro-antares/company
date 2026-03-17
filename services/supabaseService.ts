@@ -12,7 +12,8 @@ import { supabase } from './supabaseClient';
 import {
     Tenant, Process, AIAgent, ChatConversation, User, PlanName,
     CRMStage, ProcessStage, UserRole, Integration, WhatsAppDevice,
-    MetaConnection, UnifiedConversation, ProcessDocument
+    MetaConnection, UnifiedConversation, ProcessDocument,
+    Client, Appointment, FinancialReceivable
 } from '../types';
 
 // ============================================================
@@ -740,5 +741,262 @@ export async function updateUnifiedConversation(id: string, updates: Partial<Uni
         .from('conversations')
         .update({ user_name: updates.userName, status: updates.status, last_message_at: updates.lastMessageAt })
         .eq('id', id);
+    if (error) throw error;
+}
+
+// ============================================================
+// CLIENTES — isolados por tenant
+// ============================================================
+
+export async function getClients(tenantId: string | null): Promise<Client[]> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('nome', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map(row => ({
+        id: row.id,
+        name: row.nome,
+        phone: row.telefone,
+        email: row.email,
+        status: row.status as any,
+        sexo: row.sexo,
+        endereco: row.endereco,
+        dataNascimento: row.data_nascimento,
+        dataCadastro: row.data_cadastro
+    }));
+}
+
+export async function getClientByPhone(tenantId: string | null, phone: string): Promise<Client | null> {
+    const tid = requireTenantId(tenantId);
+    // Remove caracteres não numéricos para comparação se necessário, 
+    // mas aqui seguiremos a string exata primeiro
+    const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .eq('tenant_id', tid)
+        .eq('telefone', phone)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+        id: data.id,
+        name: data.nome,
+        phone: data.telefone,
+        email: data.email,
+        status: data.status as any,
+        sexo: data.sexo,
+        endereco: data.endereco,
+        dataNascimento: data.data_nascimento,
+        dataCadastro: data.data_cadastro
+    };
+}
+
+export async function createClient(tenantId: string | null, client: Omit<Client, 'id' | 'dataCadastro'>): Promise<Client> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('clientes')
+        .insert({
+            tenant_id: tid,
+            nome: client.name,
+            telefone: client.phone,
+            email: client.email,
+            sexo: client.sexo,
+            endereco: client.endereco,
+            status: client.status || 'Normal'
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+    return {
+        id: data.id,
+        name: data.nome,
+        phone: data.telefone,
+        email: data.email,
+        status: data.status as any,
+        dataCadastro: data.data_cadastro
+    };
+}
+
+export async function updateClient(id: string, tenantId: string | null, updates: Partial<Client>): Promise<void> {
+    const tid = requireTenantId(tenantId);
+    
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.nome = updates.name;
+    if (updates.phone !== undefined) dbUpdates.telefone = updates.phone;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.sexo !== undefined) dbUpdates.sexo = updates.sexo;
+    if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    dbUpdates.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+        .from('clientes')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('tenant_id', tid);
+
+    if (error) throw error;
+}
+
+export async function deleteClient(id: string, tenantId: string | null): Promise<void> {
+    const tid = requireTenantId(tenantId);
+    const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
+
+    if (error) throw error;
+}
+
+
+// ============================================================
+// AGENDAMENTOS — isolados por tenant
+// ============================================================
+
+export async function getAppointments(tenantId: string | null): Promise<Appointment[]> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('agendamentos')
+        .select('*, clientes(nome)')
+        .eq('tenant_id', tid)
+        .order('data_hora', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map(row => ({
+        id: row.id,
+        clientId: row.cliente_id,
+        clientName: row.clientes?.nome,
+        dateTime: row.data_hora,
+        service: row.servico,
+        professional: row.profissional,
+        status: row.status as any,
+        notes: row.notas,
+        createdAt: row.created_at
+    }));
+}
+
+export async function createAppointment(tenantId: string | null, appointment: Omit<Appointment, 'id' | 'createdAt'>): Promise<Appointment> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('agendamentos')
+        .insert({
+            tenant_id: tid,
+            cliente_id: appointment.clientId,
+            data_hora: appointment.dateTime,
+            servico: appointment.service,
+            profissional: appointment.professional,
+            status: appointment.status || 'Pendente',
+            notas: appointment.notes
+        })
+        .select('*, clientes(nome)')
+        .single();
+
+    if (error) throw error;
+    return {
+        id: data.id,
+        clientId: data.cliente_id,
+        clientName: data.clientes?.nome,
+        dateTime: data.data_hora,
+        service: data.servico,
+        professional: data.profissional,
+        status: data.status as any,
+        notes: data.notas,
+        createdAt: data.created_at
+    };
+}
+
+// ============================================================
+// FINANCIAL RECEIVABLES (Faturamento)
+// ============================================================
+
+export async function getFinancialReceivables(tenantId: string | null): Promise<FinancialReceivable[]> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('financial_receivables')
+        .select('*')
+        .eq('tenant_id', tid)
+        .order('due_date', { ascending: true });
+
+    if (error) throw error;
+
+    return data.map(r => ({
+        id: r.id,
+        client: r.client_name,
+        value: Number(r.value),
+        status: r.status as any,
+        dueDate: r.due_date,
+        category: r.category
+    }));
+}
+
+export async function createFinancialReceivable(tenantId: string | null, receivable: Omit<FinancialReceivable, 'id'>): Promise<FinancialReceivable> {
+    const tid = requireTenantId(tenantId);
+    const { data, error } = await supabase
+        .from('financial_receivables')
+        .insert({
+            tenant_id: tid,
+            client_name: receivable.client,
+            value: receivable.value,
+            status: receivable.status,
+            due_date: receivable.dueDate,
+            category: receivable.category
+        })
+        .select()
+        .single();
+
+    if (error) throw error;
+
+    return {
+        id: data.id,
+        client: data.client_name,
+        value: Number(data.value),
+        status: data.status as any,
+        dueDate: data.due_date,
+        category: data.category
+    };
+}
+
+export async function updateFinancialReceivable(id: string, tenantId: string | null, updates: Partial<FinancialReceivable>): Promise<void> {
+    const tid = requireTenantId(tenantId);
+    
+    const dbUpdates: any = {};
+    if (updates.client !== undefined) dbUpdates.client_name = updates.client;
+    if (updates.value !== undefined) dbUpdates.value = updates.value;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    dbUpdates.updated_at = new Date().toISOString();
+
+    const { error } = await supabase
+        .from('financial_receivables')
+        .update(dbUpdates)
+        .eq('id', id)
+        .eq('tenant_id', tid);
+
+    if (error) throw error;
+}
+
+export async function deleteFinancialReceivable(id: string, tenantId: string | null): Promise<void> {
+    const tid = requireTenantId(tenantId);
+    const { error } = await supabase
+        .from('financial_receivables')
+        .delete()
+        .eq('id', id)
+        .eq('tenant_id', tid);
+
     if (error) throw error;
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { subscribeNotificaMeWebhook } from '../services/notificaMeService.js';
 import { getAuthUrl, handleCallback } from '../services/googleAuthService.js';
+import { googleCalendarService } from '../services/googleCalendarService.js';
 import { getMicrosoftAuthUrl, handleMicrosoftCallback } from '../services/microsoftAuthService.js';
 import { getDropboxAuthUrl, handleDropboxCallback } from '../services/dropboxAuthService.js';
 import { getMetaAuthUrl, handleMetaCallback } from '../services/metaAuthService.js';
@@ -42,6 +43,30 @@ integrationsRouter.get('/google/callback', async (req, res) => {
     } catch (err: any) {
         console.error('[Google OAuth] Erro no callback:', err);
         res.status(500).send('Erro na autenticação: ' + err.message);
+    }
+});
+
+/**
+ * Rota para salvar evento no Google Calendar
+ */
+integrationsRouter.post('/google/calendar', async (req, res) => {
+    const { tenantId, summary, description, startDateTime, endDateTime } = req.body;
+    
+    if (!tenantId || !summary || !startDateTime || !endDateTime) {
+        return res.status(400).json({ error: 'Faltam parâmetros obrigatórios' });
+    }
+
+    try {
+        const event = await googleCalendarService.addEvent(tenantId as string, {
+            summary,
+            description,
+            startDateTime,
+            endDateTime
+        });
+        res.json({ success: true, event });
+    } catch (err: any) {
+        console.error('[Google Calendar] Erro ao agendar evento:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 

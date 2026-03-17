@@ -72,6 +72,8 @@ import SubscriptionShield from './components/SubscriptionShield.tsx';
 import { User, UserRole } from './types.ts';
 import { useTenant } from './services/tenantContext.tsx';
 import { useLanguage } from './services/languageContext.tsx';
+import { PrivacyPolicy } from './components/PrivacyPolicy.tsx';
+import { TermsOfService } from './components/TermsOfService.tsx';
 import { LanguageSelector } from './components/LanguageSelector.tsx';
 import { supabase } from './services/supabaseClient.ts';
 
@@ -116,6 +118,15 @@ const App: React.FC = () => {
   const [showProfileFeedback, setShowProfileFeedback] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [superviseMember, setSuperviseMember] = useState<{ id: string; name: string } | null>(null);
+
+  // Páginas Públicas (Terms & Privacy)
+  const path = window.location.pathname;
+  if (path === '/privacy') {
+    return <PrivacyPolicy />;
+  }
+  if (path === '/terms') {
+    return <TermsOfService />;
+  }
 
   useEffect(() => {
     console.log('[LexHub] App Build Version: 2026-03-16_FINAL');

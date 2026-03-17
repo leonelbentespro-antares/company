@@ -151,22 +151,33 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, initialView = 'auth' }) => 
               Transparência e <span className="text-legal-bronze">agilidade</span> jurídica.
             </h1>
             <p className="text-slate-300 text-sm md:text-lg mb-6 md:mb-8">
-              Conectando advogados e clientes em um ambiente digital seguro e intuitivo.
+              O LexHub é um SaaS de gestão jurídica integral. Automatizamos fluxos de trabalho de advocacia organizando processos judiciais, integrando comunicações via WhatsApp e sincronizando calendários e arquivos (Google Workspace) em um único ambiente seguro.
             </p>
           </div>
 
-          <div className="space-y-3 md:space-y-4 relative z-10 mt-6 md:mt-0">
-            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
-              <CheckCircle2 size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
-              <span>Conformidade total com a LGPD</span>
+          <div className="relative z-10 mt-6 md:mt-0">
+            <div className="space-y-3 md:space-y-4">
+              <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+                <CheckCircle2 size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
+                <span>Conformidade total com a LGPD</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+                <ShieldCheck size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
+                <span>Segurança nível bancário (AES-256)</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
+                <Scale size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
+                <span>Acompanhamento processual em tempo real</span>
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
-              <ShieldCheck size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
-              <span>Segurança nível bancário (AES-256)</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs md:text-sm text-slate-300">
-              <Scale size={16} className="text-legal-bronze md:w-4.5 md:h-4.5" />
-              <span>Acompanhamento processual em tempo real</span>
+
+            <div className="mt-10 pt-6 border-t border-white/10 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 text-xs text-slate-400">
+              <span>&copy; {new Date().getFullYear()} LexHub Company</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <a href="/privacy" className="hover:text-white transition-colors underline underline-offset-2">Política de Privacidade</a>
+                <span className="opacity-50">&bull;</span>
+                <a href="/terms" className="hover:text-white transition-colors underline underline-offset-2">Termos de Serviço</a>
+              </div>
             </div>
           </div>
         </div>

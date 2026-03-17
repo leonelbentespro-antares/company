@@ -32,21 +32,22 @@ import { PLANS } from '../constants.ts';
 import { PlanName } from '../types.ts';
 import { useTenant } from '../services/tenantContext.tsx';
 import { supabase } from '../services/supabaseClient';
+import { 
+  getFinancialReceivables, 
+  createFinancialReceivable, 
+  updateFinancialReceivable, 
+  deleteFinancialReceivable 
+} from '../services/supabaseService';
 
 interface BillingProps {
   userEmail?: string;
 }
 
-interface ContractRecord {
-  id: string;
-  client: string;
-  value: number;
-  status: 'Paid' | 'Regular' | 'Late';
-  dueDate: string;
-  category: string;
-}
+import { FinancialReceivable } from '../types.ts';
 
-const INITIAL_CONTRACTS: ContractRecord[] = [];
+interface BillingProps {
+  userEmail?: string;
+}
 export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.com.br' }) => {
   const { t, locale } = useLanguage();
   const { tenant, subscription, user: authUser, refresh } = useTenant();
@@ -69,13 +70,11 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   
   // Gestão de Recebíveis State
-  const [contracts, setContracts] = useState<ContractRecord[]>(() => {
-    const saved = localStorage.getItem('lexhub_receivables');
-    return saved ? JSON.parse(saved) : INITIAL_CONTRACTS;
-  });
+  const [contracts, setContracts] = useState<FinancialReceivable[]>([]);
+  const [isLoadingContracts, setIsLoadingContracts] = useState(true);
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<ContractRecord | null>(null);
-  const [entryFormData, setEntryFormData] = useState<Omit<ContractRecord, 'id'>>({
+  const [editingEntry, setEditingEntry] = useState<FinancialReceivable | null>(null);
+  const [entryFormData, setEntryFormData] = useState<Omit<FinancialReceivable, 'id'>>({
     client: '',
     value: 0,
     status: 'Regular',
@@ -83,9 +82,22 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     category: 'Mensalidade'
   });
 
+  const loadContracts = async () => {
+    if (!tenant?.id) return;
+    try {
+      setIsLoadingContracts(true);
+      const data = await getFinancialReceivables(tenant.id);
+      setContracts(data);
+    } catch (err) {
+      console.error('Erro ao buscar faturamento', err);
+    } finally {
+      setIsLoadingContracts(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('lexhub_receivables', JSON.stringify(contracts));
-  }, [contracts]);
+    loadContracts();
+  }, [tenant?.id]);
 
   useEffect(() => {
     if (showToast) {
@@ -109,7 +121,7 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     };
   }, [contracts]);
 
-  const handleOpenEntryModal = (entry?: ContractRecord) => {
+  const handleOpenEntryModal = (entry?: FinancialReceivable) => {
     if (entry) {
       setEditingEntry(entry);
       setEntryFormData({
@@ -132,39 +144,54 @@ export const Billing: React.FC<BillingProps> = ({ userEmail = 'usuario@lexhub.co
     setIsEntryModalOpen(true);
   };
 
-  const handleSaveEntry = (e: React.FormEvent) => {
+  const handleSaveEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingEntry) {
-      setContracts(prev => prev.map(c => c.id === editingEntry.id ? { ...c, ...entryFormData } : c));
-      setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'Entry updated successfully!' : 'Lançamento atualizado com sucesso!', type: 'success' });
-    } else {
-      const newEntry: ContractRecord = {
-        id: `ct_${Date.now()}`,
-        ...entryFormData
-      };
-      setContracts([newEntry, ...contracts]);
-      setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'New financial entry recorded!' : 'Novo lançamento financeiro registrado!', type: 'success' });
+    try {
+      if (editingEntry) {
+        await updateFinancialReceivable(editingEntry.id, tenant?.id || null, entryFormData);
+        setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'Entry updated successfully!' : 'Lançamento atualizado com sucesso!', type: 'success' });
+      } else {
+        await createFinancialReceivable(tenant?.id || null, entryFormData);
+        setShowToast({ message: t.common.saveChanges === 'Save Changes' ? 'New financial entry recorded!' : 'Novo lançamento financeiro registrado!', type: 'success' });
+      }
+      loadContracts();
+      setIsEntryModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      setShowToast({ message: 'Erro ao salvar lançamento', type: 'error' });
     }
-    setIsEntryModalOpen(false);
   };
 
-  const handleDeleteEntry = (id: string) => {
+  const handleDeleteEntry = async (id: string) => {
     if (confirm(locale === 'en' ? "Are you sure you want to delete this entry?" : locale === 'es' ? "¿Está seguro de que desea eliminar este registro?" : "Deseja realmente excluir este lançamento?")) {
-      setContracts(prev => prev.filter(c => c.id !== id));
-      setShowToast({ message: locale === 'en' ? 'Entry removed.' : locale === 'es' ? 'Registro eliminado.' : 'Lançamento removido.', type: 'error' });
+      try {
+        await deleteFinancialReceivable(id, tenant?.id || null);
+        loadContracts();
+        setShowToast({ message: locale === 'en' ? 'Entry removed.' : locale === 'es' ? 'Registro eliminado.' : 'Lançamento removido.', type: 'error' });
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
-  const toggleContractStatus = (id: string) => {
-    setContracts(prev => prev.map(c => {
-      if (c.id !== id) return c;
-      const next: Record<string, 'Paid' | 'Regular' | 'Late'> = {
-        'Paid': 'Regular',
-        'Regular': 'Late',
-        'Late': 'Paid'
-      };
-      return { ...c, status: next[c.status] };
-    }));
+  const toggleContractStatus = async (id: string) => {
+    const contract = contracts.find(c => c.id === id);
+    if (!contract) return;
+
+    const next: Record<string, 'Paid' | 'Regular' | 'Late'> = {
+      'Paid': 'Regular',
+      'Regular': 'Late',
+      'Late': 'Paid'
+    };
+    
+    try {
+      // Optmistic UI Update
+      setContracts(prev => prev.map(c => c.id === id ? { ...c, status: next[c.status] } : c));
+      await updateFinancialReceivable(id, tenant?.id || null, { status: next[contract.status] });
+    } catch (err) {
+      console.error(err);
+      loadContracts(); // revert on fail
+    }
   };
 
   const getTranslatedCategory = (cat: string) => {

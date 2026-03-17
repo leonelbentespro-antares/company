@@ -294,7 +294,8 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
                 avatar_url,
                 updated_at,
                 assigned_to,
-                internal_type
+                internal_type,
+                is_group
             `)
             .eq('tenant_id', tenantId);
 
@@ -341,6 +342,7 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
             avatar: c.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.contact_name)}&background=002B49&color=fff`,
             assignedTo: c.assigned_to,
             internalType: c.internal_type,
+            isGroup: c.is_group,
             messages: []
         })) || [];
 

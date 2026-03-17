@@ -28,7 +28,8 @@ export const getAuthUrl = (tenantId: string) => {
             'https://www.googleapis.com/auth/userinfo.email'
         ],
         state: tenantId,
-        prompt: 'consent select_account'
+        prompt: 'consent select_account',
+        redirect_uri: process.env.GOOGLE_REDIRECT_URI || 'https://lexhub.company/api/integrations/google/callback'
     });
 };
 

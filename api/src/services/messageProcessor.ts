@@ -173,6 +173,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
         let messageId = '';
         let instanceNameVar = '';
         let isFromMe = false;
+        let isGroup = false;
         let eventType = '';
 
         // 1. Extração por Fonte (Uazapi, Notificame, Meta)
@@ -192,9 +193,10 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             isFromMe = msg.fromMe === true || msg.fromMe === 'true';
 
             // Extrair telefone do remetente de forma mais flexível
-            // Priorizar sender_pn (phone number) sobre sender (que pode ser LID)
-            const rawSender = msg.sender_pn || msg.senderpn || msg.sender || msg.chatid || msg.from || (msg.key?.remoteJid) || '';
-            senderPhone = String(rawSender)
+            const rawSender = String(msg.sender_pn || msg.senderpn || msg.sender || msg.chatid || msg.from || (msg.key?.remoteJid) || '');
+            isGroup = rawSender.includes('@g.us');
+            
+            senderPhone = rawSender
                 .replace(/@s\.whatsapp\.net$/i, '')
                 .replace(/@c\.us$/i, '')
                 .replace(/@lid$/i, '')
@@ -208,8 +210,10 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
 
             if (isFromMe && (senderPhone === (msg.owner || payload.owner) || senderPhone.length < 5)) {
                 // Se eu enviei, a conversa é com o chatid (destinatário)
-                const rawChat = msg.chatid || msg.to || (msg.key?.remoteJid) || '';
-                senderPhone = String(rawChat)
+                const rawChat = String(msg.chatid || msg.to || (msg.key?.remoteJid) || '');
+                isGroup = rawChat.includes('@g.us');
+                
+                senderPhone = rawChat
                     .replace(/@s\.whatsapp\.net$/i, '')
                     .replace(/@c\.us$/i, '')
                     .replace(/@lid$/i, '')
@@ -408,6 +412,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                     last_message: textBody,
                     // Só atualiza o nome do contato se a mensagem NÃO for do próprio usuário/empresa
                     contact_name: (!isFromMe && senderName !== senderPhone) ? senderName : undefined,
+                    is_group: isGroup,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', conversationId);
@@ -420,6 +425,7 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                     contact_phone: senderPhone,
                     last_message: textBody,
                     unread_count: 1,
+                    is_group: isGroup,
                     online: true
                 }])
                 .select('id')

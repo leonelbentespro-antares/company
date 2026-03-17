@@ -23,35 +23,42 @@ import {
   UserPlus
 } from 'lucide-react';
 
-interface Client {
-  id: string;
-  name: string;
-  phone: string;
-  email: string;
-  status: 'Normal' | 'VIP' | 'Crítico';
-  avatar?: string;
-  lastAction: string;
-  notes?: string;
-}
+import { useTenant } from '../services/tenantContext';
+import { getClients, createClient, updateClient, deleteClient } from '../services/supabaseService';
+import { Client } from '../types';
 
 interface ClientsViewProps {
   onNavigate?: (tab: string) => void;
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
+  const { tenant } = useTenant();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClientId, setSelectedClientId] = useState('1');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [clients, setClients] = useState<Client[]>([]);
 
-  // Estado inicial de clientes
-  const [clients, setClients] = useState<Client[]>([
-    { id: '1', name: 'Adina Sousa', phone: '92 98160-1718', email: 'adina.sousa@gmail.com', status: 'Normal', lastAction: 'Audiência marcada', notes: 'Cliente de alta prioridade. Relacionamento estratégico com o escritório.' },
-    { id: '2', name: 'Amanda Sterling', phone: '+55 11 91234-5678', email: 'amanda@st.com', status: 'VIP', lastAction: 'Petição protocolada', notes: 'Aguarda retorno sobre o processo de inventário.' },
-    { id: '3', name: 'Elena Rodriguez', phone: '+55 11 93456-7890', email: 'elena.r@law.es', status: 'Normal', lastAction: 'Aguardando doc' },
-    { id: '4', name: 'Emma Wilson', phone: '+55 11 95678-9012', email: 'emma@wilson.com', status: 'Crítico', lastAction: 'Recurso negado' },
-    { id: '5', name: 'Straus 🐿️', phone: '55 92 92588407', email: 'straus@lexhub.com', status: 'VIP', lastAction: 'Finalizado' },
-  ]);
+  const loadClients = async () => {
+    if (!tenant?.id) return;
+    try {
+      setIsLoading(true);
+      const data = await getClients(tenant.id);
+      setClients(data);
+      if (data.length > 0 && !selectedClientId) {
+        setSelectedClientId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar clientes:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadClients();
+  }, [tenant?.id]);
 
   // Form de cliente
   const [clientForm, setClientForm] = useState<Partial<Client>>({
@@ -72,28 +79,37 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
     setIsModalOpen(true);
   };
 
-  const handleSaveClient = (e: React.FormEvent) => {
+  const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingClient) {
-      setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientForm } as Client : c));
-    } else {
-      const newClient = {
-        ...clientForm,
-        id: Math.random().toString(36).substr(2, 9),
-        lastAction: 'Cliente cadastrado agora',
-        notes: ''
-      } as Client;
-      setClients([newClient, ...clients]);
-      setSelectedClientId(newClient.id);
+    try {
+      if (editingClient) {
+        await updateClient(editingClient.id, tenant?.id || null, clientForm);
+        setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientForm } as Client : c));
+      } else {
+        const newClient = await createClient(tenant?.id || null, clientForm as any);
+        setClients([newClient, ...clients]);
+        setSelectedClientId(newClient.id);
+      }
+      setIsModalOpen(false);
+      loadClients();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar cliente.');
     }
-    setIsModalOpen(false);
   };
 
-  const handleDeleteClient = (id: string) => {
+  const handleDeleteClient = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este cliente?')) {
-      setClients(clients.filter(c => c.id !== id));
-      if (selectedClientId === id) setSelectedClientId(clients[0]?.id);
-      setIsModalOpen(false);
+      try {
+        await deleteClient(id, tenant?.id || null);
+        const filtered = clients.filter(c => c.id !== id);
+        setClients(filtered);
+        if (selectedClientId === id) setSelectedClientId(filtered[0]?.id || null);
+        setIsModalOpen(false);
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao excluir cliente.');
+      }
     }
   };
 
@@ -130,7 +146,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
               onClick={() => setSelectedClientId(client.id)}
               className={`w-full flex items-center gap-4 p-4 rounded-3xl transition-all group ${selectedClientId === client.id ? 'bg-rose-50 dark:bg-rose-900/20 border-r-4 border-rose-500' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
             >
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white shadow-sm transition-transform group-hover:scale-110 ${client.id === '1' || client.id.length > 5 ? 'bg-rose-500' : 'bg-legal-navy dark:bg-slate-700'}`}>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white shadow-sm transition-transform group-hover:scale-110 ${selectedClientId === client.id ? 'bg-rose-500' : 'bg-legal-navy dark:bg-slate-700'}`}>
                 {(client.name || '??').substring(0, 2).toUpperCase()}
               </div>
               <div className="text-left overflow-hidden">
@@ -227,7 +243,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
                       <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest pt-2">
                         <div className="flex items-center gap-2">
                           <Clock size={12} />
-                          <span>{selectedClient.lastAction}</span>
+                          <span>{selectedClient.dataCadastro ? new Date(selectedClient.dataCadastro).toLocaleDateString('pt-BR') : 'Hoje'}</span>
                         </div>
                         <span className="text-legal-navy dark:text-white">Dra. Sarah Smith</span>
                       </div>
@@ -246,9 +262,10 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
               {/* Sidebar Area (Notes/Stats) */}
               <div className="space-y-6">
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
-                  <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter mb-4">Notas Jurídicas</h3>
+                  <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tighter mb-4">Informações</h3>
                   <p className="text-sm font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-6 rounded-3xl leading-relaxed min-h-[100px]">
-                    {selectedClient.notes || 'Nenhuma observação cadastrada para este cliente.'}
+                    Cadastrado em: {' '}
+                    <span className="text-slate-700 dark:text-slate-200 uppercase tracking-widest">{selectedClient.dataCadastro ? new Date(selectedClient.dataCadastro).toLocaleDateString('pt-BR') : 'Hoje'}</span>
                   </p>
                 </div>
 
@@ -355,17 +372,6 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ onNavigate }) => {
                   onChange={(e) => setClientForm({...clientForm, email: e.target.value})}
                   className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white"
                   placeholder="email@exemplo.com"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notas Jurídicas</label>
-                <textarea 
-                  rows={3}
-                  value={clientForm.notes || ''}
-                  onChange={(e) => setClientForm({...clientForm, notes: e.target.value})}
-                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white resize-none"
-                  placeholder="Informações relevantes sobre o cliente..."
                 />
               </div>
 

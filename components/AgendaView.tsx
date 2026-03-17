@@ -17,6 +17,9 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { useLanguage } from '../services/languageContext';
+import { useTenant } from '../services/tenantContext';
+import { getAppointments, subscribeToProcesses } from '../services/supabaseService';
+import { Appointment } from '../types';
 
 interface Event {
   id: string;
@@ -37,11 +40,10 @@ export const AgendaView: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   
   // Estado inicial de eventos
-  const [events, setEvents] = useState<Event[]>([
-    { id: '1', title: 'Audiência de Instrução', client: 'Jardel Bandeira', time: '10:00', day: 2, type: 'audiencia', professional: 'Dr. Sarah Smith' },
-    { id: '2', title: 'Reunião de Alinhamento', client: 'Adina Sousa', time: '11:00', day: 3, type: 'reuniao', professional: 'Dr. Sarah Smith' },
-    { id: '3', title: 'Petição Inicial', client: 'Straus 🐿️', time: '14:00', day: 5, type: 'prazo', professional: 'Dra. Elena Silva' }
-  ]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { tenantId } = useTenant();
 
   // Form de novo/editar evento
   const [eventForm, setEventForm] = useState<Partial<Event>>({
@@ -51,7 +53,7 @@ export const AgendaView: React.FC = () => {
   });
 
   const professionals = [
-    { id: '1', name: 'Dr. Sarah Smith', color: 'bg-rose-500' },
+    { id: '1', name: 'Dra. Sarah Smith', color: 'bg-rose-500' },
     { id: '2', name: 'Dr. John Doe', color: 'bg-blue-500' },
     { id: '3', name: 'Dra. Elena Silva', color: 'bg-emerald-500' }
   ];
@@ -74,7 +76,43 @@ export const AgendaView: React.FC = () => {
   ];
 
   // Lógica de Data Real
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 16)); // Começando em 16/03/2026 como no mockup
+  const [currentDate, setCurrentDate] = useState(new Date()); 
+
+  // Efeito para carregar agendamentos do Supabase
+  React.useEffect(() => {
+    if (!tenantId) return;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getAppointments(tenantId);
+        setAppointments(data);
+        
+        // Mapear Appointments para o formato Event usado no grid
+        const mappedEvents: Event[] = data.map(app => {
+          const date = new Date(app.dateTime);
+          return {
+            id: app.id,
+            title: app.service,
+            client: app.clientName || 'Cliente',
+            time: date.getHours().toString().padStart(2, '0') + ':00',
+            day: date.getDay(), // 0-6
+            dateStr: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`, // YYYY-MM-DD local
+            type: app.service.toLowerCase().includes('audi') ? 'audiencia' : 'reuniao',
+            professional: app.professional,
+            notes: app.notes
+          };
+        });
+        setEvents(mappedEvents as any);
+      } catch (error) {
+        console.error('Erro ao carregar agendamentos:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [tenantId]);
 
   const getWeekDays = (date: Date) => {
     const start = new Date(date);
@@ -309,10 +347,14 @@ export const AgendaView: React.FC = () => {
                     <div key={hIndex} className="flex border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 dark:hover:bg-slate-800/10 transition-colors">
                       <div className="w-20 p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 border-r border-slate-50 dark:border-slate-800 text-center">{hour}</div>
                       {(viewMode === 'day' ? [0] : Array.from({ length: 7 }, (_, i) => i)).map((dIndex) => {
-                        // Lógica de mapeamento de evento (simplificada para demonstração)
-                        const event = viewMode === 'day' 
-                          ? filteredEvents.find(e => e.time === hour) // No modo dia simplificamos
-                          : filteredEvents.find(e => e.time === hour && e.day === dIndex + 1);
+                        // Lógica de mapeamento de evento (Baseada na data real do slot)
+                        const slotDate = viewMode === 'day' ? currentDate : currentDays[dIndex].full;
+                        const slotDateStr = `${slotDate.getFullYear()}-${(slotDate.getMonth() + 1).toString().padStart(2, '0')}-${slotDate.getDate().toString().padStart(2, '0')}`;
+
+                        const event = filteredEvents.find((e: any) => 
+                          e.dateStr === slotDateStr && 
+                          e.time === hour
+                        );
                         
                         return (
                           <div key={dIndex} className="flex-1 p-1 border-r last:border-r-0 border-slate-50 dark:border-slate-800 relative group min-h-[80px]">

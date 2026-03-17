@@ -51,13 +51,27 @@ import {
   Mic,
   Square,
   Circle,
-  List
+  List,
+  CalendarCheck,
 } from 'lucide-react';
-import { ChatConversation, ChatMessage } from '../types.ts';
+import { 
+  ChatConversation, 
+  ChatMessage, 
+  Client, 
+  Appointment 
+} from '../types.ts';
 import { supabase } from '../services/supabaseClient';
 import { io } from 'socket.io-client';
 import { useTenant } from '../services/tenantContext';
 import { useLanguage } from '../services/languageContext';
+import { 
+  getProfiles,
+  getChatConversations,
+  sendChatMessage,
+  getClientByPhone, 
+  createClient, 
+  createAppointment 
+} from '../services/supabaseService';
 import { WhatsAppConnector } from './WhatsAppConnector';
 import { AudioPlayer } from './AudioPlayer';
 
@@ -248,6 +262,139 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
   const [newMessage, setNewMessage] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [syncingTool, setSyncingTool] = useState<string | null>(null);
+
+  // Estados para Agendamento
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [appointmentClient, setAppointmentClient] = useState<Partial<Client> | null>(null);
+  const [appointmentData, setAppointmentData] = useState({
+    service: '',
+    professional: 'Dra. Sarah Smith',
+    dateTime: new Date().toISOString().slice(0, 16),
+    status: 'Pendente',
+    notes: ''
+  });
+
+  const handleOpenAppointment = async () => {
+    if (!selectedChat) return;
+    
+    setIsSavingAppointment(true);
+    try {
+      // Buscar se cliente já existe pelo telefone
+      const phone = selectedChat.contactPhone || '';
+      console.log('Buscando cliente para o chat:', { phone, tenantId });
+
+      let existingClient: Client | null = null;
+      if (phone) {
+        try {
+          existingClient = await getClientByPhone(tenantId, phone);
+        } catch (err) {
+          console.error('Erro na busca automática de cliente:', err);
+          // Não trava o fluxo se a busca automática falhar
+        }
+      }
+      
+      if (existingClient) {
+        setAppointmentClient(existingClient);
+      } else {
+        // Pré-preencher dados do chat se for novo
+        setAppointmentClient({
+          name: selectedChat.contactName || '',
+          phone: phone,
+          email: '',
+          sexo: '',
+          endereco: ''
+        });
+      }
+      setIsAppointmentModalOpen(true);
+    } catch (error: any) {
+      console.error('Erro ao preparar agendamento:', error);
+      alert(`Não foi possível abrir o agendamento: ${error.message || 'Erro desconhecido'}`);
+    } finally {
+      setIsSavingAppointment(false);
+    }
+  };
+
+  const handleSaveAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appointmentClient || !tenantId) {
+      alert('Dados insuficientes para salvar o agendamento.');
+      return;
+    }
+
+    setIsSavingAppointment(true);
+    try {
+      let clientId = appointmentClient.id;
+
+      // 1. Se for cliente novo, cadastrar primeiro
+      if (!clientId) {
+        console.log('Cadastrando novo cliente...');
+        const newClient = await createClient(tenantId, {
+          name: appointmentClient.name || 'Cliente Chat',
+          phone: appointmentClient.phone || '',
+          email: appointmentClient.email || '',
+          sexo: appointmentClient.sexo,
+          endereco: appointmentClient.endereco,
+          status: 'Normal'
+        });
+        clientId = newClient.id;
+      }
+
+      // 2. Criar agendamento
+      console.log('Criando agendamento para cliente:', clientId);
+      await createAppointment(tenantId, {
+        clientId: clientId,
+        dateTime: appointmentData.dateTime,
+        service: appointmentData.service,
+        professional: appointmentData.professional,
+        status: appointmentData.status as any,
+        notes: appointmentData.notes
+      });
+
+      // 3. Sincronizar com Google Agenda
+      try {
+        const endDate = new Date(appointmentData.dateTime);
+        endDate.setHours(endDate.getHours() + 1); // Duração padrão 1h
+
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/integrations/google/calendar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tenantId,
+            summary: `${appointmentData.service} - ${appointmentClient.name || 'Cliente'}`,
+            description: `Profissional: ${appointmentData.professional}\nNotas: ${appointmentData.notes || ''}`,
+            startDateTime: new Date(appointmentData.dateTime).toISOString(),
+            endDateTime: endDate.toISOString()
+          })
+        });
+
+        if (!res.ok) {
+          console.warn('Google Calendar sync falhou ou não configurado');
+        } else {
+          console.log('Sincronizado com Google Calendar!');
+        }
+      } catch (gErr) {
+        console.warn('Erro ao chamar API do Google Calendar:', gErr);
+      }
+
+      // 3. Notificar sucesso e fechar
+      setIsAppointmentModalOpen(false);
+      
+      try {
+        await sendChatMessage(selectedChat!.id, `✅ Agendamento realizado com sucesso para o dia ${new Date(appointmentData.dateTime).toLocaleString('pt-BR')}.`, true);
+      } catch (msgErr) {
+        console.warn('Erro ao enviar mensagem de confirmação:', msgErr);
+      }
+
+      alert('Agendamento realizado com sucesso!');
+      
+    } catch (error: any) {
+      console.error('Erro ao salvar agendamento:', error);
+      alert(`Erro ao salvar agendamento: ${error.message || 'Erro desconhecido'}`);
+    } finally {
+      setIsSavingAppointment(false);
+    }
+  };
   const [deletingChatId, setDeletingChatId] = useState<string | null>(null);
 
   // Quick Replies State
@@ -1437,7 +1584,10 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-0.5">
-                        <h4 className={`font-black text-sm truncate ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>{chat.contactName}</h4>
+                        <h4 className={`font-black text-sm truncate flex items-center gap-2 ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>
+                          {chat.isGroup && <Users size={14} className="text-legal-bronze shrink-0" />}
+                          {chat.contactName}
+                        </h4>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
                       </div>
                       <div className="flex justify-between items-center mb-1">
@@ -1506,7 +1656,10 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                 </button>
                 <img src={selectedChat.avatar} alt={selectedChat.contactName} className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
                 <div className="hidden sm:block">
-                  <h3 className="font-black text-legal-navy dark:text-white leading-none mb-1 text-sm md:text-base">{selectedChat.contactName}</h3>
+                  <h3 className="font-black text-legal-navy dark:text-white leading-none mb-1 text-sm md:text-base flex items-center gap-2">
+                    {selectedChat.isGroup && <Users size={18} className="text-legal-bronze shrink-0" />}
+                    {selectedChat.contactName}
+                  </h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
@@ -1561,17 +1714,18 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
               </div>
 
               <div className="flex items-center gap-1 md:gap-2">
-                <div className="flex items-center gap-1 mr-1 md:mr-4 px-2 py-1 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
-                  <button onClick={() => handleSyncTool('Google Calendar')} className="p-2 text-blue-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all">
-                    {syncingTool === 'Google Calendar' ? <Loader2 size={18} className="animate-spin" /> : <Calendar size={18} />}
-                  </button>
-                  <button onClick={() => handleSyncTool('Dropbox')} className="p-2 text-sky-500 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all">
-                    {syncingTool === 'Dropbox' ? <Loader2 size={18} className="animate-spin" /> : <FolderOpen size={18} />}
-                  </button>
-                  <button onClick={() => handleSyncTool('Trello')} className="p-2 text-indigo-600 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all">
-                    {syncingTool === 'Trello' ? <Loader2 size={18} className="animate-spin" /> : <Layout size={18} />}
-                  </button>
-                </div>
+                <button 
+                  onClick={handleOpenAppointment}
+                  disabled={isSavingAppointment}
+                  className="mr-2 px-6 py-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-500/20 transition-all active:scale-95 flex items-center gap-2 group border border-rose-400/20"
+                >
+                  {isSavingAppointment ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <CalendarCheck size={16} className="group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>Agendar</span>
+                </button>
 
                 {/* Botão Excluir Conversa — sempre visível no header */}
                 {chatTab === 'external' && (
@@ -2335,6 +2489,174 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
             }
           }}
         />
+      )}
+
+      {/* Modal de Agendamento */}
+      {isAppointmentModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={() => setIsAppointmentModalOpen(false)}></div>
+          <div className="relative bg-white dark:bg-slate-900 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+            <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex items-center justify-between bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm sticky top-0 z-10">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-rose-500 rounded-2xl shadow-lg shadow-rose-500/20 text-white">
+                  <CalendarCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-legal-navy dark:text-white uppercase tracking-tight">Agendar Atendimento</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Confirme os dados e salve na agenda</p>
+                </div>
+              </div>
+              <button onClick={() => setIsAppointmentModalOpen(false)} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAppointment} className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+              {/* Seção Cliente */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-1 h-4 bg-rose-500 rounded-full"></div>
+                  <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Dados do Cliente</h4>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                  <input 
+                    type="text"
+                    required
+                    value={appointmentClient?.name || ''}
+                    onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, name: e.target.value})}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
+                    placeholder="Nome do cliente"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp / Telefone</label>
+                    <input 
+                      type="text"
+                      required
+                      value={appointmentClient?.phone || ''}
+                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, phone: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
+                      placeholder="Telefone"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
+                    <input 
+                      type="email"
+                      value={appointmentClient?.email || ''}
+                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, email: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
+                      placeholder="e-mail@exemplo.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sexo</label>
+                    <select 
+                      value={appointmentClient?.sexo || ''}
+                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, sexo: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
+                    >
+                      <option value="">Selecionar...</option>
+                      <option value="Feminino">Feminino</option>
+                      <option value="Masculino">Masculino</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Endereço</label>
+                    <input 
+                      type="text"
+                      value={appointmentClient?.endereco || ''}
+                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, endereco: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
+                      placeholder="Endereço completo"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção Agendamento */}
+              <div className="space-y-4 pt-4 border-t border-slate-50 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-1 h-4 bg-blue-500 rounded-full"></div>
+                  <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Detalhes do Agendamento</h4>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Serviço</label>
+                  <input 
+                    type="text"
+                    required
+                    value={appointmentData.service}
+                    onChange={(e) => setAppointmentData({...appointmentData, service: e.target.value})}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
+                    placeholder="Ex: Botox, Consulta Jurídica, etc."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Profissional</label>
+                    <select 
+                      value={appointmentData.professional}
+                      onChange={(e) => setAppointmentData({...appointmentData, professional: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
+                    >
+                      <option value="Dra. Sarah Smith">Dra. Sarah Smith</option>
+                      <option value="Dr. John Doe">Dr. John Doe</option>
+                      <option value="Dra. Elena Silva">Dra. Elena Silva</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data e Hora</label>
+                    <input 
+                      type="datetime-local"
+                      required
+                      value={appointmentData.dateTime}
+                      onChange={(e) => setAppointmentData({...appointmentData, dateTime: e.target.value})}
+                      className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notas / Observações</label>
+                  <textarea 
+                    value={appointmentData.notes}
+                    onChange={(e) => setAppointmentData({...appointmentData, notes: e.target.value})}
+                    rows={3}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30 resize-none"
+                    placeholder="Observações adicionais sobre o atendimento..."
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button
+                  type="submit"
+                  disabled={isSavingAppointment}
+                  className="w-full py-5 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] shadow-2xl shadow-rose-500/40 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 disabled:opacity-70 disabled:grayscale disabled:cursor-not-allowed"
+                >
+                  {isSavingAppointment ? (
+                    <Loader2 size={24} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Save size={20} />
+                      <span>Confirmar Agendamento</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div >
   );

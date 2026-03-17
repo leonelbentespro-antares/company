@@ -133,6 +133,7 @@ export interface ChatConversation {
   avatar?: string;
   assignedTo?: string;
   internalType?: 'external' | 'internal';
+  isGroup?: boolean;
   messages: ChatMessage[];
 }
 
@@ -235,4 +236,37 @@ export interface AIAuditLog {
   latencyMs?: number;
   sentimentScore?: number;
   createdAt: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  status: 'Normal' | 'VIP' | 'Crítico' | 'VIP GOLD';
+  sexo?: string;
+  endereco?: string;
+  dataNascimento?: string;
+  dataCadastro?: string;
+}
+
+export interface Appointment {
+  id: string;
+  clientId?: string;
+  clientName?: string;
+  dateTime: string;
+  service: string;
+  professional: string;
+  status: 'Pendente' | 'Confirmado' | 'Cancelado' | 'Concluído' | 'Faltou';
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface FinancialReceivable {
+  id: string;
+  client: string;
+  value: number;
+  status: 'Paid' | 'Regular' | 'Late';
+  dueDate: string;
+  category: string;
 }
