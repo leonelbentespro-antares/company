@@ -113,26 +113,10 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
 
         /**
          * EVITANDO DUPLICAÇÃO:
-         * Se conseguimos o waMessageId do provedor, geramos o UUIDv5 determinístico (mesmo usado no Webhook).
-         * Se NÃO conseguimos (fallback), NÃO salvamos no banco agora. 
-         * O front-end já fez o update otimista e o Webhook irá processar a mensagem real em instantes 
-         * com o ID correto, evitando "órfãos" com ID aleatório.
+         * O texto enviado é repassado pela UAZAPI e processado no Webhook (`messageProcessor.ts`),
+         * garantindo que a ID recebida pela API externa é a única a gerar gravação síncrona
+         * evitando o problema das "duas bolhas" de mensagem na interface.
          */
-        if (conversationId && waMessageId) {
-            const safeId = uuidv5(waMessageId, UUID_NAMESPACE);
-            console.log(`[Messages Router] Persistindo mensagem com SafeId: ${safeId}`);
-            
-            await supabase.from('chat_messages').upsert([{
-                id: safeId,
-                conversation_id: conversationId,
-                tenant_id: tenantId, // Importante para RLS e consistência
-                text: text,
-                from_me: true,
-                created_at: new Date().toISOString()
-            }], { onConflict: 'id' });
-        } else if (conversationId) {
-            console.warn(`[Messages Router] waMessageId não obtido. Ignorando persistência imediata para evitar duplicação.`);
-        }
 
         res.json({
             success: true,
@@ -224,18 +208,8 @@ messagesRouter.post('/send-media', authMiddleware, upload.single('file'), async 
             if (newConvo) conversationId = newConvo.id;
         }
 
-        // Salva a mensagem (usando extended text / mediaType)
-        if (conversationId) {
-            const safeId = waMessageId ? uuidv5(waMessageId, UUID_NAMESPACE) : uuidv4();
-            await supabase.from('chat_messages').upsert([{
-                id: safeId,
-                conversation_id: conversationId,
-                text: caption || `[${uazapiMediaType.toUpperCase()}]`,
-                media_url: mediaUrl,
-                media_type: uazapiMediaType,
-                from_me: true
-            }], { onConflict: 'id' });
-        }
+        // A gravação em `chat_messages` ocorre exclusivamente via Webhook (`messageProcessor.ts`)
+        // para garantir consistência dos IDs da mensagem e evitar duplicação.
 
         res.json({ success: true, mediaUrl });
     } catch (err: any) {
@@ -296,7 +270,9 @@ messagesRouter.get('/conversations', authMiddleware, async (req, res) => {
                 internal_type,
                 is_group
             `)
-            .eq('tenant_id', tenantId);
+            .eq('tenant_id', tenantId)
+            .order('updated_at', { ascending: false })
+            .limit(100);
 
         if (type) {
             query = query.eq('internal_type', type);
@@ -402,7 +378,8 @@ messagesRouter.get('/:conversationId', authMiddleware, async (req, res) => {
             .from('chat_messages')
             .select('*')
             .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: false })
+            .limit(50);
 
         if (error) throw error;
 
@@ -413,7 +390,7 @@ messagesRouter.get('/:conversationId', authMiddleware, async (req, res) => {
             fromMe: m.from_me,
             mediaUrl: m.media_url || null,
             mediaType: m.media_type || null
-        })) || [];
+        })).reverse() || [];
 
         res.json(formatted);
     } catch (err) {
