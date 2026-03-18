@@ -128,7 +128,6 @@ messagesRouter.post('/send', authMiddleware, async (req, res) => {
                 tenant_id: tenantId, // Importante para RLS e consistência
                 text: text,
                 from_me: true,
-                status: 'sent',
                 created_at: new Date().toISOString()
             }], { onConflict: 'id' });
         } else if (conversationId) {

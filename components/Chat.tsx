@@ -54,23 +54,23 @@ import {
   List,
   CalendarCheck,
 } from 'lucide-react';
-import { 
-  ChatConversation, 
-  ChatMessage, 
-  Client, 
-  Appointment 
+import {
+  ChatConversation,
+  ChatMessage,
+  Client,
+  Appointment
 } from '../types.ts';
 import { supabase } from '../services/supabaseClient';
 import { io } from 'socket.io-client';
 import { useTenant } from '../services/tenantContext';
 import { useLanguage } from '../services/languageContext';
-import { 
+import {
   getProfiles,
   getChatConversations,
   sendChatMessage,
-  getClientByPhone, 
-  createClient, 
-  createAppointment 
+  getClientByPhone,
+  createClient,
+  createAppointment
 } from '../services/supabaseService';
 import { WhatsAppConnector } from './WhatsAppConnector';
 import { AudioPlayer } from './AudioPlayer';
@@ -178,6 +178,14 @@ const MOCK_INTERNAL_CONVERSATIONS: ChatConversation[] = [];
 const EMOJIS = ['⚖️', '📋', '✅', '🤝', '📅', '🏛️', '💡', '👍', '😊', '📎'];
 const TAG_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b', '#A67C52'];
 
+const formatTimestampManaus = (date: string | Date): string => {
+  return new Date(date).toLocaleTimeString('pt-BR', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    timeZone: 'America/Manaus' 
+  });
+};
+
 interface ChatProps {
   superviseMember?: { id: string; name: string } | null;
   onClearSupervision?: () => void;
@@ -188,7 +196,8 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
   const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
+  const rawApiUrl = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://187.77.232.237');
+  const API_URL = rawApiUrl.replace(/\/$/, '');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(false);
 
@@ -277,7 +286,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
   const handleOpenAppointment = async () => {
     if (!selectedChat) return;
-    
+
     setIsSavingAppointment(true);
     try {
       // Buscar se cliente já existe pelo telefone
@@ -293,7 +302,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
           // Não trava o fluxo se a busca automática falhar
         }
       }
-      
+
       if (existingClient) {
         setAppointmentClient(existingClient);
       } else {
@@ -379,7 +388,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
       // 3. Notificar sucesso e fechar
       setIsAppointmentModalOpen(false);
-      
+
       try {
         await sendChatMessage(selectedChat!.id, `✅ Agendamento realizado com sucesso para o dia ${new Date(appointmentData.dateTime).toLocaleString('pt-BR')}.`, true);
       } catch (msgErr) {
@@ -387,7 +396,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
       }
 
       alert('Agendamento realizado com sucesso!');
-      
+
     } catch (error: any) {
       console.error('Erro ao salvar agendamento:', error);
       alert(`Erro ao salvar agendamento: ${error.message || 'Erro desconhecido'}`);
@@ -512,7 +521,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
         body: JSON.stringify({ assignedTo })
       });
       if (res.ok) {
-        setExternalConversations(prev => 
+        setExternalConversations(prev =>
           prev.map(c => c.id === conversationId ? { ...c, assignedTo: assignedTo || undefined } : c)
         );
       }
@@ -583,11 +592,11 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
         if (msg && data.conversationId) {
           const newMsg = {
             id: msg.id,
-            text: msg.text || '',
-            timestamp: new Date(msg.created_at || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' }),
-            fromMe: msg.from_me || false,
-            mediaUrl: msg.media_url || null,
-            mediaType: msg.media_type || null
+            text: msg.text || msg.content || msg.body || '',
+            timestamp: msg.timestamp || (msg.created_at ? formatTimestampManaus(msg.created_at) : new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Manaus' })),
+            fromMe: msg.from_me ?? msg.fromMe ?? false,
+            mediaUrl: msg.media_url ?? msg.mediaUrl ?? null,
+            mediaType: msg.media_type ?? msg.mediaType ?? null
           };
 
           setExternalConversations(prev => {
@@ -599,15 +608,15 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
             // DEDUPLICAÇÃO REFORÇADA:
             const messageExists = conversation.messages?.some(m => m.id === newMsg.id);
-            
+
             // Busca mensagens temporárias que podem ser a mesma que acabou de chegar
             // Critérios: mesmo texto (sem espaços extras) e enviada por mim
             const tempMatch = !messageExists && newMsg.fromMe
-              ? conversation.messages?.find(m => 
-                  m.fromMe && 
-                  String(m.id).startsWith('temp-') && 
-                  m.text?.trim() === newMsg.text?.trim()
-                )
+              ? conversation.messages?.find(m =>
+                m.fromMe &&
+                String(m.id).startsWith('temp-') &&
+                m.text?.trim() === newMsg.text?.trim()
+              )
               : null;
 
             let messages = conversation.messages || [];
@@ -637,11 +646,11 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
             if (prev && prev.id === data.conversationId) {
               const messageExists = prev.messages?.some(m => m.id === newMsg.id);
               const tempMatch = !messageExists && newMsg.fromMe
-                ? prev.messages?.find(m => 
-                    m.fromMe && 
-                    String(m.id).startsWith('temp-') && 
-                    m.text?.trim() === newMsg.text?.trim()
-                  )
+                ? prev.messages?.find(m =>
+                  m.fromMe &&
+                  String(m.id).startsWith('temp-') &&
+                  m.text?.trim() === newMsg.text?.trim()
+                )
                 : null;
 
               let messages = prev.messages || [];
@@ -695,7 +704,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
   const loadChatMessages = async (conversationId: string) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = API_URL;
       const res = await fetch(`${apiUrl}/api/messages/${conversationId}`, {
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
@@ -703,7 +712,17 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
         }
       });
       if (res.ok) {
-        const msgs = await res.json();
+        const rawMsgs = await res.json();
+        // Garante que as mensagens tenham o formato esperado (camelCase e campo 'text')
+        const msgs = rawMsgs.map((m: any) => ({
+          id: m.id,
+          text: m.text || m.content || m.body || '',
+          timestamp: m.timestamp || (m.created_at ? formatTimestampManaus(m.created_at) : ''),
+          fromMe: m.fromMe ?? m.from_me ?? false,
+          mediaUrl: m.mediaUrl ?? m.media_url ?? null,
+          mediaType: m.mediaType ?? m.media_type ?? null
+        }));
+
         setExternalConversations(prev => prev.map(c => {
           if (c.id === conversationId) return { ...c, messages: msgs };
           return c;
@@ -722,7 +741,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
     setDeletingChatId(conversationId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://187.77.232.237';
+      const apiUrl = API_URL;
       const res = await fetch(`${apiUrl}/api/messages/${conversationId}`, {
         method: 'DELETE',
         headers: {
@@ -849,7 +868,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
         timestamp: 'Agora'
       };
       if (selectedChat.id === c.id) setSelectedChat(updated);
-      return c;
+      return updated; // ← corrigido: retorna `updated` (com a nova msg) em vez de `c`
     });
 
     if (chatTab === 'external') {
@@ -857,12 +876,9 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
       // Realiza disparo para o Backend via POST
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
-        const apiUrl = rawApiUrl.replace(/\/$/, '');
-
         const phone = selectedChat.contactPhone || selectedChat.contactName;
 
-        const resp = await fetch(`${apiUrl}/api/messages/send`, {
+        const resp = await fetch(`${API_URL}/api/messages/send`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -939,17 +955,12 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
       formData.append('caption', '');
 
       const { data: { session } } = await supabase.auth.getSession();
-      const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
-      // Remover barra final se existir para evitar // na URL
-      const apiUrl = rawApiUrl.replace(/\/$/, '');
 
-      console.log(`[DEBUG_UPLOAD] Enviando para: ${apiUrl}/api/messages/send-media`);
-
-      const response = await fetch(`${apiUrl}/api/messages/send-media`, {
+      const response = await fetch(`${API_URL}/api/messages/send-media`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenant.id
+          'x-tenant-id': tenantId || ''
         },
         body: formData
       });
@@ -1072,14 +1083,12 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
       formData.append('isPtt', 'true');
 
       const { data: { session } } = await supabase.auth.getSession();
-      const rawApiUrl = import.meta.env.VITE_API_URL || 'https://lexhub.company';
-      const apiUrl = rawApiUrl.replace(/\/$/, '');
 
-      const response = await fetch(`${apiUrl}/api/messages/send-media`, {
+      const response = await fetch(`${API_URL}/api/messages/send-media`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`,
-          'x-tenant-id': tenant.id
+          'x-tenant-id': tenantId || ''
         },
         body: formData
       });
@@ -1448,7 +1457,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                   <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{superviseMember.name}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={onClearSupervision}
                 className="p-2 hover:bg-legal-bronze/20 text-legal-bronze rounded-xl transition-colors"
                 title="Sair da supervisão"
@@ -1463,18 +1472,18 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
               onClick={() => { setMainTab('pending'); setSelectedChat(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${mainTab === 'pending' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Clock size={14} /> {t.chat.pending}
+              <MessageSquareText size={14} /> {t.chat.pending}
             </button>
             <button
               onClick={() => { setMainTab('inbox'); setSelectedChat(null); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all ${mainTab === 'inbox' ? 'bg-legal-navy text-white shadow-lg shadow-legal-navy/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-slate-600'}`}
             >
-              <Archive size={14} /> {t.chat.inbox}
+              <MessageCircle size={14} /> {t.chat.inbox}
             </button>
             <button
               onClick={() => setIsWhatsAppModalOpen(true)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-2xl transition-all shadow-lg ${isWhatsAppConnected 
-                ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+              className={`flex items-center gap-2 px-4 py-2 rounded-2xl transition-all shadow-lg ${isWhatsAppConnected
+                ? 'bg-emerald-500 text-white shadow-emerald-500/20'
                 : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600 shadow-slate-200/20 dark:shadow-none'}`}
               title={isWhatsAppConnected ? 'WhatsApp Conectado' : t.whatsapp.startConnection}
             >
@@ -1578,7 +1587,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                     onClick={() => handleSelectChat(chat)}
                   >
                     <div className="relative shrink-0">
-                      <img src={chat.avatar} alt={chat.contactName} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
+                      <img src={chat.avatar} alt={chat.contactName || chat.contactPhone || 'Contato'} className="w-12 h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
                       {chat.online && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-white dark:border-slate-800 rounded-full"></div>}
                     </div>
 
@@ -1586,7 +1595,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                       <div className="flex justify-between items-start mb-0.5">
                         <h4 className={`font-black text-sm truncate flex items-center gap-2 ${selectedChat?.id === chat.id ? 'text-legal-navy dark:text-legal-bronze' : 'text-slate-700 dark:text-slate-200'}`}>
                           {chat.isGroup && <Users size={14} className="text-legal-bronze shrink-0" />}
-                          {chat.contactName}
+                          {chat.contactName || chat.contactPhone || 'Sem nome'}
                         </h4>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">{chat.timestamp}</span>
                       </div>
@@ -1636,7 +1645,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
               <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full">
                 <MessageSquareText size={32} className="text-slate-400" />
               </div>
-              <p className="text-sm font-bold text-slate-500">Nenhuma conversa encontrada em {mainTab === 'inbox' ? 'Caixa de Entrada' : 'Pendentes'}</p>
+              <p className="text-sm font-bold text-slate-500">{t.chat.noConversations} em {mainTab === 'inbox' ? t.chat.inbox : t.chat.pending}</p>
             </div>
           )}
         </div>
@@ -1654,11 +1663,11 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <img src={selectedChat.avatar} alt={selectedChat.contactName} className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
+                <img src={selectedChat.avatar} alt={selectedChat.contactName || selectedChat.contactPhone || 'Contato'} className="w-10 h-10 md:w-12 md:h-12 rounded-2xl object-cover border border-slate-100 dark:border-slate-700" />
                 <div className="hidden sm:block">
                   <h3 className="font-black text-legal-navy dark:text-white leading-none mb-1 text-sm md:text-base flex items-center gap-2">
                     {selectedChat.isGroup && <Users size={18} className="text-legal-bronze shrink-0" />}
-                    {selectedChat.contactName}
+                    {selectedChat.contactName || selectedChat.contactPhone || 'Conversa'}
                   </h3>
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-[9px] md:text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
@@ -1714,7 +1723,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
               </div>
 
               <div className="flex items-center gap-1 md:gap-2">
-                <button 
+                <button
                   onClick={handleOpenAppointment}
                   disabled={isSavingAppointment}
                   className="mr-2 px-6 py-2 bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-500/20 transition-all active:scale-95 flex items-center gap-2 group border border-rose-400/20"
@@ -1809,7 +1818,7 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 bg-slate-50/30 dark:bg-slate-900/30">
-              {selectedChat.messages.map((msg) => {
+              {(selectedChat.messages || []).map((msg) => {
                 const isSystem = msg.text.startsWith('__SYSTEM__');
                 if (isSystem) {
                   const displayText = msg.text.replace('__SYSTEM__', '').trim();
@@ -2480,8 +2489,8 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
       }
       {/* MODAL: WHATSAPP CONNECTOR */}
       {isWhatsAppModalOpen && (
-        <WhatsAppConnector 
-          onClose={() => setIsWhatsAppModalOpen(false)} 
+        <WhatsAppConnector
+          onClose={() => setIsWhatsAppModalOpen(false)}
           onSuccess={() => {
             setIsWhatsAppModalOpen(false);
             if (typeof (window as any).loadConversations === 'function') {
@@ -2518,14 +2527,14 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                   <div className="w-1 h-4 bg-rose-500 rounded-full"></div>
                   <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Dados do Cliente</h4>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={appointmentClient?.name || ''}
-                    onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, name: e.target.value})}
+                    onChange={(e) => appointmentClient && setAppointmentClient({ ...appointmentClient, name: e.target.value })}
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
                     placeholder="Nome do cliente"
                   />
@@ -2534,21 +2543,21 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp / Telefone</label>
-                    <input 
+                    <input
                       type="text"
                       required
                       value={appointmentClient?.phone || ''}
-                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, phone: e.target.value})}
+                      onChange={(e) => appointmentClient && setAppointmentClient({ ...appointmentClient, phone: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
                       placeholder="Telefone"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail</label>
-                    <input 
+                    <input
                       type="email"
                       value={appointmentClient?.email || ''}
-                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, email: e.target.value})}
+                      onChange={(e) => appointmentClient && setAppointmentClient({ ...appointmentClient, email: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
                       placeholder="e-mail@exemplo.com"
                     />
@@ -2558,9 +2567,9 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sexo</label>
-                    <select 
+                    <select
                       value={appointmentClient?.sexo || ''}
-                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, sexo: e.target.value})}
+                      onChange={(e) => appointmentClient && setAppointmentClient({ ...appointmentClient, sexo: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
                     >
                       <option value="">Selecionar...</option>
@@ -2571,10 +2580,10 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Endereço</label>
-                    <input 
+                    <input
                       type="text"
                       value={appointmentClient?.endereco || ''}
-                      onChange={(e) => appointmentClient && setAppointmentClient({...appointmentClient, endereco: e.target.value})}
+                      onChange={(e) => appointmentClient && setAppointmentClient({ ...appointmentClient, endereco: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white transition-all focus:border-rose-500/30"
                       placeholder="Endereço completo"
                     />
@@ -2591,11 +2600,11 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Serviço</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={appointmentData.service}
-                    onChange={(e) => setAppointmentData({...appointmentData, service: e.target.value})}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, service: e.target.value })}
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
                     placeholder="Ex: Botox, Consulta Jurídica, etc."
                   />
@@ -2604,9 +2613,9 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Profissional</label>
-                    <select 
+                    <select
                       value={appointmentData.professional}
-                      onChange={(e) => setAppointmentData({...appointmentData, professional: e.target.value})}
+                      onChange={(e) => setAppointmentData({ ...appointmentData, professional: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
                     >
                       <option value="Dra. Sarah Smith">Dra. Sarah Smith</option>
@@ -2616,11 +2625,11 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data e Hora</label>
-                    <input 
+                    <input
                       type="datetime-local"
                       required
                       value={appointmentData.dateTime}
-                      onChange={(e) => setAppointmentData({...appointmentData, dateTime: e.target.value})}
+                      onChange={(e) => setAppointmentData({ ...appointmentData, dateTime: e.target.value })}
                       className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30"
                     />
                   </div>
@@ -2628,9 +2637,9 @@ export const Chat: React.FC<ChatProps> = ({ superviseMember, onClearSupervision 
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Notas / Observações</label>
-                  <textarea 
+                  <textarea
                     value={appointmentData.notes}
-                    onChange={(e) => setAppointmentData({...appointmentData, notes: e.target.value})}
+                    onChange={(e) => setAppointmentData({ ...appointmentData, notes: e.target.value })}
                     rows={3}
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-blue-500/5 outline-none dark:text-white transition-all focus:border-blue-500/30 resize-none"
                     placeholder="Observações adicionais sobre o atendimento..."

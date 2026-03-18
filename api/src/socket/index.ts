@@ -11,6 +11,18 @@ import type { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { supabaseAdmin } from '../config/supabase.js';
 
+const connectedSockets = new Map<string, { tenantId: string, userId: string }>();
+
+function getOnlineUsers(tenantId: string): string[] {
+    const users = new Set<string>();
+    for (const [_, data] of connectedSockets.entries()) {
+        if (data.tenantId === tenantId && data.userId) {
+            users.add(data.userId);
+        }
+    }
+    return Array.from(users);
+}
+
 let io: SocketIOServer | null = null;
 
 // ============================================================
@@ -36,32 +48,31 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         let tenantId = socket.handshake.auth['tenantId'] as string | undefined;
         const token = socket.handshake.auth['token'] as string | undefined;
 
-        if (!tenantId && token) {
+        // Sempre tenta extrair o userId do token JWT (independente do tenantId já ter sido passado)
+        if (token) {
             try {
-                // Decodifica sem validar assinatura para contornar discrepância de algoritmos (HS256 vs ES256)
-                // A validação real ocorre ao consultar a tabela tenant_users logo abaixo.
                 const decoded = jwt.decode(token) as any;
                 
                 if (decoded && decoded.sub) {
                     const userId = decoded.sub;
-                    
-                    const query = supabaseAdmin
-                        .from('tenant_users')
-                        .select('tenant_id')
-                        .eq('user_id', userId);
-                    
-                    if (tenantId && tenantId.trim() !== '') {
-                        query.eq('tenant_id', tenantId);
-                    }
+                    socket.data.userId = userId;
 
-                    const { data: tenantUsers } = await query;
-                    
-                    if (tenantUsers && tenantUsers.length > 0) {
-                        // Prioriza o tenantId vindo do auth, ou pega o primeiro
-                        tenantId = (tenantId && tenantId.trim() !== '') ? tenantId : (tenantUsers[0] as any).tenant_id;
-                        console.log(`[Socket] Tenant detectado para usuário ${userId}: ${tenantId}`);
+                    // Se tenantId não foi passado no handshake, resolvê-lo via banco
+                    if (!tenantId || tenantId.trim() === '') {
+                        const { data: tenantUsers } = await supabaseAdmin
+                            .from('tenant_users')
+                            .select('tenant_id')
+                            .eq('user_id', userId)
+                            .limit(1);
+                        
+                        if (tenantUsers && tenantUsers.length > 0) {
+                            tenantId = (tenantUsers[0] as any).tenant_id;
+                            console.log(`[Socket] Tenant resolvido para usuário ${userId}: ${tenantId}`);
+                        } else {
+                            console.warn(`[Socket] Nenhum tenant encontrado para o usuário ${userId}`);
+                        }
                     } else {
-                        console.warn(`[Socket] Nenhum tenant encontrado para o usuário ${userId}`);
+                        console.log(`[Socket] UserId ${userId} extraído, tenantId já presente: ${tenantId}`);
                     }
                 }
             } catch (err) {
@@ -79,8 +90,21 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
         void socket.join(`tenant:${tenantId}`);
         console.log(`[Socket] ✅ Tenant ${tenantId} conectado. Socket: ${socket.id}`);
 
+        if (socket.data.userId) {
+            connectedSockets.set(socket.id, { tenantId, userId: socket.data.userId });
+            emitToTenant(tenantId, 'presence_update', getOnlineUsers(tenantId));
+        }
+
+        socket.on('get_presence', () => {
+            socket.emit('presence_update', getOnlineUsers(tenantId!));
+        });
+
         socket.on('disconnect', (reason) => {
             console.log(`[Socket] Tenant ${tenantId} desconectado. Razão: ${reason}`);
+            if (socket.data.userId) {
+                connectedSockets.delete(socket.id);
+                emitToTenant(tenantId!, 'presence_update', getOnlineUsers(tenantId!));
+            }
         });
     });
 

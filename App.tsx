@@ -75,6 +75,7 @@ import { useLanguage } from './services/languageContext.tsx';
 import { PrivacyPolicy } from './components/PrivacyPolicy.tsx';
 import { TermsOfService } from './components/TermsOfService.tsx';
 import { LanguageSelector } from './components/LanguageSelector.tsx';
+import { TodayReminder } from './components/TodayReminder.tsx';
 import { supabase } from './services/supabaseClient.ts';
 
 interface Notification {
@@ -963,6 +964,9 @@ const App: React.FC = () => {
 
       {/* MODAL DE PERFIL DO USUÁRIO */}
       {isProfileModalOpen && renderProfileModal()}
+
+      {/* 📅 LEMBRETE DE COMPROMISSOS DO DIA */}
+      <TodayReminder onNavigate={(tab) => setActiveTab(tab)} />
 
       {/* 🔔 TOAST GLOBAL DE IA (Supabase Realtime) */}
       {aiToast && (

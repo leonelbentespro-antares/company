@@ -4,6 +4,7 @@ import {
     MapPin, Briefcase, Clock, Star, Trash2, Edit2, X, Save, CheckCircle2, Lock, Rocket,
     MailQuestion, CheckCircle, Clock3, AlertCircle, Eye
 } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { PLANS } from '../constants.ts';
 import { PlanName, UserRole } from '../types.ts';
 import { supabase } from '../services/supabaseClient.ts';
@@ -38,6 +39,8 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
 
     const [loading, setLoading] = useState(true);
     const [members, setMembers] = useState<TeamMember[]>([]);
+    const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3005';
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -122,6 +125,36 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
 
     useEffect(() => {
         fetchTeam();
+    }, [tenantId]);
+
+    useEffect(() => {
+        if (!tenantId) return;
+
+        let socket: Socket;
+        
+        const initSocket = async () => {
+            const { data: session } = await supabase.auth.getSession();
+            if (!session?.session?.access_token) return;
+
+            socket = io(API_URL, {
+                auth: { tenantId, token: session.session.access_token },
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                socket.emit('get_presence');
+            });
+
+            socket.on('presence_update', (users: string[]) => {
+                setOnlineUsers(users);
+            });
+        };
+
+        void initSocket();
+
+        return () => {
+            if (socket) socket.disconnect();
+        };
     }, [tenantId]);
 
     const calculateTenure = (startDate: string) => {
@@ -382,15 +415,23 @@ export const Team: React.FC<TeamProps> = ({ onNavigate, onSupervise }) => {
                             </div>
 
                             <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${member.status === 'active'
-                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400'
-                                    : member.status === 'pending'
-                                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400'
-                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-                                    }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : member.status === 'pending' ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
-                                    {member.status === 'active' ? 'Ativo' : member.status === 'pending' ? 'Convite Enviado' : 'Inativo'}
-                                </span>
+                                {(() => {
+                                    const isOnline = onlineUsers.includes(member.id);
+                                    if (member.status === 'pending') {
+                                        return (
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                Convite Enviado
+                                            </span>
+                                        );
+                                    }
+                                    return (
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${isOnline ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} style={{boxShadow: isOnline ? '0 0 8px rgba(16, 185, 129, 0.5)' : 'none'}}></span>
+                                            {isOnline ? 'Online' : 'Offline'}
+                                        </span>
+                                    );
+                                })()}
                                 {member.status?.toString().toLowerCase() === 'active' && (
                                     <div className="flex flex-col items-end gap-1">
                                         <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">

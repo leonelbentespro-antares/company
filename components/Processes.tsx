@@ -557,56 +557,34 @@ export const Processes: React.FC = () => {
         }
     };
 
-    const handlePjeSync = async () => {
-        setIsPjeSyncing(true);
-        setShowPjeError(false);
-        try {
-            // 1. Tentar conectar com o PJeOffice local (porta padrão 8800)
-            const pjeUrl = 'http://127.0.0.1:8800/pjeOffice/';
-            const checkRes = await fetch(pjeUrl, { mode: 'no-cors' }).catch(() => null);
+    const handlePjeSync = () => {
+        // Abre o portal oficial do PJe no navegador
+        // O usuário faz a autenticação no portal e pode sincronizar manualmente.
+        setIsPjeModalOpen(true);
+    };
 
-            if (!checkRes) {
-                throw new Error('PJE_NOT_FOUND');
-            }
+    const handlePjeCertificado = () => {
+        setIsPjeModalOpen(false);
+        // Abre o portal PJe numa nova aba para autenticação com certificado
+        window.open('https://pje.jus.br/modulos/login/login.seam', '_blank', 'noopener,noreferrer');
+        setShowFeedback({ 
+            message: 'Portal PJe aberto! Faça login e copie o número do processo para sincronizar.', 
+            type: 'success' 
+        });
+    };
 
-            // 2. Se respondeu, tentar disparar "assinatura" (Mock local)
-            const payload = {
-                tarefa: "assinarDados",
-                servidor: window.location.origin,
-                codigoPerfil: "lexhub-auth",
-                dados: [
-                    {
-                        idDado: "sync-challenge",
-                        tipoDado: "TEXTO_PURO",
-                        dado: btoa("lexhub-sync-" + Date.now())
-                    }
-                ]
-            };
-
-            const signRes = await fetch('http://127.0.0.1:8800/pjeOffice/requisicao', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            }).catch(() => null);
-
-            if (!signRes || !signRes.ok) {
-                throw new Error('PJE_REJECTED');
-            }
-
-            // Sucesso na assinatura (sincronia do token)
-            setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
-            
-        } catch (err: any) {
-            if (err.message === 'PJE_NOT_FOUND') {
-                setShowPjeError(true);
-            } else {
-                setShowFeedback({ message: t.processes.pjeSyncFailed, type: 'error' });
-            }
-        } finally {
-            setIsPjeSyncing(false);
-        }
+    const handlePjeLogin = (method: 'cpf' | 'govbr') => {
+        setIsPjeModalOpen(false);
+        const url = method === 'govbr'
+            ? 'https://sso.acesso.gov.br/login'
+            : 'https://pje.jus.br/modulos/login/login.seam';
+        window.open(url, '_blank', 'noopener,noreferrer');
+        setShowFeedback({ 
+            message: method === 'govbr' 
+              ? 'Portal Gov.br aberto para autenticação!' 
+              : 'Portal PJe aberto! Faça o login com seu CPF/CNPJ.',
+            type: 'success' 
+        });
     };
 
     const handleDeleteProcess = async () => {
@@ -1433,10 +1411,7 @@ export const Processes: React.FC = () => {
                         <div className="space-y-4">
                             {/* Opção 1: Certificado Digital (PJeOffice) */}
                             <button
-                                onClick={() => {
-                                    setIsPjeModalOpen(false);
-                                    handlePjeSync();
-                                }}
+                                onClick={handlePjeCertificado}
                                 className="w-full relative group p-1 flex items-center bg-transparent hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-emerald-500 dark:hover:border-emerald-500 transition-all text-left overflow-hidden"
                             >
                                 <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
@@ -1447,7 +1422,7 @@ export const Processes: React.FC = () => {
                                 </div>
                                 <div className="pr-4 py-4 flex-1">
                                     <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalCert}</h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t.processes.pjeModalCertDesc}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Abre o portal PJe para autenticação com certificado A1/A3</p>
                                 </div>
                                 <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-emerald-500">
                                     <ChevronRight size={20} />
@@ -1456,14 +1431,7 @@ export const Processes: React.FC = () => {
 
                             {/* Opção 2: CPF/CNPJ */}
                             <button
-                                onClick={() => {
-                                    setIsPjeModalOpen(false);
-                                    setIsPjeSyncing(true);
-                                    setTimeout(() => {
-                                        setIsPjeSyncing(false);
-                                        setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
-                                    }, 2000);
-                                }}
+                                onClick={() => handlePjeLogin('cpf')}
                                 className="w-full relative group p-1 flex items-center bg-transparent hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-blue-500 dark:hover:border-blue-500 transition-all text-left overflow-hidden"
                             >
                                 <div className="absolute inset-y-0 left-0 w-1 bg-blue-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
@@ -1474,6 +1442,7 @@ export const Processes: React.FC = () => {
                                 </div>
                                 <div className="pr-4 py-4 flex-1">
                                     <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalCpfCnpj}</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acessa o portal PJe com login por CPF ou CNPJ</p>
                                 </div>
                                 <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-blue-500">
                                     <ChevronRight size={20} />
@@ -1482,14 +1451,7 @@ export const Processes: React.FC = () => {
 
                             {/* Opção 3: Gov.br */}
                             <button
-                                onClick={() => {
-                                    setIsPjeModalOpen(false);
-                                    setIsPjeSyncing(true);
-                                    setTimeout(() => {
-                                        setIsPjeSyncing(false);
-                                        setShowFeedback({ message: t.processes.pjeSyncSuccess, type: 'success' });
-                                    }, 2000);
-                                }}
+                                onClick={() => handlePjeLogin('govbr')}
                                 className="w-full relative group p-1 flex items-center bg-transparent hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-2xl border-2 border-slate-200 dark:border-slate-800 hover:border-amber-500 dark:hover:border-amber-500 transition-all text-left overflow-hidden"
                             >
                                 <div className="absolute inset-y-0 left-0 w-1 bg-amber-500 transform -translate-x-full group-hover:translate-x-0 transition-transform"></div>
@@ -1500,7 +1462,7 @@ export const Processes: React.FC = () => {
                                 </div>
                                 <div className="pr-4 py-4 flex-1">
                                     <h3 className="text-legal-navy dark:text-white font-bold mb-1">{t.processes.pjeModalGovBr}</h3>
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">{t.processes.pjeGovBrPlaceholder}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Autenticação via conta Gov.br (acesso.gov.br)</p>
                                 </div>
                                 <div className="pr-6 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all text-amber-500">
                                     <ChevronRight size={20} />

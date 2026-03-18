@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Calendar as CalendarIcon, 
   ChevronLeft, 
@@ -14,11 +14,13 @@ import {
   X,
   Save,
   Trash2,
-  CalendarDays
+  CalendarDays,
+  UserPlus
 } from 'lucide-react';
 import { useLanguage } from '../services/languageContext';
 import { useTenant } from '../services/tenantContext';
-import { getAppointments, subscribeToProcesses } from '../services/supabaseService';
+import { getAppointments } from '../services/supabaseService';
+import { supabase } from '../services/supabaseClient';
 import { Appointment } from '../types';
 
 interface Event {
@@ -32,12 +34,23 @@ interface Event {
   notes?: string;
 }
 
+interface Professional {
+  id: string;
+  name: string;
+  color: string;
+  role?: string;
+}
+
 export const AgendaView: React.FC = () => {
   const { t } = useLanguage();
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
   const [selectedProfessional, setSelectedProfessional] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [isAddProfModalOpen, setIsAddProfModalOpen] = useState(false);
+  const [newProfName, setNewProfName] = useState('');
+  const [newProfRole, setNewProfRole] = useState('');
   
   // Estado inicial de eventos
   const [events, setEvents] = useState<Event[]>([]);
@@ -45,18 +58,17 @@ export const AgendaView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { tenantId } = useTenant();
 
+  const PROF_COLORS = [
+    'bg-rose-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500',
+    'bg-purple-500', 'bg-cyan-500', 'bg-orange-500', 'bg-indigo-500'
+  ];
+
   // Form de novo/editar evento
   const [eventForm, setEventForm] = useState<Partial<Event>>({
     type: 'reuniao',
-    professional: 'Dr. Sarah Smith',
+    professional: '',
     day: 1
   });
-
-  const professionals = [
-    { id: '1', name: 'Dra. Sarah Smith', color: 'bg-rose-500' },
-    { id: '2', name: 'Dr. John Doe', color: 'bg-blue-500' },
-    { id: '3', name: 'Dra. Elena Silva', color: 'bg-emerald-500' }
-  ];
 
   const categories = [
     { id: 'audiencia', label: 'Audiências', color: 'bg-rose-400' },
@@ -78,8 +90,34 @@ export const AgendaView: React.FC = () => {
   // Lógica de Data Real
   const [currentDate, setCurrentDate] = useState(new Date()); 
 
+  // Carregar membros da equipe como profissionais
+  useEffect(() => {
+    if (!tenantId) return;
+    const loadProfessionals = async () => {
+      try {
+        const { data } = await supabase
+          .from('team_members')
+          .select('id, name, role')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active')
+          .order('name');
+        if (data && data.length > 0) {
+          setProfessionals(data.map((m: any, idx: number) => ({
+            id: m.id,
+            name: m.name,
+            role: m.role,
+            color: PROF_COLORS[idx % PROF_COLORS.length]
+          })));
+        }
+      } catch (err) {
+        console.error('[Agenda] Erro ao carregar profissionais:', err);
+      }
+    };
+    loadProfessionals();
+  }, [tenantId]);
+
   // Efeito para carregar agendamentos do Supabase
-  React.useEffect(() => {
+  useEffect(() => {
     if (!tenantId) return;
 
     const loadData = async () => {
@@ -194,7 +232,12 @@ export const AgendaView: React.FC = () => {
       setEventForm(event);
     } else {
       setEditingEvent(null);
-      setEventForm({ type: 'reuniao', professional: 'Dr. Sarah Smith', day: currentDate.getDay(), time: '08:00' });
+      setEventForm({
+        type: 'reuniao',
+        professional: professionals[0]?.name || '',
+        day: currentDate.getDay(),
+        time: '08:00'
+      });
     }
     setIsModalOpen(true);
   };
@@ -225,7 +268,16 @@ export const AgendaView: React.FC = () => {
       <aside className="w-full lg:w-72 space-y-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
         
         <div className="space-y-4">
-          <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-2">Advogados</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] ml-2">Profissionais</label>
+            <button
+              onClick={() => setIsAddProfModalOpen(true)}
+              title="Cadastrar profissional"
+              className="w-7 h-7 rounded-xl bg-legal-bronze/10 hover:bg-legal-bronze/20 flex items-center justify-center text-legal-bronze transition-colors"
+            >
+              <UserPlus size={14} />
+            </button>
+          </div>
           <div className="space-y-2">
             <button 
               onClick={() => setSelectedProfessional('all')}
@@ -234,16 +286,29 @@ export const AgendaView: React.FC = () => {
               <Users size={18} />
               <span>Todos</span>
             </button>
-            {professionals.map(p => (
-              <button 
-                key={p.id}
-                onClick={() => setSelectedProfessional(p.id)}
-                className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all font-bold text-sm ${selectedProfessional === p.id ? 'bg-slate-100 dark:bg-slate-800 text-legal-navy dark:text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            {professionals.length === 0 ? (
+              <button
+                onClick={() => setIsAddProfModalOpen(true)}
+                className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 text-slate-400 hover:border-legal-bronze hover:text-legal-bronze transition-all font-bold text-sm"
               >
-                <div className={`w-2 h-2 rounded-full ${p.color}`}></div>
-                <span>{p.name}</span>
+                <UserPlus size={16} />
+                <span>Cadastrar profissional</span>
               </button>
-            ))}
+            ) : (
+              professionals.map(p => (
+                <button 
+                  key={p.id}
+                  onClick={() => setSelectedProfessional(p.id)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all font-bold text-sm ${selectedProfessional === p.id ? 'bg-slate-100 dark:bg-slate-800 text-legal-navy dark:text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${p.color}`}></div>
+                  <div className="flex-1 text-left">
+                    <span className="block">{p.name}</span>
+                    {p.role && <span className="text-[10px] font-normal text-slate-400">{p.role}</span>}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
         </div>
 
@@ -416,7 +481,11 @@ export const AgendaView: React.FC = () => {
                     onChange={(e) => setEventForm({...eventForm, professional: e.target.value})}
                     className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-rose-500/5 outline-none dark:text-white"
                   >
-                    {professionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                    {professionals.length === 0 ? (
+                      <option value="">Nenhum profissional cadastrado</option>
+                    ) : (
+                      professionals.map(p => <option key={p.id} value={p.name}>{p.name}</option>)
+                    )}
                   </select>
                 </div>
               </div>
@@ -486,6 +555,91 @@ export const AgendaView: React.FC = () => {
                   {editingEvent ? 'Salvar Alterações' : 'Criar Compromisso'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cadastro de Profissional */}
+      {isAddProfModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsAddProfModalOpen(false)} />
+          <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 z-10">
+            <div className="bg-gradient-to-br from-legal-navy to-blue-900 p-8 text-white">
+              <button onClick={() => setIsAddProfModalOpen(false)} className="absolute top-4 right-4 p-2 text-white/60 hover:text-white transition-colors rounded-full hover:bg-white/10">
+                <X size={18} />
+              </button>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-legal-bronze/20 rounded-2xl flex items-center justify-center border border-legal-bronze/30">
+                  <UserPlus size={22} className="text-legal-bronze" />
+                </div>
+                <div>
+                  <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Agenda</p>
+                  <h3 className="text-xl font-black">Cadastrar Profissional</h3>
+                </div>
+              </div>
+            </div>
+
+            <form
+              className="p-8 space-y-6"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newProfName.trim() || !tenantId) return;
+                try {
+                  const { data, error } = await supabase
+                    .from('team_members')
+                    .insert({
+                      tenant_id: tenantId,
+                      name: newProfName.trim(),
+                      role: newProfRole.trim() || 'Advogado',
+                      status: 'active'
+                    })
+                    .select('id, name, role')
+                    .single();
+                  if (error) throw error;
+                  const idx = professionals.length;
+                  setProfessionals(prev => [...prev, {
+                    id: data.id,
+                    name: data.name,
+                    role: data.role,
+                    color: PROF_COLORS[idx % PROF_COLORS.length]
+                  }]);
+                  setNewProfName('');
+                  setNewProfRole('');
+                  setIsAddProfModalOpen(false);
+                } catch (err: any) {
+                  alert('Erro ao cadastrar: ' + err.message);
+                }
+              }}
+            >
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome completo</label>
+                <input
+                  type="text"
+                  required
+                  value={newProfName}
+                  onChange={(e) => setNewProfName(e.target.value)}
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-legal-navy/10 dark:text-white transition-all"
+                  placeholder="Ex: Dr. João da Silva"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Cargo / Especialidade</label>
+                <input
+                  type="text"
+                  value={newProfRole}
+                  onChange={(e) => setNewProfRole(e.target.value)}
+                  className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-legal-navy/10 dark:text-white transition-all"
+                  placeholder="Ex: Advogado Trabalhista"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-4 bg-legal-navy text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:brightness-110 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <UserPlus size={18} />
+                Cadastrar Profissional
+              </button>
             </form>
           </div>
         </div>

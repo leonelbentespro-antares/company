@@ -192,38 +192,15 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             const instanceToken = String(payload.token || (msg.token) || (payload.instance?.token) || '').trim();
             isFromMe = msg.fromMe === true || msg.fromMe === 'true';
 
-            // Extrair telefone do remetente de forma mais flexível
-            const rawSender = String(msg.sender_pn || msg.senderpn || msg.sender || msg.chatid || msg.from || (msg.key?.remoteJid) || '');
-            isGroup = rawSender.includes('@g.us');
-            
-            senderPhone = rawSender
-                .replace(/@s\.whatsapp\.net$/i, '')
-                .replace(/@c\.us$/i, '')
-                .replace(/@lid$/i, '')
-                .replace(/@g\.us$/i, '');
+            // Identificar ID do Chat (Grupo ou Privado) — essa é a chave primária da conversa
+            const rawChat = String(
+                msg.chatid || msg.chatId || msg.key?.remoteJid || msg.remoteJid || msg.from || msg.sender_pn || msg.senderpn || msg.sender || ''
+            );
+            isGroup = rawChat.includes('@g.us');
 
-            if (isFromMe) {
-                try {
-                    fs.appendFileSync('/tmp/lexhub_fromme_debug.log', `\n--- ${new Date().toISOString()} ---\n${JSON.stringify(payload, null, 2)}\n`);
-                } catch (e) {}
-            }
-
-            if (isFromMe && (senderPhone === (msg.owner || payload.owner) || senderPhone.length < 5)) {
-                // Se eu enviei, a conversa é com o chatid (destinatário)
-                const rawChat = String(msg.chatid || msg.to || (msg.key?.remoteJid) || '');
-                isGroup = rawChat.includes('@g.us');
-                
-                senderPhone = rawChat
-                    .replace(/@s\.whatsapp\.net$/i, '')
-                    .replace(/@c\.us$/i, '')
-                    .replace(/@lid$/i, '')
-                    .replace(/@g\.us$/i, '');
-            }
-        
-            // Texto da mensagem
-            const rawText = msg.text;
+            // Extrair o texto da mensagem ANTES de aplicar qualquer prefixo
             const msgContent = msg.message || msg.content || {};
-
+            const rawText = msg.text;
             textBody = (typeof rawText === 'string' && rawText.trim() !== '') ? rawText
                         : (msgContent.conversation ? String(msgContent.conversation) : '')
                         || (msgContent.extendedTextMessage?.text ? String(msgContent.extendedTextMessage.text) : '')
@@ -231,6 +208,48 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                         || (msgContent.videoMessage?.caption ? String(msgContent.videoMessage.caption) : '')
                         || (msgContent.documentMessage?.caption ? String(msgContent.documentMessage.caption) : '')
                         || (typeof msg.content === 'object' && msg.content?.text ? String(msg.content.text) : '');
+
+            // Lógica de Grupo vs Privado
+            if (isGroup) {
+                // Para grupos: usar o ID do grupo como senderPhone (chave única da conversa do grupo)
+                senderPhone = rawChat.replace(/@g\.us$/i, '');
+                const rawGroupName = msg.groupName || msg.chatName || msg.pushNameFrom || '';
+                senderName = rawGroupName || senderPhone;
+
+                // Extrair participante (quem enviou dentro do grupo)
+                const rawPart = String(msg.participant || msg.key?.participant || msg.sender || '');
+                const participantPhone = rawPart.replace(/@s\.whatsapp\.net$/i, '').replace(/@c\.us$/i, '');
+                const participantName = msg.pushName || participantPhone;
+
+                // Prefixar o texto com o nome do participante (como o WhatsApp faz)
+                if (!isFromMe && textBody) {
+                    textBody = `*${participantName}:*\n${textBody}`;
+                }
+            } else {
+                // Para conversas privadas
+                if (isFromMe) {
+                    // Se eu enviei, a conversa é com o destinatário
+                    const rawDest = String(msg.chatid || msg.to || msg.key?.remoteJid || '');
+                    senderPhone = rawDest
+                        .replace(/@s\.whatsapp\.net$/i, '')
+                        .replace(/@c\.us$/i, '')
+                        .replace(/@lid$/i, '');
+                    
+                    // IMPORTANTE: Em mensagens fromMe, o 'msg.pushName' costuma ser o nome do DONO da conta (você).
+                    // Não queremos salvar o seu nome como nome do contato.
+                    // Tentamos pegar dados do destinatário, caso contrário deixamos o senderPhone.
+                    senderName = msg.notifyName || msg.verifiedBizName || msg.contactName || senderPhone;
+                } else {
+                    senderPhone = rawChat
+                        .replace(/@s\.whatsapp\.net$/i, '')
+                        .replace(/@c\.us$/i, '')
+                        .replace(/@lid$/i, '');
+                    // Nome de quem me enviou
+                    senderName = msg.pushName || msg.notifyName || msg.senderName || senderPhone;
+                }
+            }
+
+
 
             // Detecção de Mídia (UAZAPI V2 e Baileys)
             const typeHint = (msg.messageType || msg.type || '').toLowerCase();
@@ -270,7 +289,8 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             }
 
             tenantId = instanceName || '';
-            senderName = msg.pushName || msg.senderName || senderPhone;
+            
+
             
             // Atrelar o token extraído ao payload para uso posterior se necessário
             (payload as any)._extractedToken = instanceToken;
@@ -410,8 +430,9 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
                 .from('chat_conversations')
                 .update({ 
                     last_message: textBody,
-                    // Só atualiza o nome do contato se a mensagem NÃO for do próprio usuário/empresa
-                    contact_name: (!isFromMe && senderName !== senderPhone) ? senderName : undefined,
+                    // Atualiza o nome se o senderName for diferente do número (indicando que temos um nome real)
+                    // e se NÃO for uma mensagem 'fromMe' onde o nome capturado seja o seu seu próprio (proteção extra)
+                    contact_name: (senderName !== senderPhone) ? senderName : undefined,
                     is_group: isGroup,
                     updated_at: new Date().toISOString()
                 })
@@ -449,7 +470,6 @@ export async function processIncomingMessage(payload: any, eventSource: 'uazapi'
             from_me: isFromMe,
             media_url: mediaUrl || null,
             media_type: mediaType || null,
-            status: 'received', // Webhook geralmente é recebimento ou confirmação
             created_at: new Date().toISOString()
         };
 
